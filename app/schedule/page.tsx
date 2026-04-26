@@ -390,19 +390,31 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showNewJobModal, setShowNewJobModal] = useState(false);
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedDayOffset, setSelectedDayOffset] = useState(0); // 0=today
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedISO, setSelectedISO] = useState(() => formatDateISO(new Date()));
 
   const today = useMemo(() => {
     const d = new Date(); d.setHours(0,0,0,0); return d;
   }, []);
+  const todayISO = formatDateISO(today);
 
-  const selectedDate = useMemo(() => addDays(today, selectedDayOffset), [today, selectedDayOffset]);
-  const selectedISO = formatDateISO(selectedDate);
+  // Current displayed month
+  const displayMonth = useMemo(() => {
+    const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+    return d;
+  }, [today, monthOffset]);
 
-  // Week days for the strip (7 days from week start)
-  const weekStart = useMemo(() => addDays(getWeekStart(today), weekOffset * 7), [today, weekOffset]);
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  // All days to show in the month grid (including padding days from prev/next month)
+  const calendarDays = useMemo(() => {
+    const year = displayMonth.getFullYear();
+    const month = displayMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const days: (Date | null)[] = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(new Date(year, month, d));
+    return days;
+  }, [displayMonth]);
 
   useEffect(() => { fetchJobs(); }, []);
 
@@ -431,36 +443,29 @@ export default function SchedulePage() {
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: "completed" as TaskStatus } : j));
   }
 
+  const selectedDate = useMemo(() => new Date(selectedISO + "T00:00:00"), [selectedISO]);
+
   const selectedDayJobs = useMemo(
     () => jobs.filter(j => j.date === selectedISO).sort((a, b) => a.time.localeCompare(b.time)),
     [jobs, selectedISO]
   );
 
-  // Stats for selected day
   const dayRevenue = selectedDayJobs.reduce((s, j) => s + j.price, 0);
   const dayCompleted = selectedDayJobs.filter(j => j.status === "completed").length;
-
-  const todayISO = formatDateISO(today);
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* ── Header ── */}
-      <div className="bg-white border-b border-gray-200 px-4 py-4">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">לוח זמנים</h1>
-            <p className="text-xs text-gray-500 mt-0.5">{jobs.length} עבודות סה״כ</p>
-          </div>
+      <div className="bg-white border-b border-gray-200 px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-xl font-bold text-gray-900">לוח זמנים</h1>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => fetchJobs()}
-              className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200"
-            >
+            <button onClick={() => fetchJobs()} className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200">
               <RefreshCw size={16} />
             </button>
             <button
               onClick={() => setShowNewJobModal(true)}
-              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors"
+              className="flex items-center gap-1.5 bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm"
             >
               <Plus size={16} />
               עבודה חדשה
@@ -468,49 +473,78 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {/* Week navigation */}
-        <div className="flex items-center gap-2 mb-3">
-          <button onClick={() => setWeekOffset(o => o - 1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+        {/* Month navigation */}
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={() => setMonthOffset(o => o - 1)} className="p-1.5 rounded-lg bg-gray-100 text-gray-600">
             <ChevronRight size={18} />
           </button>
-          <button
-            onClick={() => { setWeekOffset(0); setSelectedDayOffset(0); }}
-            className="px-3 py-1 text-xs font-semibold text-green-700 bg-green-50 rounded-lg border border-green-200"
-          >
-            היום
-          </button>
-          <button onClick={() => setWeekOffset(o => o + 1)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-gray-900">
+              {HEBREW_MONTHS[displayMonth.getMonth()]} {displayMonth.getFullYear()}
+            </span>
+            {monthOffset !== 0 && (
+              <button
+                onClick={() => { setMonthOffset(0); setSelectedISO(todayISO); }}
+                className="text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-lg border border-green-200 font-semibold"
+              >
+                היום
+              </button>
+            )}
+          </div>
+          <button onClick={() => setMonthOffset(o => o + 1)} className="p-1.5 rounded-lg bg-gray-100 text-gray-600">
             <ChevronLeft size={18} />
           </button>
-          <span className="text-xs text-gray-500 font-medium">
-            {weekDays[0].getDate()} – {weekDays[6].getDate()} {HEBREW_MONTHS[weekDays[6].getMonth()]}
-          </span>
         </div>
 
-        {/* Day strip */}
-        <div className="grid grid-cols-7 gap-1">
-          {weekDays.map((day, i) => {
+        {/* Day-of-week headers */}
+        <div className="grid grid-cols-7 mb-1">
+          {["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"].map(d => (
+            <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+
+        {/* Month grid */}
+        <div className="grid grid-cols-7 gap-0.5">
+          {calendarDays.map((day, i) => {
+            if (!day) return <div key={`empty-${i}`} />;
             const iso = formatDateISO(day);
             const isToday = iso === todayISO;
             const isSelected = iso === selectedISO;
-            const dayJobCount = jobs.filter(j => j.date === iso).length;
+            const dayJobs = jobs.filter(j => j.date === iso);
+            const hasUrgent = dayJobs.some(j => j.priority === "urgent");
+            const hasJobs = dayJobs.length > 0;
+
             return (
               <button
                 key={iso}
-                onClick={() => setSelectedDayOffset(Math.round((day.getTime() - today.getTime()) / 86400000))}
-                className={`flex flex-col items-center py-2 px-1 rounded-xl transition-all ${
-                  isSelected ? "bg-green-600 text-white shadow-sm" :
-                  isToday ? "bg-green-50 text-green-700" : "text-gray-600 hover:bg-gray-50"
+                onClick={() => setSelectedISO(iso)}
+                className={`flex flex-col items-center py-1.5 rounded-xl transition-all relative ${
+                  isSelected ? "bg-green-600 shadow-sm" :
+                  isToday ? "bg-green-50 ring-1 ring-green-400" :
+                  "hover:bg-gray-50 active:bg-gray-100"
                 }`}
               >
-                <span className={`text-xs font-medium mb-1 ${isSelected ? "text-white/80" : "text-gray-400"}`}>
-                  {HEBREW_DAYS_SHORT[day.getDay()]}
-                </span>
-                <span className={`text-sm font-bold ${isSelected ? "text-white" : isToday ? "text-green-700" : "text-gray-800"}`}>
+                <span className={`text-sm font-bold leading-tight ${
+                  isSelected ? "text-white" :
+                  isToday ? "text-green-700" :
+                  "text-gray-800"
+                }`}>
                   {day.getDate()}
                 </span>
-                {dayJobCount > 0 && (
-                  <div className={`w-1.5 h-1.5 rounded-full mt-1 ${isSelected ? "bg-white" : "bg-green-500"}`} />
+                {hasJobs ? (
+                  <div className="flex gap-0.5 mt-0.5">
+                    {dayJobs.slice(0, 3).map((j, idx) => (
+                      <div key={idx} className={`w-1 h-1 rounded-full ${
+                        isSelected ? "bg-white" :
+                        j.priority === "urgent" ? "bg-red-500" :
+                        j.priority === "high" ? "bg-orange-400" :
+                        j.status === "completed" ? "bg-gray-300" :
+                        "bg-green-500"
+                      }`} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-2" />
                 )}
               </button>
             );
