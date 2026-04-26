@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import {
   monthlyRevenue,
@@ -132,6 +133,7 @@ function CustomBarTooltip({ active, payload, label }: { active?: boolean; payloa
 // ───────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [stats, setStats] = useState({ monthlyIncome: 0, activeCustomers: 0, openBalance: 0, todayJobs: 0 });
   const [recentJobs, setRecentJobs] = useState<Record<string, unknown>[]>([]);
 
@@ -451,28 +453,33 @@ export default function DashboardPage() {
                   label: "לקוח חדש",
                   bg: "bg-green-50 hover:bg-green-100 border-green-100",
                   text: "text-green-700",
+                  href: "/customers",
                 },
                 {
                   icon: <CalendarPlus size={18} className="text-blue-600" />,
                   label: "קבע עבודה",
                   bg: "bg-blue-50 hover:bg-blue-100 border-blue-100",
                   text: "text-blue-700",
+                  href: "/schedule",
                 },
                 {
                   icon: <MessageSquare size={18} className="text-purple-600" />,
-                  label: "שלח הודעה",
+                  label: "עובדים",
                   bg: "bg-purple-50 hover:bg-purple-100 border-purple-100",
                   text: "text-purple-700",
+                  href: "/employees",
                 },
                 {
                   icon: <FileText size={18} className="text-orange-500" />,
-                  label: "צור חשבונית",
+                  label: "פיננסים",
                   bg: "bg-orange-50 hover:bg-orange-100 border-orange-100",
                   text: "text-orange-600",
+                  href: "/finance",
                 },
               ].map((action) => (
                 <button
                   key={action.label}
+                  onClick={() => router.push(action.href)}
                   className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border transition-colors ${action.bg}`}
                 >
                   <div className="w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center">

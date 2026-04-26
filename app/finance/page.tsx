@@ -189,89 +189,84 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md" dir="rtl">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        </div>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-              <Plus size={18} className="text-green-600" />
+            <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center">
+              <Plus size={16} className="text-green-600" />
             </div>
-            <h2 className="text-base font-bold text-gray-900">חשבונית חדשה</h2>
+            <h2 className="text-base font-bold text-gray-900">תנועה חדשה</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100"
-          >
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        {/* Scrollable fields */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">שם לקוח</label>
-            <input
-              type="text"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+            <input type="text"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               placeholder="שם הלקוח..."
               value={form.customer_name}
               onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
             />
           </div>
-
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">סכום (₪)</label>
-            <input
-              type="number"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+            <input type="number"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               placeholder="0"
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
             />
           </div>
-
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">תיאור</label>
-            <input
-              type="text"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+            <input type="text"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               placeholder="תיאור השירות..."
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
           </div>
-
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">אמצעי תשלום</label>
             <div className="relative">
               <select
-                className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-300"
+                className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.method}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    method: e.target.value as "cash" | "credit" | "bit" | "transfer",
-                  }))
-                }
+                onChange={(e) => setForm((f) => ({ ...f, method: e.target.value as "cash" | "credit" | "bit" | "transfer" }))}
               >
                 <option value="cash">מזומן</option>
                 <option value="credit">אשראי</option>
                 <option value="bit">ביט</option>
                 <option value="transfer">העברה</option>
               </select>
-              <ChevronDown
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
+              <ChevronDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             </div>
           </div>
+        </div>
 
+        {/* Sticky buttons */}
+        <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 bg-white flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-600">
+            ביטול
+          </button>
           <button
             onClick={handleSubmit}
             disabled={saving || !form.customer_name || !form.amount}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-2xl transition-colors flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            {saving ? "שומר..." : "שמור חשבונית"}
+            {saving ? "שומר..." : "שמור"}
           </button>
         </div>
       </div>
