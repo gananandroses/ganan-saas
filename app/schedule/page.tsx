@@ -245,84 +245,91 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto" dir="rtl">
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">עבודה חדשה</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם לקוח *</label>
-            <input name="customer_name" value={form.customer_name} onChange={handleChange}
-              placeholder="משפחת כהן"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
-            <input name="address" value={form.address} onChange={handleChange}
-              placeholder="רחוב הורד 12, רעננה"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Scrollable fields */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">תאריך *</label>
-              <input name="job_date" type="date" value={form.job_date} onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">שם לקוח *</label>
+              <input name="customer_name" value={form.customer_name} onChange={handleChange}
+                placeholder="משפחת כהן"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">שעה</label>
-              <input name="job_time" type="time" value={form.job_time} onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
+              <input name="address" value={form.address} onChange={handleChange}
+                placeholder="רחוב הורד 12, רעננה"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">תאריך *</label>
+                <input name="job_date" type="date" value={form.job_date} onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">שעה</label>
+                <input name="job_time" type="time" value={form.job_time} onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">משך (שעות)</label>
+                <input name="duration" type="number" min="0.5" step="0.5" value={form.duration} onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">מחיר (₪)</label>
+                <input name="price" type="number" min="0" value={form.price} onChange={handleChange} placeholder="350"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">סוג עבודה</label>
+                <input name="type" value={form.type} onChange={handleChange} placeholder="גיזום, השקיה..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">עדיפות</label>
+                <select name="priority" value={form.priority} onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
+                  <option value="low">נמוך</option>
+                  <option value="medium">בינוני</option>
+                  <option value="high">גבוה</option>
+                  <option value="urgent">דחוף</option>
+                </select>
+              </div>
+            </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">משך (שעות)</label>
-              <input name="duration" type="number" min="0.5" step="0.5" value={form.duration} onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+              <textarea name="notes" value={form.notes} onChange={handleChange} rows={2}
+                placeholder="הערות נוספות..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">מחיר (₪)</label>
-              <input name="price" type="number" min="0" value={form.price} onChange={handleChange} placeholder="350"
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
+            {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{error}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">סוג עבודה</label>
-              <input name="type" value={form.type} onChange={handleChange} placeholder="גיזום, השקיה..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">עדיפות</label>
-              <select name="priority" value={form.priority} onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white">
-                <option value="low">נמוך</option>
-                <option value="medium">בינוני</option>
-                <option value="high">גבוה</option>
-                <option value="urgent">דחוף</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-            <textarea name="notes" value={form.notes} onChange={handleChange} rows={2}
-              placeholder="הערות נוספות..."
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
-          </div>
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{error}</p>}
-          <div className="flex gap-3 pb-2">
+
+          {/* Sticky buttons — always visible */}
+          <div className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0 bg-white">
             <button type="submit" disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-2xl py-3 text-sm transition-colors">
+              className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-2xl py-3.5 text-sm transition-colors">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
               {saving ? "שומר..." : "הוסף עבודה"}
             </button>
             <button type="button" onClick={onClose}
-              className="flex-1 border border-gray-200 text-gray-700 font-semibold rounded-2xl py-3 text-sm">
+              className="flex-1 border border-gray-200 text-gray-700 font-semibold rounded-2xl py-3.5 text-sm">
               ביטול
             </button>
           </div>
