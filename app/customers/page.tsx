@@ -795,7 +795,8 @@ export default function CustomersPage() {
     if (!newCustomer.name || !newCustomer.phone) return;
     setSaving(true);
     setSaveError("");
-    const { data, error } = await supabase.from("customers").insert([{
+
+    const { error } = await supabase.from("customers").insert([{
       name: newCustomer.name,
       city: newCustomer.city,
       address: newCustomer.address,
@@ -809,20 +810,41 @@ export default function CustomersPage() {
       balance: 0,
       total_paid: 0,
       join_date: new Date().toISOString().split("T")[0],
-    }]).select().single();
-    if (!error && data) {
-      setCustomers(prev => [{
-        id: data.id, name: data.name, city: data.city || "", address: data.address || "",
-        phone: data.phone || "", email: data.email, monthlyPrice: data.monthly_price || 0,
-        frequency: data.frequency || "", status: data.status as CustomerStatus,
-        joinDate: data.join_date || "", lastVisit: "", nextVisit: "",
-        notes: data.notes || "", tags: [], totalPaid: 0, balance: 0, lat: 0, lng: 0,
-      }, ...prev]);
-      setShowAddModal(false);
-      setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "" });
-    } else if (error) {
+    }]);
+
+    if (error) {
       setSaveError(error.message);
+      setSaving(false);
+      return;
     }
+
+    // reload full list
+    const { data: fresh } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+    if (fresh) {
+      setCustomers(fresh.map((c: Record<string, unknown>) => ({
+        id: c.id as string,
+        name: c.name as string,
+        city: c.city as string || "",
+        address: c.address as string || "",
+        phone: c.phone as string || "",
+        email: c.email as string || undefined,
+        monthlyPrice: c.monthly_price as number || 0,
+        frequency: c.frequency as string || "",
+        status: c.status as CustomerStatus || "active",
+        joinDate: c.join_date as string || "",
+        lastVisit: c.last_visit as string || "",
+        nextVisit: c.next_visit as string || "",
+        notes: c.notes as string || "",
+        tags: c.tags as string[] || [],
+        totalPaid: c.total_paid as number || 0,
+        balance: c.balance as number || 0,
+        lat: c.lat as number || 0,
+        lng: c.lng as number || 0,
+      })));
+    }
+
+    setShowAddModal(false);
+    setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "" });
     setSaving(false);
   }
 
