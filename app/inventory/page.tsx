@@ -312,8 +312,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">שם הפריט</label>
             <input
@@ -395,9 +394,6 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               />
             </div>
           </div>
-        </div>
-
-        </div>
         </div>
 
         {/* Sticky buttons */}
