@@ -288,7 +288,7 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col" dir="rtl">
+    <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl">
       {/* Sticky top nav */}
       <div className="sticky top-0 bg-white border-b border-gray-100 flex items-center px-4 py-3 z-10 flex-shrink-0">
         <button onClick={onClose} className="text-sm text-gray-500 font-medium">סגור</button>
