@@ -497,39 +497,6 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
                 </div>
               )}
 
-              {/* Delete section */}
-              <div className="pt-2 border-t border-gray-100">
-                {!confirmDelete ? (
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                    מחק לקוח
-                  </button>
-                ) : (
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
-                    <p className="text-sm font-semibold text-red-700">האם למחוק את {customer.name}?</p>
-                    <p className="text-xs text-red-500">פעולה זו אינה ניתנת לביטול</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setConfirmDelete(false)}
-                        className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
-                        ביטול
-                      </button>
-                      <button
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        {deleting ? "מוחק..." : "כן, מחק"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -729,6 +696,37 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
                   שמור הערה
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* ===== DELETE FOOTER (always visible) ===== */}
+        <div className="border-t border-gray-100 px-5 py-3 bg-white flex-shrink-0">
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-2 text-sm text-red-400 hover:text-red-600 transition-colors"
+            >
+              <Trash2 size={14} />
+              מחק לקוח
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-red-700 font-medium flex-1">למחוק את {customer.name}?</p>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-600"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                {deleting ? "מוחק..." : "כן, מחק"}
+              </button>
             </div>
           )}
         </div>
