@@ -26,6 +26,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import type { Customer, CustomerStatus } from "@/lib/mock-data";
@@ -271,11 +272,20 @@ const tabConfig: { id: DetailTab; label: string; icon: React.ReactNode }[] = [
 interface CustomerModalProps {
   customer: Customer;
   onClose: () => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
-function CustomerModal({ customer, onClose }: CustomerModalProps) {
+function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("details");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const status = statusConfig[customer.status];
+
+  async function handleDelete() {
+    setDeleting(true);
+    await onDelete(customer.id);
+    setDeleting(false);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -486,6 +496,40 @@ function CustomerModal({ customer, onClose }: CustomerModalProps) {
                   </div>
                 </div>
               )}
+
+              {/* Delete section */}
+              <div className="pt-2 border-t border-gray-100">
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    מחק לקוח
+                  </button>
+                ) : (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-3">
+                    <p className="text-sm font-semibold text-red-700">האם למחוק את {customer.name}?</p>
+                    <p className="text-xs text-red-500">פעולה זו אינה ניתנת לביטול</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        ביטול
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        {deleting ? "מוחק..." : "כן, מחק"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -849,6 +893,12 @@ export default function CustomersPage() {
     setSaving(false);
   }
 
+  async function handleDeleteCustomer(id: string) {
+    await supabase.from("customers").delete().eq("id", id);
+    setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setSelectedCustomer(null);
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-screen">
       <Loader2 className="animate-spin text-green-600" size={40} />
@@ -1029,6 +1079,7 @@ export default function CustomersPage() {
         <CustomerModal
           customer={selectedCustomer}
           onClose={() => setSelectedCustomer(null)}
+          onDelete={handleDeleteCustomer}
         />
       )}
 
