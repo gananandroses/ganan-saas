@@ -288,30 +288,24 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <div className="fixed inset-0 z-50 bg-white flex flex-col" dir="rtl">
+      {/* Sticky top nav */}
+      <div className="sticky top-0 bg-white border-b border-gray-100 flex items-center px-4 py-3 z-10 flex-shrink-0">
+        <button onClick={onClose} className="text-sm text-gray-500 font-medium">סגור</button>
+        <div className="flex-1 text-center">
+          <span className="font-bold text-gray-900">{customer.name}</span>
+        </div>
+        <div className="w-10" />
+      </div>
 
-      {/* Panel */}
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl h-[90vh] flex flex-col overflow-hidden">
-        {/* Header */}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Green header */}
         <div className="bg-gradient-to-br from-green-600 to-green-700 p-6 text-white">
-          <button
-            onClick={onClose}
-            className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-          >
-            <X size={16} className="text-white" />
-          </button>
-
           <div className="flex items-start gap-4">
-            {/* Avatar */}
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-bold flex-shrink-0">
               {customer.name.charAt(0)}
             </div>
-
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl font-bold">{customer.name}</h2>
@@ -320,76 +314,47 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
                 )}
               </div>
               <p className="text-green-100 text-sm mt-0.5">{customer.city}</p>
-              <span
-                className={`inline-flex items-center gap-1 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white`}
-              >
+              <span className="inline-flex items-center gap-1 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white">
                 <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
                 {status.label}
               </span>
             </div>
-
             <div className="text-right flex-shrink-0">
               <p className="text-2xl font-bold">{formatCurrency(customer.monthlyPrice)}</p>
               <p className="text-green-100 text-xs">לחודש</p>
               <p className="text-green-100 text-xs mt-1">{customer.frequency}</p>
             </div>
           </div>
-
-          {/* Quick action buttons */}
           <div className="flex gap-2 mt-4">
-            <a
-              href={`tel:${customer.phone}`}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm"
-            >
-              <Phone size={14} />
-              <span>התקשר</span>
+            <a href={`tel:${customer.phone}`}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm">
+              <Phone size={14} /><span>התקשר</span>
             </a>
-            <button
-              onClick={() => {
-                const num = customer.phone.replace(/\D/g, "");
-                const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
-                window.open(`https://wa.me/${intl}`, "_blank");
-              }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm"
-            >
-              <MessageCircle size={14} />
-              <span>WhatsApp</span>
+            <button onClick={() => { const num = customer.phone.replace(/\D/g,""); const intl = num.startsWith("0")?"972"+num.slice(1):num; window.open(`https://wa.me/${intl}`,"_blank"); }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm">
+              <MessageCircle size={14} /><span>WhatsApp</span>
             </button>
-            <button
-              onClick={() =>
-                window.open(
-                  `https://waze.com/ul?q=${encodeURIComponent(customer.address)}`,
-                  "_blank"
-                )
-              }
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm"
-            >
-              <Navigation size={14} />
-              <span>נווט</span>
+            <button onClick={() => window.open(`https://waze.com/ul?q=${encodeURIComponent(customer.address)}`,"_blank")}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors text-sm">
+              <Navigation size={14} /><span>נווט</span>
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100 px-4 pt-2">
+        <div className="flex border-b border-gray-100 px-4 pt-2 bg-white sticky top-0 z-[5]">
           {tabConfig.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? "border-green-600 text-green-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
+                activeTab === tab.id ? "border-green-600 text-green-700" : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}>
+              {tab.icon}{tab.label}
             </button>
           ))}
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-5">
+        <div className="p-5">
           {activeTab === "details" && (
             <div className="space-y-4">
               {/* Contact info */}
@@ -699,37 +664,30 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
             </div>
           )}
         </div>
+      </div>
 
-        {/* ===== DELETE FOOTER (always visible) ===== */}
-        <div className="border-t border-gray-100 px-5 py-3 bg-white flex-shrink-0">
-          {!confirmDelete ? (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="flex items-center gap-2 text-sm text-red-400 hover:text-red-600 transition-colors"
-            >
-              <Trash2 size={14} />
-              מחק לקוח
+      {/* ===== DELETE FOOTER (always visible) ===== */}
+      <div className="border-t border-gray-100 px-5 py-3 bg-white flex-shrink-0">
+        {!confirmDelete ? (
+          <button onClick={() => setConfirmDelete(true)}
+            className="flex items-center gap-2 text-sm text-red-400 active:text-red-600 transition-colors">
+            <Trash2 size={14} />
+            מחק לקוח
+          </button>
+        ) : (
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-red-700 font-medium flex-1">למחוק את {customer.name}?</p>
+            <button onClick={() => setConfirmDelete(false)}
+              className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-600">
+              ביטול
             </button>
-          ) : (
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-red-700 font-medium flex-1">למחוק את {customer.name}?</p>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm text-gray-600"
-              >
-                ביטול
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                {deleting ? "מוחק..." : "כן, מחק"}
-              </button>
-            </div>
-          )}
-        </div>
+            <button onClick={handleDelete} disabled={deleting}
+              className="px-3 py-1.5 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-50 flex items-center gap-1.5">
+              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+              {deleting ? "מוחק..." : "כן, מחק"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
