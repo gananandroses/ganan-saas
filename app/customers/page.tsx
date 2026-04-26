@@ -784,6 +784,7 @@ export default function CustomersPage() {
   // Add customer form state
   const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [newCustomer, setNewCustomer] = useState({
     name: "", city: "", address: "", phone: "", email: "",
     monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "",
@@ -793,6 +794,7 @@ export default function CustomersPage() {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.phone) return;
     setSaving(true);
+    setSaveError("");
     const { data, error } = await supabase.from("customers").insert([{
       name: newCustomer.name,
       city: newCustomer.city,
@@ -818,6 +820,8 @@ export default function CustomersPage() {
       }, ...prev]);
       setShowAddModal(false);
       setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "" });
+    } else if (error) {
+      setSaveError(error.message);
     }
     setSaving(false);
   }
@@ -1057,6 +1061,11 @@ export default function CustomersPage() {
                     placeholder="הערות מיוחדות, דרישות, שעות עדיפות..." />
                 </div>
               </div>
+              {saveError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                  שגיאה: {saveError}
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddModal(false)}
                   className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
