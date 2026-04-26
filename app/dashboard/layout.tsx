@@ -1,12 +1,5 @@
-import Sidebar from "@/components/Sidebar";
+import AppLayout from "@/components/AppLayout";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-      <main className="flex-1 mr-64 min-h-screen overflow-x-hidden">
-        {children}
-      </main>
-    </div>
-  );
+  return <AppLayout>{children}</AppLayout>;
 }
