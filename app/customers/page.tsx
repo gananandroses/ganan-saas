@@ -667,7 +667,7 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
       </div>
 
       {/* ===== DELETE FOOTER (always visible) ===== */}
-      <div className="border-t border-gray-100 px-5 py-3 bg-white flex-shrink-0">
+      <div className="border-t border-gray-100 px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] bg-white flex-shrink-0">
         {!confirmDelete ? (
           <button onClick={() => setConfirmDelete(true)}
             className="flex items-center gap-2 text-sm text-red-400 active:text-red-600 transition-colors">
