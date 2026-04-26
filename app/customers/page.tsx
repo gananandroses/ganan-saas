@@ -389,7 +389,7 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
         </div>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5">
           {activeTab === "details" && (
             <div className="space-y-4">
               {/* Contact info */}
