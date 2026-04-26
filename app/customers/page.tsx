@@ -296,7 +296,7 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
       />
 
       {/* Panel */}
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xl h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-br from-green-600 to-green-700 p-6 text-white">
           <button
