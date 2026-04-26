@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
-  Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone,
+  Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -255,14 +255,22 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
 
-        {/* Header */}
+        {/* Header — with save button always visible */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">עבודה חדשה</h2>
-          <button onClick={onClose} className="text-gray-400 p-1"><X size={20} /></button>
+          <button onClick={onClose} className="text-gray-500 text-sm font-medium px-1 py-1">ביטול</button>
+          <h2 className="text-base font-bold text-gray-900">עבודה חדשה</h2>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSubmit}
+            className="bg-green-600 disabled:opacity-50 text-white text-sm font-bold px-4 py-1.5 rounded-xl flex items-center gap-1">
+            {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+            {saving ? "שומר" : "הוסף ✓"}
+          </button>
         </div>
 
         {/* Scrollable fields */}
-        <div className="overflow-y-auto px-5 py-4 space-y-3" style={{maxHeight: '55vh'}}>
+        <div className="overflow-y-auto px-5 py-4 space-y-3" style={{maxHeight: '60vh'}}>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">שם לקוח *</label>
             <input name="customer_name" value={form.customer_name} onChange={handleChange}
@@ -452,13 +460,21 @@ export default function SchedulePage() {
             <h1 className="text-xl font-bold text-gray-900">לוח זמנים</h1>
             <p className="text-xs text-gray-500 mt-0.5">{jobs.length} עבודות סה״כ</p>
           </div>
-          <button
-            onClick={() => setShowNewJobModal(true)}
-            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors"
-          >
-            <Plus size={16} />
-            עבודה חדשה
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchJobs()}
+              className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200"
+            >
+              <RefreshCw size={16} />
+            </button>
+            <button
+              onClick={() => setShowNewJobModal(true)}
+              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors"
+            >
+              <Plus size={16} />
+              עבודה חדשה
+            </button>
+          </div>
         </div>
 
         {/* Week navigation */}

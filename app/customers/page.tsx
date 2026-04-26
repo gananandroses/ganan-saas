@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Navigation,
   X,
+  RefreshCw,
   Star,
   Users,
   TrendingUp,
@@ -865,13 +866,36 @@ export default function CustomersPage() {
               {activeCount} לקוחות פעילים
             </p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
-          >
-            <Plus size={16} />
-            לקוח חדש +
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setLoading(true);
+                supabase.from("customers").select("*").order("created_at", { ascending: false }).then(({ data }) => {
+                  if (data) setCustomers(data.map((c: Record<string, unknown>) => ({
+                    id: c.id as string, name: c.name as string, city: c.city as string || "",
+                    address: c.address as string || "", phone: c.phone as string || "",
+                    email: c.email as string || undefined, monthlyPrice: c.monthly_price as number || 0,
+                    frequency: c.frequency as string || "", status: (c.status as string || "active") as import("@/lib/mock-data").CustomerStatus,
+                    joinDate: c.join_date as string || "", lastVisit: c.last_visit as string || "",
+                    nextVisit: c.next_visit as string || "", notes: c.notes as string || "",
+                    tags: c.tags as string[] || [], totalPaid: c.total_paid as number || 0,
+                    balance: c.balance as number || 0, lat: c.lat as number || 0, lng: c.lng as number || 0,
+                  })));
+                  setLoading(false);
+                });
+              }}
+              className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200"
+            >
+              <RefreshCw size={16} />
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
+            >
+              <Plus size={16} />
+              לקוח חדש +
+            </button>
+          </div>
         </div>
 
         {/* ===== STATS ROW ===== */}
