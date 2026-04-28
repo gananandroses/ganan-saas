@@ -441,9 +441,10 @@ interface EditItemModalProps {
 function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
   const [saving, setSaving] = useState(false);
   const [customCategory, setCustomCategory] = useState("");
+  const knownCategories = CATEGORIES.filter(c => c !== "הכל") as string[];
   const [form, setForm] = useState({
     name: item.name,
-    category: CATEGORIES.filter(c => c !== "הכל").includes(item.category as Category) ? item.category : "__other__",
+    category: knownCategories.includes(item.category) ? item.category : "__other__",
     unit: item.unit,
     quantity: String(item.quantity),
     min_stock: String(item.minStock),
@@ -453,7 +454,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
 
   // If category was custom, pre-fill the text field
   useState(() => {
-    if (!CATEGORIES.filter(c => c !== "הכל").includes(item.category as Category)) {
+    if (!knownCategories.includes(item.category)) {
       setCustomCategory(item.category);
     }
   });
