@@ -354,7 +354,7 @@ function ProjectFormModal({
             {materials.length > 0 && (
               <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between text-sm">
                 <span className="text-gray-500">סה"כ חומרים</span>
-                <span className="font-bold text-gray-800">₪{materialsCost.toLocaleString()}</span>
+                <span className="font-bold text-gray-800">₪{Math.round(materialsCost).toLocaleString()}</span>
               </div>
             )}
           </div>
@@ -380,7 +380,7 @@ function ProjectFormModal({
           {laborCost > 0 && (
             <div className="bg-gray-50 rounded-xl px-4 py-2.5 flex justify-between text-sm">
               <span className="text-gray-500">עלות עבודה</span>
-              <span className="font-bold text-gray-800">₪{laborCost.toLocaleString()}</span>
+              <span className="font-bold text-gray-800">₪{Math.round(laborCost).toLocaleString()}</span>
             </div>
           )}
         </section>
@@ -408,15 +408,15 @@ function ProjectFormModal({
               )}
               <div className="flex justify-between">
                 <span className="text-gray-500">עלות חומרים</span>
-                <span className="font-semibold text-gray-800">₪{materialsCost.toLocaleString()}</span>
+                <span className="font-semibold text-gray-800">₪{Math.round(materialsCost).toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">עלות עבודה</span>
-                <span className="font-semibold text-gray-800">₪{laborCost.toLocaleString()}</span>
+                <span className="font-semibold text-gray-800">₪{Math.round(laborCost).toLocaleString()}</span>
               </div>
               <div className="flex justify-between border-t border-green-200 pt-1.5 mt-1.5">
                 <span className="font-bold text-gray-700">סה"כ עלות</span>
-                <span className="font-bold text-gray-800">₪{totalCost.toLocaleString()}</span>
+                <span className="font-bold text-gray-800">₪{Math.round(totalCost).toLocaleString()}</span>
               </div>
               <div className={`flex justify-between text-base font-bold pt-1 ${profit >= 0 ? "text-green-700" : "text-red-600"}`}>
                 <span>{profit >= 0 ? "רווח צפוי (לפני מע\"מ)" : "הפסד צפוי"}</span>
@@ -589,7 +589,7 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
             </div>
             <div className="flex items-center gap-2">
               <span className={`font-bold text-sm ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
-                {profit >= 0 ? "+" : "-"}₪{Math.abs(profit).toLocaleString()}
+                {profit >= 0 ? "+" : "-"}₪{Math.round(Math.abs(profit)).toLocaleString()}
               </span>
               {showFinance ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
             </div>
@@ -618,19 +618,19 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
               {materialsCost > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500 flex items-center gap-1"><Package size={10} /> חומרים ({project.materials.length} פריטים)</span>
-                  <span className="font-semibold text-gray-700">₪{materialsCost.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-700">₪{Math.round(materialsCost).toLocaleString()}</span>
                 </div>
               )}
               {laborCost > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500 flex items-center gap-1"><Clock size={10} /> עבודה ({project.laborHours}ש × ₪{project.hourlyRate})</span>
-                  <span className="font-semibold text-gray-700">₪{laborCost.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-700">₪{Math.round(laborCost).toLocaleString()}</span>
                 </div>
               )}
               {totalCost > 0 && (
                 <div className="flex justify-between text-xs border-t border-gray-200 pt-1.5">
                   <span className="font-bold text-gray-600">סה"כ עלות</span>
-                  <span className="font-bold text-gray-700">₪{totalCost.toLocaleString()}</span>
+                  <span className="font-bold text-gray-700">₪{Math.round(totalCost).toLocaleString()}</span>
                 </div>
               )}
               <div className={`flex justify-between text-sm font-bold pt-0.5 ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
@@ -638,7 +638,7 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
                   {profit >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                   {profit >= 0 ? 'רווח (לפני מע"מ)' : 'הפסד'}
                 </span>
-                <span>₪{Math.abs(profit).toLocaleString()}</span>
+                <span>₪{Math.round(Math.abs(profit)).toLocaleString()}</span>
               </div>
               {/* Materials list */}
               {showFinance && project.materials.length > 0 && (
@@ -848,7 +848,7 @@ export default function ProjectsPage() {
                             <span className="text-gray-400">{p.progress}%</span>
                             {p.budget > 0 && (
                               <span className={`font-semibold ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
-                                {profit >= 0 ? "+" : "-"}₪{Math.abs(profit).toLocaleString()}
+                                {profit >= 0 ? "+" : "-"}₪{Math.round(Math.abs(profit)).toLocaleString()}
                               </span>
                             )}
                           </div>
