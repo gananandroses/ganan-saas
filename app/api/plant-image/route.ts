@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const latin = request.nextUrl.searchParams.get("latin") || "";
-  if (!latin) return NextResponse.json({ url: null });
+  const queryOverride = request.nextUrl.searchParams.get("q") || "";
+  if (!latin && !queryOverride) return NextResponse.json({ url: null });
 
-  const clean = latin.replace(/ × /g, " ").replace(/'/g, "").trim();
+  // Use override query if provided, otherwise use Latin name
+  const clean = (queryOverride || latin).replace(/ × /g, " ").replace(/'/g, "").trim();
 
   try {
     // 1. Try iNaturalist — shows full plant photos

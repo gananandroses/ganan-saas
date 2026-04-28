@@ -68,7 +68,9 @@ function PlantImage({ plant, className }: { plant: Plant; className: string }) {
       if (!entry.isIntersecting) return;
       observer.disconnect();
       // Fetch via internal API route — no CORS issues
-      fetch(`/api/plant-image?latin=${encodeURIComponent(plant.nameLatin)}`)
+      const imgParams = new URLSearchParams({ latin: plant.nameLatin });
+      if (plant.imageQuery) imgParams.set("q", plant.imageQuery);
+      fetch(`/api/plant-image?${imgParams.toString()}`)
         .then(r => r.ok ? r.json() : { url: null })
         .then(({ url }) => {
           if (url) { setImgUrl(url); sessionStorage.setItem(cacheKey, url); }
