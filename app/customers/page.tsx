@@ -490,21 +490,14 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
         <div className="p-5">
           {activeTab === "details" && (
             <div className="space-y-4">
-              {/* Action buttons - always at top of details tab */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditing(true)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-50 text-green-700 text-sm font-semibold border border-green-200 active:bg-green-100"
-                >
-                  <Pencil size={15} />
-                  ערוך פרטים
-                </button>
+              {/* Delete button - always at top of details tab */}
+              <div className="flex justify-end">
                 <button
                   onClick={() => setConfirmDelete(c => !c)}
-                  className="flex items-center justify-center gap-1.5 text-xs text-red-400 border border-red-200 rounded-xl px-3 py-2.5 active:bg-red-50"
+                  className="flex items-center gap-1.5 text-xs text-red-400 border border-red-200 rounded-xl px-3 py-1.5 active:bg-red-50"
                 >
-                  <Trash2 size={14} />
-                  מחק
+                  <Trash2 size={13} />
+                  מחק לקוח
                 </button>
               </div>
               {confirmDelete && (
