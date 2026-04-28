@@ -27,6 +27,8 @@ import {
   AlertCircle,
   Loader2,
   Trash2,
+  Pencil,
+  Save,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import type { Customer, CustomerStatus } from "@/lib/mock-data";
@@ -273,12 +275,26 @@ interface CustomerModalProps {
   customer: Customer;
   onClose: () => void;
   onDelete: (id: string) => Promise<void>;
+  onUpdate: (id: string, data: Partial<Customer>) => Promise<void>;
 }
 
-function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
+function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("details");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: customer.name,
+    phone: customer.phone,
+    email: customer.email || "",
+    city: customer.city,
+    address: customer.address,
+    monthly_price: String(customer.monthlyPrice),
+    frequency: customer.frequency,
+    status: customer.status,
+    notes: customer.notes || "",
+  });
   const status = statusConfig[customer.status];
 
   async function handleDelete() {
@@ -287,37 +303,137 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
     setDeleting(false);
   }
 
+  async function handleSave() {
+    setSaving(true);
+    await onUpdate(customer.id, {
+      name: editForm.name,
+      phone: editForm.phone,
+      email: editForm.email || undefined,
+      city: editForm.city,
+      address: editForm.address,
+      monthlyPrice: parseFloat(editForm.monthly_price) || 0,
+      frequency: editForm.frequency,
+      status: editForm.status as CustomerStatus,
+      notes: editForm.notes,
+    });
+    setSaving(false);
+    setEditing(false);
+  }
+
   return (
     <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl">
       {/* Sticky top nav */}
       <div className="sticky top-0 bg-white border-b border-gray-100 flex items-center px-4 py-3 z-10 flex-shrink-0">
-        <button onClick={onClose} className="text-sm text-gray-500 font-medium min-w-[40px]">סגור</button>
-        <div className="flex-1 text-center">
-          <span className="font-bold text-gray-900">{customer.name}</span>
-        </div>
-        {!confirmDelete ? (
-          <button onClick={() => setConfirmDelete(true)} className="min-w-[40px] flex justify-end">
-            <Trash2 size={18} className="text-red-400" />
-          </button>
+        {editing ? (
+          <>
+            <button onClick={() => setEditing(false)} className="text-sm text-gray-500 font-medium min-w-[40px]">ביטול</button>
+            <div className="flex-1 text-center"><span className="font-bold text-gray-900">עריכת לקוח</span></div>
+            <button onClick={handleSave} disabled={saving}
+              className="text-sm font-semibold text-green-600 disabled:opacity-50 flex items-center gap-1 min-w-[40px] justify-end">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : "שמור"}
+            </button>
+          </>
         ) : (
-          <button onClick={handleDelete} disabled={deleting}
-            className="text-xs font-semibold text-red-600 disabled:opacity-50 flex items-center gap-1 min-w-[40px] justify-end">
-            {deleting ? <Loader2 size={13} className="animate-spin" /> : "מחק"}
-          </button>
+          <>
+            <button onClick={onClose} className="text-sm text-gray-500 font-medium min-w-[40px]">סגור</button>
+            <div className="flex-1 text-center"><span className="font-bold text-gray-900">{customer.name}</span></div>
+            <div className="flex items-center gap-3 min-w-[40px] justify-end">
+              <button onClick={() => setEditing(true)}><Pencil size={17} className="text-gray-400" /></button>
+              <button onClick={() => setConfirmDelete(c => !c)}><Trash2 size={17} className="text-red-400" /></button>
+            </div>
+          </>
         )}
       </div>
 
       {/* Delete confirmation bar */}
-      {confirmDelete && (
+      {!editing && confirmDelete && (
         <div className="bg-red-50 border-b border-red-100 px-4 py-2 flex items-center justify-between flex-shrink-0">
-          <span className="text-xs text-red-700 font-medium">למחוק את {customer.name}? פעולה זו אינה ניתנת לביטול</span>
-          <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500 underline mr-2">ביטול</button>
+          <span className="text-xs text-red-700 font-medium">למחוק את {customer.name}?</span>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500">ביטול</button>
+            <button onClick={handleDelete} disabled={deleting}
+              className="text-xs font-semibold text-red-600 disabled:opacity-50 flex items-center gap-1">
+              {deleting ? <Loader2 size={12} className="animate-spin" /> : null}
+              {deleting ? "מוחק..." : "כן, מחק"}
+            </button>
+          </div>
         </div>
       )}
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
+
+        {/* ===== EDIT FORM ===== */}
+        {editing && (
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
+              <input value={editForm.name} onChange={e => setEditForm(p => ({...p, name: e.target.value}))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">טלפון *</label>
+                <input value={editForm.phone} onChange={e => setEditForm(p => ({...p, phone: e.target.value}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">עיר</label>
+                <input value={editForm.city} onChange={e => setEditForm(p => ({...p, city: e.target.value}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
+              <input value={editForm.address} onChange={e => setEditForm(p => ({...p, address: e.target.value}))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+              <input type="email" value={editForm.email} onChange={e => setEditForm(p => ({...p, email: e.target.value}))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">מחיר חודשי (₪)</label>
+                <input type="number" value={editForm.monthly_price} onChange={e => setEditForm(p => ({...p, monthly_price: e.target.value}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
+                <select value={editForm.status} onChange={e => setEditForm(p => ({...p, status: e.target.value as CustomerStatus}))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                  <option value="new">חדש</option>
+                  <option value="active">פעיל</option>
+                  <option value="vip">VIP</option>
+                  <option value="inactive">לא פעיל</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">תדירות</label>
+              <select value={editForm.frequency} onChange={e => setEditForm(p => ({...p, frequency: e.target.value}))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                {["פעם בשבוע","פעמיים בחודש","פעם בחודש","פעם בחודשיים","פעם ב-3 חודשים"].map(f => (
+                  <option key={f}>{f}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+              <textarea value={editForm.notes} onChange={e => setEditForm(p => ({...p, notes: e.target.value}))}
+                rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+            </div>
+            <button onClick={handleSave} disabled={saving}
+              className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {saving ? "שומר..." : "שמור שינויים"}
+            </button>
+          </div>
+        )}
+
         {/* Green header */}
+        {!editing && (<>
         <div className="bg-gradient-to-br from-green-600 to-green-700 p-6 text-white">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-2xl font-bold flex-shrink-0">
@@ -709,6 +825,7 @@ function CustomerModal({ customer, onClose, onDelete }: CustomerModalProps) {
             </div>
           )}
         </div>
+        </>)}
       </div>
 
     </div>
@@ -875,6 +992,22 @@ export default function CustomersPage() {
     await supabase.from("customers").delete().eq("id", id);
     setCustomers((prev) => prev.filter((c) => c.id !== id));
     setSelectedCustomer(null);
+  }
+
+  async function handleUpdateCustomer(id: string, data: Partial<Customer>) {
+    await supabase.from("customers").update({
+      name: data.name,
+      phone: data.phone,
+      email: data.email || null,
+      city: data.city,
+      address: data.address,
+      monthly_price: data.monthlyPrice,
+      frequency: data.frequency,
+      status: data.status,
+      notes: data.notes,
+    }).eq("id", id);
+    setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+    setSelectedCustomer(prev => prev ? { ...prev, ...data } : null);
   }
 
   if (loading) return (
@@ -1058,6 +1191,7 @@ export default function CustomersPage() {
           customer={selectedCustomer}
           onClose={() => setSelectedCustomer(null)}
           onDelete={handleDeleteCustomer}
+          onUpdate={handleUpdateCustomer}
         />
       )}
 
