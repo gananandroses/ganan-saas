@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, Sparkles, BarChart3, Zap, FolderKanban,
-  Settings, ChevronLeft, Leaf, Bell, LogOut,
+  Settings, ChevronLeft, Leaf, Bell, LogOut, Camera,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/finance", label: "פיננסים", icon: DollarSign },
   { href: "/inventory", label: "ציוד ומלאי", icon: Package },
   { href: "/projects", label: "פרויקטים", icon: FolderKanban },
+  { href: "/portfolio", label: "תיק עבודות", icon: Camera },
   { href: "/analytics", label: "אנליטיקה BI", icon: BarChart3 },
   { href: "/ai-tools", label: "כלי AI", icon: Sparkles },
   { href: "/automations", label: "אוטומציות", icon: Zap },
