@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { Search, X, Sun, Droplets, Ruler, Calendar, Lightbulb } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Search, X, Sun, Droplets, Ruler, Calendar, Lightbulb, ChevronLeft, ChevronRight } from "lucide-react";
 import { PLANTS, PLANT_CATEGORIES, type Plant } from "@/lib/plants-data";
 
 const SUN_LABELS: Record<string, string> = {
@@ -60,37 +60,22 @@ function PlantImage({ plant, className }: { plant: Plant; className: string }) {
     const el = ref.current;
     if (!el) return;
 
-    const cacheKey = `inat_${plant.id}`;
+    const cacheKey = `pi2_${plant.id}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) { if (cached !== "none") setImgUrl(cached); return; }
 
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       observer.disconnect();
-
-      // Try iNaturalist first — shows full plant in natural/garden setting
-      const q = encodeURIComponent(plant.nameLatin.replace(/ × /g, " ").replace(/ '/g, " "));
-      fetch(`https://api.inaturalist.org/v1/taxa?q=${q}&per_page=1&rank=species,genus`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          const url = data?.results?.[0]?.default_photo?.medium_url;
-          if (url) {
-            setImgUrl(url);
-            sessionStorage.setItem(cacheKey, url);
-          } else {
-            // Fallback to Wikipedia
-            const title = encodeURIComponent(plant.nameLatin.replace(/ × /g, "_").replace(/ /g, "_"));
-            return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
-              .then(r => r.ok ? r.json() : null)
-              .then(wdata => {
-                const wurl = wdata?.thumbnail?.source;
-                if (wurl) { setImgUrl(wurl); sessionStorage.setItem(cacheKey, wurl); }
-                else sessionStorage.setItem(cacheKey, "none");
-              });
-          }
+      // Fetch via internal API route — no CORS issues
+      fetch(`/api/plant-image?latin=${encodeURIComponent(plant.nameLatin)}`)
+        .then(r => r.ok ? r.json() : { url: null })
+        .then(({ url }) => {
+          if (url) { setImgUrl(url); sessionStorage.setItem(cacheKey, url); }
+          else sessionStorage.setItem(cacheKey, "none");
         })
         .catch(() => sessionStorage.setItem(cacheKey, "none"));
-    }, { rootMargin: "300px" });
+    }, { rootMargin: "400px" });
 
     observer.observe(el);
     return () => observer.disconnect();
@@ -264,6 +249,12 @@ export default function PlantsPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
+  const pillsRef = useRef<HTMLDivElement>(null);
+
+  const scrollPills = useCallback((dir: "right" | "left") => {
+    if (!pillsRef.current) return;
+    pillsRef.current.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
+  }, []);
 
   const filtered = useMemo(() => {
     return PLANTS.filter((p) => {
@@ -312,25 +303,41 @@ export default function PlantsPage() {
       </div>
 
       {/* Category pills */}
-      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
-        <div className="flex gap-2 pb-2 scrollbar-hide" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-          {PLANT_CATEGORIES.map((cat) => {
-            const active = activeCategory === cat.key;
-            return (
-              <button
-                key={cat.key}
-                onClick={() => setActiveCategory(cat.key)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
-                  active
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
-                }`}
-              >
-                <span>{cat.emoji}</span>
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
+      <div className="bg-white border-b border-gray-100 py-3">
+        <div className="relative flex items-center">
+          {/* Scroll right (RTL = start) */}
+          <button onClick={() => scrollPills("right")}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white shadow-md border border-gray-200 rounded-full z-10 mr-1 ml-1 hover:bg-gray-50">
+            <ChevronRight size={16} className="text-gray-500" />
+          </button>
+
+          <div ref={pillsRef}
+            className="flex gap-2 overflow-x-auto flex-1 py-1"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}>
+            {PLANT_CATEGORIES.map((cat) => {
+              const active = activeCategory === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  onClick={() => setActiveCategory(cat.key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
+                    active
+                      ? "bg-green-600 text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
+                  }`}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Scroll left */}
+          <button onClick={() => scrollPills("left")}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white shadow-md border border-gray-200 rounded-full z-10 ml-1 mr-1 hover:bg-gray-50">
+            <ChevronLeft size={16} className="text-gray-500" />
+          </button>
         </div>
       </div>
 
