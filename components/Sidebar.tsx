@@ -17,6 +17,7 @@ const navItems = [
   { href: "/inventory", label: "ציוד ומלאי", icon: Package },
   { href: "/projects", label: "פרויקטים", icon: FolderKanban },
   { href: "/portfolio", label: "תיק עבודות", icon: Camera },
+  { href: "/plants", label: "עולם הצמחים", icon: Leaf },
   { href: "/analytics", label: "אנליטיקה BI", icon: BarChart3 },
   { href: "/ai-tools", label: "כלי AI", icon: Sparkles },
   { href: "/automations", label: "אוטומציות", icon: Zap },
