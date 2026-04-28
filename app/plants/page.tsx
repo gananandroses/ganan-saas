@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, X, Sun, Droplets, Ruler, Calendar, Lightbulb, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { Search, X, Sun, Droplets, Ruler, Calendar, Lightbulb } from "lucide-react";
 import { PLANTS, PLANT_CATEGORIES, type Plant } from "@/lib/plants-data";
 
 const SUN_LABELS: Record<string, string> = {
@@ -249,13 +249,6 @@ export default function PlantsPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
-  const pillsRef = useRef<HTMLDivElement>(null);
-
-  const scrollPills = useCallback((dir: "right" | "left") => {
-    if (!pillsRef.current) return;
-    pillsRef.current.scrollBy({ left: dir === "left" ? -200 : 200, behavior: "smooth" });
-  }, []);
-
   const filtered = useMemo(() => {
     return PLANTS.filter((p) => {
       const matchCat = activeCategory === "all" || p.categories.includes(activeCategory);
