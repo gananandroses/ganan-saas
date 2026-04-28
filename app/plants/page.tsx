@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import Image from "next/image";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Search, X, Sun, Droplets, Ruler, Calendar, Lightbulb } from "lucide-react";
-import { PLANTS, PLANT_CATEGORIES, plantImageUrl, type Plant } from "@/lib/plants-data";
+import { PLANTS, PLANT_CATEGORIES, type Plant } from "@/lib/plants-data";
 
 const SUN_LABELS: Record<string, string> = {
   full: "שמש מלאה",
@@ -33,8 +32,78 @@ function getCategoryLabel(key: string): string {
   return PLANT_CATEGORIES.find((c) => c.key === key)?.label ?? key;
 }
 
+const GRADIENT_MAP: Record<string, string> = {
+  "fruit-trees":    "from-red-100 to-orange-100",
+  "citrus":         "from-yellow-100 to-orange-100",
+  "ornamental-trees":"from-purple-100 to-blue-100",
+  "trees":          "from-green-100 to-teal-100",
+  "shrubs":         "from-green-100 to-lime-100",
+  "privacy-shrubs": "from-gray-100 to-green-100",
+  "perennials":     "from-pink-100 to-rose-100",
+  "annuals":        "from-yellow-100 to-pink-100",
+  "indoor":         "from-emerald-100 to-teal-100",
+  "succulents":     "from-lime-100 to-green-100",
+  "cacti":          "from-yellow-100 to-lime-100",
+  "trailing":       "from-teal-100 to-cyan-100",
+  "shade":          "from-gray-100 to-blue-100",
+  "geophytes":      "from-purple-100 to-pink-100",
+  "herbs":          "from-green-100 to-emerald-100",
+  "climbers":       "from-blue-100 to-teal-100",
+};
+
+function PlantImage({ plant, className }: { plant: Plant; className: string }) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const cacheKey = `wi_${plant.id}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) { if (cached !== "none") setImgUrl(cached); return; }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      observer.disconnect();
+      const title = encodeURIComponent(plant.nameLatin.replace(/ × /g, "_").replace(/ /g, "_"));
+      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          const url = data?.thumbnail?.source;
+          if (url) { setImgUrl(url); sessionStorage.setItem(cacheKey, url); }
+          else sessionStorage.setItem(cacheKey, "none");
+        })
+        .catch(() => sessionStorage.setItem(cacheKey, "none"));
+    }, { rootMargin: "300px" });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [plant.id, plant.nameLatin]);
+
+  const emoji = PLANT_CATEGORIES.find(c => c.key === plant.categories[0])?.emoji ?? "🌿";
+  const gradient = GRADIENT_MAP[plant.categories[0]] ?? "from-green-100 to-emerald-100";
+
+  return (
+    <div ref={ref} className={`relative ${className} overflow-hidden`}>
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+        <span className="text-5xl opacity-40">{emoji}</span>
+      </div>
+      {imgUrl && (
+        <img
+          src={imgUrl}
+          alt={plant.nameHe}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setImgUrl(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 function PlantCard({ plant, onClick }: { plant: Plant; onClick: () => void }) {
-  const imgUrl = plantImageUrl(plant);
   const firstTwo = plant.categories.slice(0, 2);
 
   return (
@@ -44,12 +113,7 @@ function PlantCard({ plant, onClick }: { plant: Plant; onClick: () => void }) {
     >
       {/* Image */}
       <div className="relative h-44 bg-gray-100 overflow-hidden">
-        <img
-          src={imgUrl}
-          alt={plant.nameHe}
-          loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-        />
+        <PlantImage plant={plant} className="absolute inset-0 w-full h-full group-hover:scale-105 transition-transform duration-300" />
         {/* Badges overlay */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2 flex items-center gap-2">
           <span className="text-white text-xs font-medium">{SUN_ICONS[plant.sun]}</span>
@@ -80,8 +144,6 @@ function PlantCard({ plant, onClick }: { plant: Plant; onClick: () => void }) {
 }
 
 function PlantModal({ plant, onClose }: { plant: Plant; onClose: () => void }) {
-  const imgUrl = plantImageUrl(plant);
-
   return (
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4"
@@ -93,11 +155,7 @@ function PlantModal({ plant, onClose }: { plant: Plant; onClose: () => void }) {
       >
         {/* Image */}
         <div className="relative h-56">
-          <img
-            src={imgUrl}
-            alt={plant.nameHe}
-            className="w-full h-full object-cover"
-          />
+          <PlantImage plant={plant} className="absolute inset-0 w-full h-full" />
           <button
             onClick={onClose}
             className="absolute top-3 left-3 w-9 h-9 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
