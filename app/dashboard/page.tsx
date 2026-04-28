@@ -18,6 +18,9 @@ import {
   Leaf,
   ChevronUp,
   Loader2,
+  X,
+  ChevronRight,
+  Phone,
 } from "lucide-react";
 import {
   BarChart,
@@ -63,25 +66,194 @@ interface KpiCardProps {
   trendColor: string;
   trendIcon?: React.ReactNode;
   sub: string;
+  onClick?: () => void;
 }
 
-function KpiCard({ icon, iconBg, label, value, trend, trendColor, trendIcon, sub }: KpiCardProps) {
+function KpiCard({ icon, iconBg, label, value, trend, trendColor, trendIcon, sub, onClick }: KpiCardProps) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col gap-3 border border-gray-100 hover:shadow-md transition-shadow">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-2xl shadow-sm p-6 flex flex-col gap-3 border border-gray-100 hover:shadow-md transition-all ${onClick ? "cursor-pointer hover:border-green-200 active:scale-[0.98]" : ""}`}
+    >
       <div className="flex items-center justify-between">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconBg}`}>
           {icon}
         </div>
-        <span className={`flex items-center gap-1 text-xs font-semibold ${trendColor}`}>
-          {trendIcon}
-          {trend}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`flex items-center gap-1 text-xs font-semibold ${trendColor}`}>
+            {trendIcon}
+            {trend}
+          </span>
+          {onClick && <ChevronRight size={14} className="text-gray-300" />}
+        </div>
       </div>
       <div>
         <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
         <p className="text-sm text-gray-500 mt-0.5">{label}</p>
       </div>
       <p className="text-xs text-gray-400 border-t border-gray-50 pt-2">{sub}</p>
+    </div>
+  );
+}
+
+// ── Detail Modal ──────────────────────────────────────────────
+
+type ModalType = "income" | "customers" | "jobs" | "balance" | null;
+
+function DetailModal({ type, data, onClose }: {
+  type: ModalType;
+  data: Record<string, unknown>;
+  onClose: () => void;
+}) {
+  if (!type) return null;
+
+  const titles: Record<string, string> = {
+    income: "הכנסות החודש",
+    customers: "לקוחות פעילים",
+    jobs: "עבודות מתוכננות",
+    balance: "יתרות פתוחות",
+  };
+
+  const transactions = (data.transactions as Record<string,unknown>[]) || [];
+  const customers = (data.customers as Record<string,unknown>[]) || [];
+  const jobs = (data.jobs as Record<string,unknown>[]) || [];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[85vh] flex flex-col" dir="rtl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <h3 className="text-base font-bold text-gray-900">{titles[type]}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+
+          {/* הכנסות */}
+          {type === "income" && (
+            transactions.length === 0
+              ? <p className="text-center text-gray-400 py-10">אין הכנסות החודש</p>
+              : transactions.map((t, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{(t.description as string) || "הכנסה"}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {(t.transaction_date as string)?.slice(5).replace("-", "/")}
+                      {t.customer_name ? ` · ${t.customer_name}` : ""}
+                    </p>
+                  </div>
+                  <span className="text-green-600 font-bold text-sm">+₪{((t.amount as number)||0).toLocaleString()}</span>
+                </div>
+              ))
+          )}
+
+          {/* לקוחות פעילים */}
+          {type === "customers" && (
+            customers.length === 0
+              ? <p className="text-center text-gray-400 py-10">אין לקוחות פעילים</p>
+              : customers.map((c, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{c.name as string}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.status === "vip" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
+                        {c.status === "vip" ? "VIP" : "פעיל"}
+                      </span>
+                      {c.phone && (
+                        <a href={`tel:${c.phone}`} className="text-xs text-gray-400 flex items-center gap-1">
+                          <Phone size={10} /> {c.phone as string}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    {(c.monthly_price as number) > 0 && (
+                      <p className="text-sm font-bold text-gray-800">₪{(c.monthly_price as number).toLocaleString()}<span className="text-xs font-normal text-gray-400">/חודש</span></p>
+                    )}
+                    {(c.balance as number) > 0 && (
+                      <p className="text-xs text-orange-500 font-semibold">חוב: ₪{(c.balance as number).toLocaleString()}</p>
+                    )}
+                  </div>
+                </div>
+              ))
+          )}
+
+          {/* עבודות מתוכננות */}
+          {type === "jobs" && (
+            jobs.length === 0
+              ? <p className="text-center text-gray-400 py-10">אין עבודות מתוכננות</p>
+              : jobs.map((j, i) => {
+                const today = new Date().toISOString().split("T")[0];
+                const jobDate = (j.job_date ?? j.date ?? "") as string;
+                const isToday = jobDate === today;
+                const st = statusLabels[(j.status as string)] ?? { label: j.status as string, color: "bg-gray-100 text-gray-600" };
+                return (
+                  <div key={i} className={`p-3 rounded-xl border ${isToday ? "border-green-200 bg-green-50/40" : "border-gray-100 bg-gray-50"}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-800">{(j.customer_name ?? j.customerName) as string}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                          <Clock size={10} />
+                          {isToday ? "היום" : jobDate.slice(5).replace("-", "/")} · {(j.job_time ?? j.time ?? "") as string}
+                          {j.type ? ` · ${j.type}` : ""}
+                        </p>
+                        {j.notes && <p className="text-xs text-gray-400 mt-0.5">{j.notes as string}</p>}
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-sm font-bold text-green-700">₪{((j.price as number)||0).toLocaleString()}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>{st.label}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+          )}
+
+          {/* יתרות פתוחות */}
+          {type === "balance" && (
+            customers.filter(c => (c.balance as number) > 0).length === 0
+              ? <p className="text-center text-gray-400 py-10 text-sm">🎉 הכל שולם! אין יתרות פתוחות</p>
+              : customers.filter(c => (c.balance as number) > 0)
+                  .sort((a, b) => (b.balance as number) - (a.balance as number))
+                  .map((c, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{c.name as string}</p>
+                        {c.phone && (
+                          <a href={`https://wa.me/972${(c.phone as string).replace(/^0/, "")}`}
+                            target="_blank" rel="noreferrer"
+                            className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
+                            💬 שלח תזכורת בוואטסאפ
+                          </a>
+                        )}
+                      </div>
+                      <span className="text-orange-600 font-bold text-base">₪{(c.balance as number).toLocaleString()}</span>
+                    </div>
+                  ))
+          )}
+        </div>
+
+        {/* Summary footer */}
+        {type === "income" && transactions.length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 flex justify-between items-center">
+            <span className="text-sm text-gray-500">{transactions.length} עסקאות</span>
+            <span className="text-base font-bold text-green-600">
+              סה"כ ₪{transactions.reduce((s, t) => s + ((t.amount as number)||0), 0).toLocaleString()}
+            </span>
+          </div>
+        )}
+        {type === "balance" && customers.filter(c => (c.balance as number) > 0).length > 0 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 flex justify-between items-center">
+            <span className="text-sm text-gray-500">{customers.filter(c => (c.balance as number) > 0).length} לקוחות</span>
+            <span className="text-base font-bold text-orange-600">
+              סה"כ ₪{customers.filter(c => (c.balance as number) > 0).reduce((s, c) => s + ((c.balance as number)||0), 0).toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -115,6 +287,8 @@ export default function DashboardPage() {
   const [chartData, setChartData] = useState<{month: string; income: number; expense: number}[]>([]);
   const [chartTotals, setChartTotals] = useState({ totalIncome: 0, totalExpense: 0, netProfit: 0 });
   const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState<ModalType>(null);
+  const [modalData, setModalData] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     async function load() {
@@ -122,9 +296,9 @@ export default function DashboardPage() {
       const today = new Date().toISOString().split("T")[0];
 
       const [custRes, txRes, jobsRes, txRes2] = await Promise.all([
-        supabase.from("customers").select("id, status, monthly_price, balance, name"),
-        supabase.from("transactions").select("type, amount, status, transaction_date").eq("type", "income"),
-        supabase.from("jobs").select("*").gte("job_date", today).order("job_date").limit(10),
+        supabase.from("customers").select("id, status, monthly_price, balance, name, phone"),
+        supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income"),
+        supabase.from("jobs").select("*").gte("job_date", today).order("job_date").limit(50),
         supabase.from("transactions").select("type, amount, transaction_date"),
       ]);
 
@@ -151,6 +325,11 @@ export default function DashboardPage() {
         debtorsSub: debtors || "אין חובות פתוחים",
       });
       setRecentJobs(jobs.slice(0, 5));
+
+      // Store full data for modals
+      const thisMonthTx = transactions.filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth));
+      const activeCustomers = customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip");
+      setModalData({ transactions: thisMonthTx, customers: activeCustomers, allCustomers: customers, jobs });
 
       // Calculate chart data from real transactions
       const computed = Array.from({length: 6}, (_, i) => {
@@ -209,7 +388,8 @@ export default function DashboardPage() {
             trend="+12%"
             trendColor="text-green-600"
             trendIcon={<ChevronUp size={13} />}
-            sub="מכל הלקוחות החודש"
+            sub="לחץ לפירוט העסקאות"
+            onClick={() => setModal("income")}
           />
           <KpiCard
             icon={<Users size={20} className="text-blue-600" />}
@@ -219,16 +399,18 @@ export default function DashboardPage() {
             trend="פעיל + VIP"
             trendColor="text-blue-600"
             trendIcon={<ChevronUp size={13} />}
-            sub="לקוחות מנוהלים במערכת"
+            sub="לחץ לרשימת הלקוחות"
+            onClick={() => setModal("customers")}
           />
           <KpiCard
             icon={<Briefcase size={20} className="text-purple-600" />}
             iconBg="bg-purple-50"
-            label="עבודות היום"
+            label="עבודות מתוכננות"
             value={String(stats.todayJobs)}
-            trend="עבודות מתוכננות"
+            trend="לחץ לכל העבודות"
             trendColor="text-purple-600"
-            sub="לחץ ללוח הזמנים המלא"
+            sub="היום ועבודות הבאות"
+            onClick={() => setModal("jobs")}
           />
           <KpiCard
             icon={<AlertCircle size={20} className="text-orange-500" />}
@@ -238,9 +420,21 @@ export default function DashboardPage() {
             trend={stats.openBalance > 0 ? "דורש טיפול" : "הכל שולם ✓"}
             trendColor="text-orange-500"
             trendIcon={<AlertCircle size={13} />}
-            sub={stats.debtorsSub}
+            sub="לחץ לרשימת החייבים"
+            onClick={() => setModal("balance")}
           />
         </div>
+
+        {/* Detail Modal */}
+        <DetailModal
+          type={modal}
+          data={{
+            transactions: modalData.transactions,
+            customers: modal === "balance" ? modalData.allCustomers : modalData.customers,
+            jobs: modalData.jobs,
+          }}
+          onClose={() => setModal(null)}
+        />
 
         {/* ── Main Row: Chart + Today's Jobs ── */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
