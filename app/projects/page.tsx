@@ -229,6 +229,7 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function fetchImages() {
@@ -251,10 +252,23 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setUploading(true);
+    setUploadError(null);
     for (const file of files) {
       const ext = file.name.split(".").pop() || "jpg";
       const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      await supabase.storage.from(BUCKET).upload(`${project.id}/${filename}`, file, { upsert: false });
+      const { error } = await supabase.storage.from(BUCKET).upload(`${project.id}/${filename}`, file, { upsert: false });
+      if (error) {
+        if (error.message.includes("bucket") || error.message.includes("not found")) {
+          setUploadError("❌ ה-bucket 'project-images' לא קיים ב-Supabase. צור אותו ב: Storage → New bucket → project-images (Public)");
+        } else if (error.message.includes("policy") || error.message.includes("permission") || error.message.includes("Unauthorized")) {
+          setUploadError("❌ אין הרשאות העלאה. ב-Supabase: Storage → project-images → Policies → הוסף INSERT policy");
+        } else {
+          setUploadError("❌ שגיאה: " + error.message);
+        }
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
     }
     await fetchImages();
     setUploading(false);
@@ -290,6 +304,14 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
         </button>
         <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
       </div>
+
+      {/* Error banner */}
+      {uploadError && (
+        <div className="mx-4 mt-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2 flex-shrink-0">
+          <p className="text-sm text-red-700 flex-1">{uploadError}</p>
+          <button onClick={() => setUploadError(null)} className="text-red-400 hover:text-red-600 flex-shrink-0"><X size={16} /></button>
+        </div>
+      )}
 
       {/* Gallery grid */}
       <div className="flex-1 overflow-y-auto p-4">
