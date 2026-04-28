@@ -501,7 +501,7 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
   const [showFinance, setShowFinance] = useState(false);
   const colors = statusColor(project.status);
   const days = daysRemaining(project.endDate);
-  const { materialsCost, laborCost, totalCost, profit } = calcFinancials(project);
+  const { materialsCost, laborCost, totalCost, profit, budgetBeforeVat } = calcFinancials(project);
 
   return (
     <div className={`bg-white rounded-2xl border border-gray-200 p-5 shadow-sm ${colors.glow}`} dir="rtl">
