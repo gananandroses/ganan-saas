@@ -1,270 +1,421 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Loader2, ImageIcon, X, ChevronLeft, ChevronRight, Briefcase, Camera, Search } from "lucide-react";
-
-interface ProjectWithImages {
-  id: string;
-  name: string;
-  customerName: string;
-  status: string;
-  images: { name: string; url: string }[];
-}
+import {
+  Loader2, ImageIcon, X, ChevronLeft, ChevronRight, Camera,
+  Folder, FolderPlus, Upload, Trash2, Share2, Plus, Search,
+} from "lucide-react";
 
 const BUCKET = "project-images";
+const PREFIX = "portfolio";
+
+interface FolderItem {
+  name: string;
+  imageCount: number;
+  coverUrl: string | null;
+}
 
 export default function PortfolioPage() {
-  const [projects, setProjects] = useState<ProjectWithImages[]>([]);
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
+  const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [images, setImages] = useState<{ name: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lightbox, setLightbox] = useState<{ projectIdx: number; imgIdx: number } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "completed" | "active">("all");
+  const [showShare, setShowShare] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
-
-  async function fetchAll() {
+  async function fetchContents() {
     setLoading(true);
+    setImages([]);
+    setFolders([]);
 
-    // Fetch projects
-    const { data: projectsData } = await supabase
-      .from("projects")
-      .select("id, name, customer_name, status")
-      .order("created_at", { ascending: false });
-
-    if (!projectsData) { setLoading(false); return; }
-
-    // Fetch images for each project
-    const withImages: ProjectWithImages[] = await Promise.all(
-      projectsData.map(async (p) => {
-        const { data: files } = await supabase.storage
-          .from(BUCKET)
-          .list(p.id, { sortBy: { column: "created_at", order: "asc" } });
-
-        const images = (files || [])
-          .filter(f => f.name !== ".emptyFolderPlaceholder")
-          .map(f => ({
-            name: f.name,
-            url: supabase.storage.from(BUCKET).getPublicUrl(`${p.id}/${f.name}`).data.publicUrl,
-          }));
-
-        return {
-          id: p.id,
-          name: p.name,
-          customerName: p.customer_name || "",
-          status: p.status || "planning",
-          images,
-        };
-      })
-    );
-
-    // Only show projects with images
-    setProjects(withImages.filter(p => p.images.length > 0));
+    if (currentFolder === null) {
+      const { data } = await supabase.storage.from(BUCKET).list(PREFIX, { sortBy: { column: "name", order: "asc" } });
+      if (data) {
+        const folderItems = data.filter(f => f.id === null);
+        const foldersWithMeta = await Promise.all(
+          folderItems.map(async (folder) => {
+            const { data: files } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${folder.name}`, { sortBy: { column: "created_at", order: "asc" } });
+            const realFiles = (files || []).filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
+            const count = realFiles.length;
+            const coverUrl = count > 0
+              ? supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${folder.name}/${realFiles[0].name}`).data.publicUrl
+              : null;
+            return { name: folder.name, imageCount: count, coverUrl };
+          })
+        );
+        setFolders(foldersWithMeta);
+      }
+    } else {
+      const { data } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${currentFolder}`, { sortBy: { column: "created_at", order: "asc" } });
+      if (data) {
+        const files = data.filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
+        setImages(files.map(f => ({
+          name: f.name,
+          url: supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${currentFolder}/${f.name}`).data.publicUrl,
+        })));
+      }
+    }
     setLoading(false);
   }
 
-  // Flatten all images for lightbox navigation
-  const allImages = projects.flatMap((p, pi) =>
-    p.images.map((img, ii) => ({ ...img, projectName: p.name, projectIdx: pi, imgIdx: ii }))
-  );
+  useEffect(() => { fetchContents(); }, [currentFolder]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function openLightbox(projectIdx: number, imgIdx: number) {
-    setLightbox({ projectIdx, imgIdx });
+  async function createFolder() {
+    if (!newFolderName.trim()) return;
+    setCreatingFolder(true);
+    const placeholder = new Blob([""], { type: "text/plain" });
+    await supabase.storage.from(BUCKET).upload(
+      `${PREFIX}/${newFolderName.trim()}/.emptyFolderPlaceholder`,
+      placeholder,
+      { upsert: true }
+    );
+    const name = newFolderName.trim();
+    setNewFolderName("");
+    setShowNewFolder(false);
+    setCreatingFolder(false);
+    setCurrentFolder(name);
   }
 
-  function lightboxNext() {
-    if (!lightbox) return;
-    const flat = allImages;
-    const cur = flat.findIndex(i => i.projectIdx === lightbox.projectIdx && i.imgIdx === lightbox.imgIdx);
-    const next = flat[(cur + 1) % flat.length];
-    setLightbox({ projectIdx: next.projectIdx, imgIdx: next.imgIdx });
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length || !currentFolder) return;
+    setUploading(true);
+    setUploadError(null);
+    for (const file of files) {
+      const ext = file.name.split(".").pop() || "jpg";
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(`${PREFIX}/${currentFolder}/${filename}`, file, { upsert: false });
+      if (error) {
+        setUploadError("❌ שגיאה: " + error.message);
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    }
+    await fetchContents();
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function lightboxPrev() {
-    if (!lightbox) return;
-    const flat = allImages;
-    const cur = flat.findIndex(i => i.projectIdx === lightbox.projectIdx && i.imgIdx === lightbox.imgIdx);
-    const prev = flat[(cur - 1 + flat.length) % flat.length];
-    setLightbox({ projectIdx: prev.projectIdx, imgIdx: prev.imgIdx });
+  async function handleDelete(img: { name: string }) {
+    setDeleting(img.name);
+    await supabase.storage.from(BUCKET).remove([`${PREFIX}/${currentFolder}/${img.name}`]);
+    setImages(prev => prev.filter(i => i.name !== img.name));
+    if (lightbox !== null) setLightbox(null);
+    setDeleting(null);
   }
 
-  const statusLabel: Record<string, string> = {
-    active: "פעיל", planning: "תכנון", completed: "הושלם", on_hold: "בהמתנה",
-  };
-  const statusColor: Record<string, string> = {
-    active: "bg-blue-100 text-blue-700",
-    planning: "bg-amber-100 text-amber-700",
-    completed: "bg-green-100 text-green-700",
-    on_hold: "bg-gray-100 text-gray-600",
-  };
+  async function deleteFolder(folderName: string) {
+    // List and delete all files in folder
+    const { data: files } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${folderName}`);
+    if (files && files.length > 0) {
+      await supabase.storage.from(BUCKET).remove(files.map(f => `${PREFIX}/${folderName}/${f.name}`));
+    }
+    await fetchContents();
+  }
 
-  const filtered = projects.filter(p => {
-    if (filter === "completed" && p.status !== "completed") return false;
-    if (filter === "active" && p.status !== "active") return false;
-    if (search && !p.name.includes(search) && !p.customerName.includes(search)) return false;
-    return true;
-  });
+  // Share
+  const shareText = currentFolder
+    ? `תיק עבודות — ${currentFolder}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}`
+    : "";
 
-  const totalImages = projects.reduce((s, p) => s + p.images.length, 0);
-  const currentLightboxImg = lightbox
-    ? projects[lightbox.projectIdx]?.images[lightbox.imgIdx]
-    : null;
+  async function copyLink() {
+    await navigator.clipboard.writeText(shareText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    setShowShare(false);
+  }
+
+  const filteredFolders = folders.filter(f => !search || f.name.includes(search));
+  const totalImages = folders.reduce((s, f) => s + f.imageCount, 0);
 
   return (
     <div dir="rtl" className="min-h-screen bg-gray-950">
       {/* Header */}
-      <div className="bg-gradient-to-b from-gray-900 to-gray-950 px-6 pt-10 pb-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
-              <Camera className="w-5 h-5 text-green-400" />
+      <div className="bg-gradient-to-b from-gray-900 to-gray-950 px-5 pt-8 pb-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-3">
+              {currentFolder !== null && (
+                <button
+                  onClick={() => { setCurrentFolder(null); setLightbox(null); }}
+                  className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white transition-colors"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              )}
+              <div>
+                <h1 className="text-xl font-bold text-white">
+                  {currentFolder !== null ? currentFolder : "תיק עבודות"}
+                </h1>
+                <p className="text-sm text-gray-400">
+                  {currentFolder !== null
+                    ? `${images.length} תמונות`
+                    : `${folders.length} תיקיות · ${totalImages} תמונות`}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">תיק עבודות</h1>
-              <p className="text-sm text-gray-400">{projects.length} פרויקטים · {totalImages} תמונות</p>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              {currentFolder !== null ? (
+                <>
+                  {images.length > 0 && (
+                    <div className="relative">
+                      <button onClick={() => setShowShare(s => !s)}
+                        className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors">
+                        <Share2 size={14} /> שתף
+                      </button>
+                      {showShare && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setShowShare(false)} />
+                          <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-20 w-52" dir="rtl">
+                            {typeof navigator !== "undefined" && "share" in navigator && (
+                              <button onClick={async () => { await navigator.share({ title: currentFolder, text: shareText }); setShowShare(false); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 font-medium">
+                                <span className="text-lg">📲</span> שתף (תפריט הטלפון)
+                              </button>
+                            )}
+                            <button onClick={() => { window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank"); setShowShare(false); }}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
+                              <span className="text-lg">💬</span> WhatsApp
+                            </button>
+                            <button onClick={() => { window.open(`mailto:?subject=${encodeURIComponent("תיק עבודות — " + currentFolder)}&body=${encodeURIComponent(shareText)}`, "_blank"); setShowShare(false); }}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
+                              <span className="text-lg">✉️</span> Gmail / מייל
+                            </button>
+                            <button onClick={copyLink}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
+                              <span className="text-lg">{copied ? "✅" : "🔗"}</span> {copied ? "הועתק!" : "העתק קישורים"}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                    className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors">
+                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    {uploading ? "מעלה..." : "הוסף תמונות"}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setShowNewFolder(true)}
+                  className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors">
+                  <FolderPlus size={14} /> תיקייה חדשה
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Search + filter */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <div className="relative flex-1">
+          {/* Search (only on root) */}
+          {currentFolder === null && folders.length > 0 && (
+            <div className="relative mt-4">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
                 type="text"
-                placeholder="חפש פרויקט או לקוח..."
+                placeholder="חפש תיקייה..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full bg-white/10 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/50"
               />
             </div>
-            <div className="flex gap-2">
-              {(["all", "active", "completed"] as const).map(f => (
-                <button key={f} onClick={() => setFilter(f)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    filter === f
-                      ? "bg-green-600 text-white"
-                      : "bg-white/10 text-gray-400 hover:bg-white/15"
-                  }`}>
-                  {f === "all" ? "הכל" : f === "active" ? "פעילים" : "הושלמו"}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
+      <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+
+      {/* New folder dialog */}
+      {showNewFolder && (
+        <div className="max-w-4xl mx-auto px-5 pt-4">
+          <div className="bg-white rounded-2xl p-4 space-y-3 shadow-lg">
+            <p className="text-sm font-bold text-gray-800">שם התיקייה החדשה</p>
+            <input
+              autoFocus
+              type="text"
+              placeholder='למשל: "גינת גג — בית לוי", "חצר — משפחת כהן"'
+              value={newFolderName}
+              onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setShowNewFolder(false); }}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+            <div className="flex gap-2">
+              <button onClick={createFolder} disabled={!newFolderName.trim() || creatingFolder}
+                className="flex items-center gap-1.5 bg-green-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+                {creatingFolder ? <Loader2 size={13} className="animate-spin" /> : <FolderPlus size={13} />}
+                {creatingFolder ? "יוצר..." : "צור"}
+              </button>
+              <button onClick={() => { setShowNewFolder(false); setNewFolderName(""); }}
+                className="text-sm font-medium text-gray-500 px-4 py-2 rounded-xl hover:bg-gray-100">
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {uploadError && (
+        <div className="max-w-4xl mx-auto px-5 pt-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2">
+            <p className="text-sm text-red-700 flex-1">{uploadError}</p>
+            <button onClick={() => setUploadError(null)} className="text-red-400"><X size={16} /></button>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-5 py-6">
         {loading ? (
           <div className="flex items-center justify-center py-32">
             <Loader2 className="w-10 h-10 animate-spin text-green-500" />
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 text-center">
-            <div className="w-20 h-20 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
-              <ImageIcon className="w-9 h-9 text-gray-600" />
-            </div>
-            <p className="text-gray-400 font-medium">
-              {projects.length === 0 ? "עדיין אין תמונות בתיק העבודות" : "אין תוצאות לחיפוש"}
-            </p>
-            {projects.length === 0 && (
-              <p className="text-gray-600 text-sm mt-1">העלה תמונות מדף הפרויקטים</p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-12">
-            {filtered.map((project, pi) => (
-              <div key={project.id}>
-                {/* Project header */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-9 h-9 bg-green-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Briefcase className="w-4 h-4 text-green-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-base font-bold text-white truncate">{project.name}</h2>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor[project.status] ?? "bg-gray-100 text-gray-600"}`}>
-                        {statusLabel[project.status] ?? project.status}
-                      </span>
-                    </div>
-                    {project.customerName && (
-                      <p className="text-sm text-gray-500">{project.customerName}</p>
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-600 flex-shrink-0">{project.images.length} תמונות</span>
-                </div>
-
-                {/* Image grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {project.images.map((img, ii) => (
-                    <button
-                      key={img.name}
-                      onClick={() => openLightbox(projects.indexOf(project), ii)}
-                      className="aspect-square rounded-xl overflow-hidden bg-gray-800 hover:ring-2 hover:ring-green-500 transition-all group relative"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={img.url}
-                        alt={`${project.name} - ${ii + 1}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </button>
-                  ))}
-                </div>
-
-                {/* Divider */}
-                <div className="mt-10 border-b border-white/5" />
+        ) : currentFolder === null ? (
+          /* ── Folders view ── */
+          filteredFolders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-32 text-center">
+              <div className="w-20 h-20 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
+                <Folder className="w-9 h-9 text-gray-600" />
               </div>
-            ))}
-          </div>
+              <p className="text-gray-400 font-medium mb-1">
+                {folders.length === 0 ? "תיק העבודות ריק" : "אין תוצאות"}
+              </p>
+              {folders.length === 0 && (
+                <>
+                  <p className="text-gray-600 text-sm mt-1">צור תיקייה ראשונה והוסף תמונות</p>
+                  <button onClick={() => setShowNewFolder(true)}
+                    className="mt-5 flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-semibold text-sm">
+                    <FolderPlus size={16} /> צור תיקייה ראשונה
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {filteredFolders.map(folder => (
+                <div key={folder.name} className="group relative">
+                  <button
+                    onClick={() => setCurrentFolder(folder.name)}
+                    className="w-full aspect-square rounded-2xl overflow-hidden bg-gray-800 hover:ring-2 hover:ring-green-500 transition-all relative"
+                  >
+                    {folder.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={folder.coverUrl} alt={folder.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Folder size={40} className="text-gray-600" />
+                      </div>
+                    )}
+                    {/* Dark overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                    {/* Folder info */}
+                    <div className="absolute bottom-0 right-0 left-0 p-3 text-right">
+                      <p className="text-white font-bold text-sm leading-tight truncate">{folder.name}</p>
+                      <p className="text-white/60 text-xs">{folder.imageCount} תמונות</p>
+                    </div>
+                  </button>
+                  {/* Delete folder button */}
+                  <button
+                    onClick={async (e) => { e.stopPropagation(); if (confirm(`למחוק את התיקייה "${folder.name}" וכל תמונותיה?`)) await deleteFolder(folder.name); }}
+                    className="absolute top-2 left-2 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+              {/* New folder tile */}
+              <button onClick={() => setShowNewFolder(true)}
+                className="aspect-square rounded-2xl border-2 border-dashed border-white/10 hover:border-green-500 hover:bg-green-500/5 flex flex-col items-center justify-center gap-2 text-gray-600 hover:text-green-400 transition-all">
+                <FolderPlus size={28} />
+                <span className="text-xs font-medium">תיקייה חדשה</span>
+              </button>
+            </div>
+          )
+        ) : (
+          /* ── Images inside folder ── */
+          images.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-32 text-center">
+              <div className="w-20 h-20 bg-white/5 rounded-2xl flex items-center justify-center mb-4">
+                <ImageIcon className="w-9 h-9 text-gray-600" />
+              </div>
+              <p className="text-gray-400 font-medium mb-1">התיקייה ריקה</p>
+              <p className="text-gray-600 text-sm mb-5">העלה תמונות לתיקייה "{currentFolder}"</p>
+              <button onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-semibold text-sm">
+                <Camera size={16} /> העלה תמונה ראשונה
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {images.map((img, idx) => (
+                <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-800">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt={`תמונה ${idx + 1}`}
+                    className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
+                    onClick={() => setLightbox(idx)} />
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(img); }} disabled={deleting === img.name}
+                    className="absolute top-1.5 left-1.5 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {deleting === img.name ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  </button>
+                  <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md">{idx + 1}</div>
+                </div>
+              ))}
+              {/* Upload tile */}
+              <button onClick={() => fileInputRef.current?.click()}
+                className="aspect-square rounded-xl border-2 border-dashed border-white/10 hover:border-green-500 hover:bg-green-500/5 flex flex-col items-center justify-center gap-2 text-gray-600 hover:text-green-400 transition-all">
+                <Plus size={24} />
+                <span className="text-xs font-medium">הוסף</span>
+              </button>
+            </div>
+          )
         )}
       </div>
 
       {/* Lightbox */}
-      {lightbox && currentLightboxImg && (
+      {lightbox !== null && images[lightbox] && (
         <div className="fixed inset-0 z-[80] bg-black/95 flex flex-col" onClick={() => setLightbox(null)}>
-          {/* Top bar */}
           <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <div>
-              <p className="text-white font-semibold text-sm">{projects[lightbox.projectIdx]?.name}</p>
-              <p className="text-gray-500 text-xs">{projects[lightbox.projectIdx]?.customerName}</p>
-            </div>
+            <p className="text-white font-semibold text-sm">{currentFolder}</p>
             <div className="flex items-center gap-3">
-              <span className="text-gray-500 text-sm">
-                {allImages.findIndex(i => i.projectIdx === lightbox.projectIdx && i.imgIdx === lightbox.imgIdx) + 1} / {allImages.length}
-              </span>
+              <span className="text-gray-500 text-sm">{lightbox + 1} / {images.length}</span>
               <button onClick={() => setLightbox(null)} className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white">
                 <X size={18} />
               </button>
             </div>
           </div>
 
-          {/* Image */}
           <div className="flex-1 flex items-center justify-center px-16 relative" onClick={e => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={currentLightboxImg.url}
-              alt="תמונת פרויקט"
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-            />
-
-            <button onClick={lightboxPrev}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors">
-              <ChevronRight size={22} />
-            </button>
-            <button onClick={lightboxNext}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors">
-              <ChevronLeft size={22} />
-            </button>
+            <img src={images[lightbox].url} alt="" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+            {lightbox > 0 && (
+              <button onClick={() => setLightbox(l => l! - 1)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white">
+                <ChevronRight size={22} />
+              </button>
+            )}
+            {lightbox < images.length - 1 && (
+              <button onClick={() => setLightbox(l => l! + 1)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white">
+                <ChevronLeft size={22} />
+              </button>
+            )}
           </div>
 
-          {/* Thumbnail strip */}
           <div className="flex gap-2 px-5 py-4 overflow-x-auto flex-shrink-0" onClick={e => e.stopPropagation()}>
-            {projects[lightbox.projectIdx]?.images.map((img, ii) => (
-              <button key={img.name} onClick={() => setLightbox({ projectIdx: lightbox.projectIdx, imgIdx: ii })}
-                className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all ${ii === lightbox.imgIdx ? "ring-2 ring-green-500 opacity-100" : "opacity-40 hover:opacity-70"}`}>
+            {images.map((img, ii) => (
+              <button key={img.name} onClick={() => setLightbox(ii)}
+                className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all ${ii === lightbox ? "ring-2 ring-green-500 opacity-100" : "opacity-40 hover:opacity-70"}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={img.url} alt="" className="w-full h-full object-cover" />
               </button>
