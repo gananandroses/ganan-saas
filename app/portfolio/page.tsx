@@ -399,6 +399,16 @@ export default function PortfolioPage() {
         )}
       </div>
 
+      {/* FAB — always visible, creates new folder from anywhere */}
+      {lightbox === null && (
+        <button
+          onClick={() => { setCurrentFolder(null); setShowNewFolder(true); }}
+          className="fixed bottom-6 left-6 z-50 w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-xl flex items-center justify-center transition-all active:scale-95"
+        >
+          <FolderPlus size={22} />
+        </button>
+      )}
+
       {/* Lightbox */}
       {lightbox !== null && images[lightbox] && (
         <div className="fixed inset-0 z-[80] bg-black/95 flex flex-col" onClick={() => setLightbox(null)}>
