@@ -162,9 +162,9 @@ function DetailModal({ type, data, onClose }: {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.status === "vip" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
                         {c.status === "vip" ? "VIP" : "פעיל"}
                       </span>
-                      {c.phone && (
-                        <a href={`tel:${c.phone}`} className="text-xs text-gray-400 flex items-center gap-1">
-                          <Phone size={10} /> {c.phone as string}
+                      {!!c.phone && (
+                        <a href={`tel:${String(c.phone)}`} className="text-xs text-gray-400 flex items-center gap-1">
+                          <Phone size={10} /> {String(c.phone)}
                         </a>
                       )}
                     </div>
@@ -200,7 +200,7 @@ function DetailModal({ type, data, onClose }: {
                           {isToday ? "היום" : jobDate.slice(5).replace("-", "/")} · {(j.job_time ?? j.time ?? "") as string}
                           {j.type ? ` · ${j.type}` : ""}
                         </p>
-                        {j.notes && <p className="text-xs text-gray-400 mt-0.5">{j.notes as string}</p>}
+                        {!!j.notes && <p className="text-xs text-gray-400 mt-0.5">{String(j.notes)}</p>}
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-sm font-bold text-green-700">₪{((j.price as number)||0).toLocaleString()}</span>
@@ -222,8 +222,8 @@ function DetailModal({ type, data, onClose }: {
                     <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
                       <div>
                         <p className="text-sm font-semibold text-gray-800">{c.name as string}</p>
-                        {c.phone && (
-                          <a href={`https://wa.me/972${(c.phone as string).replace(/^0/, "")}`}
+                        {!!c.phone && (
+                          <a href={`https://wa.me/972${String(c.phone).replace(/^0/, "")}`}
                             target="_blank" rel="noreferrer"
                             className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
                             💬 שלח תזכורת בוואטסאפ
