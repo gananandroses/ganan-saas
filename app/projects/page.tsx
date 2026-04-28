@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Plus, LayoutGrid, CalendarDays, CheckSquare, Square,
   TrendingUp, AlertTriangle, DollarSign, Briefcase,
   Pencil, ArrowRight, BarChart2, X, Loader2, RefreshCw,
+  Camera, ImageIcon, Trash2, ChevronLeft, ChevronRight, Upload,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -218,11 +219,186 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
   );
 }
 
+// ── Project Gallery Modal ─────────────────────────────────────
+
+const BUCKET = "project-images";
+
+function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  const [images, setImages] = useState<{ name: string; url: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function fetchImages() {
+    setLoading(true);
+    const { data } = await supabase.storage.from(BUCKET).list(project.id, { sortBy: { column: "created_at", order: "asc" } });
+    if (data) {
+      const files = data.filter(f => f.name !== ".emptyFolderPlaceholder");
+      const mapped = files.map(f => ({
+        name: f.name,
+        url: supabase.storage.from(BUCKET).getPublicUrl(`${project.id}/${f.name}`).data.publicUrl,
+      }));
+      setImages(mapped);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { fetchImages(); }, [project.id]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    for (const file of files) {
+      const ext = file.name.split(".").pop() || "jpg";
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      await supabase.storage.from(BUCKET).upload(`${project.id}/${filename}`, file, { upsert: false });
+    }
+    await fetchImages();
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleDelete(img: { name: string; url: string }) {
+    setDeleting(img.name);
+    await supabase.storage.from(BUCKET).remove([`${project.id}/${img.name}`]);
+    setImages(prev => prev.filter(i => i.name !== img.name));
+    if (lightbox !== null) setLightbox(null);
+    setDeleting(null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-white flex flex-col" dir="rtl">
+      {/* Top nav */}
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3 flex-shrink-0">
+        <button onClick={onClose} className="flex items-center gap-1.5 text-gray-600 text-sm font-medium">
+          <ChevronRight size={18} /> חזור
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{project.name}</p>
+          <p className="text-xs text-gray-400">גלריית תמונות · {images.length} תמונות</p>
+        </div>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
+        >
+          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+          {uploading ? "מעלה..." : "הוסף"}
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+      </div>
+
+      {/* Gallery grid */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 size={32} className="animate-spin text-green-500" />
+          </div>
+        ) : images.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+              <ImageIcon size={36} className="text-gray-300" />
+            </div>
+            <p className="text-gray-500 font-medium mb-1">אין תמונות עדיין</p>
+            <p className="text-gray-400 text-sm mb-5">הוסף תמונות לתיק העבודות שלך</p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-semibold text-sm"
+            >
+              <Camera size={16} /> העלה תמונה ראשונה
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pb-6">
+            {images.map((img, idx) => (
+              <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.url}
+                  alt={`תמונה ${idx + 1}`}
+                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                  onClick={() => setLightbox(idx)}
+                />
+                {/* Delete overlay */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDelete(img); }}
+                  disabled={deleting === img.name}
+                  className="absolute top-1.5 left-1.5 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  {deleting === img.name ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                </button>
+                {/* Index badge */}
+                <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md">
+                  {idx + 1}
+                </div>
+              </div>
+            ))}
+            {/* Upload tile */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-green-400 hover:bg-green-50 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-green-600 transition-all"
+            >
+              <Plus size={24} />
+              <span className="text-xs font-medium">הוסף</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Lightbox */}
+      {lightbox !== null && (
+        <div className="fixed inset-0 z-[80] bg-black flex items-center justify-center" onClick={() => setLightbox(null)}>
+          <button onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+            className="absolute top-4 left-4 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center">
+            <X size={20} />
+          </button>
+          {/* Prev */}
+          {lightbox > 0 && (
+            <button onClick={(e) => { e.stopPropagation(); setLightbox(l => l! - 1); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center">
+              <ChevronRight size={22} />
+            </button>
+          )}
+          {/* Next */}
+          {lightbox < images.length - 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setLightbox(l => l! + 1); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center">
+              <ChevronLeft size={22} />
+            </button>
+          )}
+          {/* Image */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={images[lightbox].url}
+            alt={`תמונה ${lightbox + 1}`}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+          {/* Counter + delete */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
+            <span className="text-white/70 text-sm">{lightbox + 1} / {images.length}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDelete(images[lightbox]); }}
+              className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg"
+            >
+              <Trash2 size={13} /> מחק תמונה
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Project Card ──────────────────────────────────────────────
 
 function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => void }) {
   const [checkedTasks, setCheckedTasks] = useState<Set<number>>(new Set());
   const [showUpdate, setShowUpdate] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
   const colors = statusColor(project.status);
   const days = daysRemaining(project.endDate);
   const isOverBudget = project.spent > project.budget;
@@ -298,13 +474,22 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
       )}
 
       {/* Actions */}
-      <button
-        onClick={() => setShowUpdate(true)}
-        className="w-full py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
-      >
-        <Pencil size={13} />
-        עדכן התקדמות
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowUpdate(true)}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2"
+        >
+          <Pencil size={13} />
+          עדכן
+        </button>
+        <button
+          onClick={() => setShowGallery(true)}
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 flex items-center justify-center gap-2"
+        >
+          <Camera size={13} />
+          גלריה
+        </button>
+      </div>
 
       {showUpdate && (
         <UpdateProgressModal
@@ -312,6 +497,9 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
           onClose={() => setShowUpdate(false)}
           onUpdated={(id, prog, stat) => { onUpdate(); setShowUpdate(false); }}
         />
+      )}
+      {showGallery && (
+        <ProjectGalleryModal project={project} onClose={() => setShowGallery(false)} />
       )}
     </div>
   );
