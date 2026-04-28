@@ -35,6 +35,7 @@ interface Project {
   laborHours: number;
   hourlyRate: number;
   notes: string;
+  vatIncluded: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -157,6 +158,7 @@ function ProjectFormModal({
   });
   const [materials, setMaterials] = useState<Material[]>(initial?.materials ?? []);
   const [tasks, setTasks] = useState<string[]>(initial?.tasks ?? []);
+  const [vatIncluded, setVatIncluded] = useState<boolean>(initial?.vatIncluded ?? false);
   const [newTask, setNewTask] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -165,11 +167,17 @@ function ProjectFormModal({
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
   }
 
+  const VAT_RATE = 0.18;
   const materialsCost = materials.reduce((s, m) => s + m.qty * m.price, 0);
   const laborCost = (parseFloat(form.labor_hours) || 0) * (parseFloat(form.hourly_rate) || 0);
   const totalCost = materialsCost + laborCost;
-  const budget = parseFloat(form.budget) || 0;
-  const profit = budget - totalCost;
+  const budgetRaw = parseFloat(form.budget) || 0;
+  // VAT calculations
+  const budgetBeforeVat = vatIncluded ? budgetRaw / (1 + VAT_RATE) : budgetRaw;
+  const budgetAfterVat  = vatIncluded ? budgetRaw : budgetRaw * (1 + VAT_RATE);
+  const vatAmount = budgetAfterVat - budgetBeforeVat;
+  const budget = budgetRaw;
+  const profit = budgetBeforeVat - totalCost;
 
   async function handleSave() {
     if (!form.name.trim()) { setError("שם הפרויקט חובה"); return; }
@@ -190,6 +198,7 @@ function ProjectFormModal({
       labor_hours: parseFloat(form.labor_hours) || 0,
       hourly_rate: parseFloat(form.hourly_rate) || 0,
       notes: form.notes.trim() || null,
+      vat_included: vatIncluded,
       ...(isEdit ? {} : { progress: 0 }),
     };
 
@@ -248,6 +257,32 @@ function ProjectFormModal({
               <label className="block text-xs text-gray-500 mb-1">תקציב לקוח (₪)</label>
               <input name="budget" type="number" value={form.budget} onChange={handleChange} placeholder="5000"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              {/* VAT toggle */}
+              <div className="flex gap-2 mt-2">
+                <button type="button" onClick={() => setVatIncluded(false)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${!vatIncluded ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
+                  לפני מע"מ
+                </button>
+                <button type="button" onClick={() => setVatIncluded(true)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${vatIncluded ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
+                  כולל מע"מ
+                </button>
+              </div>
+              {budgetRaw > 0 && (
+                <div className="mt-1.5 text-xs text-gray-400 space-y-0.5">
+                  {vatIncluded ? (
+                    <>
+                      <p>לפני מע"מ: <span className="font-semibold text-gray-600">₪{Math.round(budgetBeforeVat).toLocaleString()}</span></p>
+                      <p>מע"מ (18%): <span className="font-semibold text-gray-600">₪{Math.round(vatAmount).toLocaleString()}</span></p>
+                    </>
+                  ) : (
+                    <>
+                      <p>כולל מע"מ: <span className="font-semibold text-gray-600">₪{Math.round(budgetAfterVat).toLocaleString()}</span></p>
+                      <p>מע"מ (18%): <span className="font-semibold text-gray-600">₪{Math.round(vatAmount).toLocaleString()}</span></p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">סטטוס</label>
@@ -312,14 +347,26 @@ function ProjectFormModal({
         </section>
 
         {/* Financial summary */}
-        {(totalCost > 0 || budget > 0) && (
+        {(totalCost > 0 || budgetRaw > 0) && (
           <section className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4 border border-green-100">
             <h3 className="text-sm font-bold text-gray-700 mb-3">סיכום פיננסי</h3>
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">תקציב לקוח</span>
-                <span className="font-semibold text-gray-800">₪{budget.toLocaleString()}</span>
+                <span className="text-gray-500">תקציב לקוח {vatIncluded ? "(כולל מע\"מ)" : "(לפני מע\"מ)"}</span>
+                <span className="font-semibold text-gray-800">₪{budgetRaw.toLocaleString()}</span>
               </div>
+              {budgetRaw > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">מע"מ 18%</span>
+                  <span className="text-gray-500">₪{Math.round(vatAmount).toLocaleString()}</span>
+                </div>
+              )}
+              {budgetRaw > 0 && (
+                <div className="flex justify-between text-xs border-b border-green-100 pb-1.5">
+                  <span className="text-gray-400">תקציב {vatIncluded ? "לפני" : "כולל"} מע"מ</span>
+                  <span className="text-gray-600 font-medium">₪{Math.round(vatIncluded ? budgetBeforeVat : budgetAfterVat).toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-500">עלות חומרים</span>
                 <span className="font-semibold text-gray-800">₪{materialsCost.toLocaleString()}</span>
@@ -333,8 +380,8 @@ function ProjectFormModal({
                 <span className="font-bold text-gray-800">₪{totalCost.toLocaleString()}</span>
               </div>
               <div className={`flex justify-between text-base font-bold pt-1 ${profit >= 0 ? "text-green-700" : "text-red-600"}`}>
-                <span>{profit >= 0 ? "רווח צפוי" : "הפסד צפוי"}</span>
-                <span>₪{Math.abs(profit).toLocaleString()}</span>
+                <span>{profit >= 0 ? "רווח צפוי (לפני מע\"מ)" : "הפסד צפוי"}</span>
+                <span>₪{Math.abs(Math.round(profit)).toLocaleString()}</span>
               </div>
             </div>
           </section>
@@ -613,6 +660,7 @@ function mapProject(row: Record<string, unknown>): Project {
     laborHours: Number(row.labor_hours) || 0,
     hourlyRate: Number(row.hourly_rate) || 0,
     notes: (row.notes as string) || "",
+    vatIncluded: Boolean(row.vat_included) || false,
   };
 }
 
