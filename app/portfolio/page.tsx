@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
   Loader2, ImageIcon, X, ChevronLeft, ChevronRight, Camera,
@@ -36,6 +37,7 @@ export default function PortfolioPage() {
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   async function fetchContents() {
     setLoading(true);
@@ -152,14 +154,16 @@ export default function PortfolioPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-3">
-              {currentFolder !== null && (
-                <button
-                  onClick={() => { setCurrentFolder(null); setLightbox(null); }}
-                  className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white transition-colors"
-                >
-                  <ChevronRight size={18} />
-                </button>
-              )}
+              {/* Back button: inside folder → root, at root → dashboard */}
+              <button
+                onClick={() => {
+                  if (currentFolder !== null) { setCurrentFolder(null); setLightbox(null); }
+                  else router.push("/dashboard");
+                }}
+                className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-white transition-colors flex-shrink-0"
+              >
+                <ChevronRight size={18} />
+              </button>
               <div>
                 <h1 className="text-xl font-bold text-white">
                   {currentFolder !== null ? currentFolder : "תיק עבודות"}
