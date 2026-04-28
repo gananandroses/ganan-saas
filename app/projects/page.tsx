@@ -232,11 +232,18 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showShare, setShowShare] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const shareText = `תיק עבודות — ${project.name}${project.customerName ? ` (${project.customerName})` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}`;
+
   function shareWhatsApp() {
-    const text = `תיק עבודות — ${project.name}${project.customerName ? ` (${project.customerName})` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank");
+    setShowShare(false);
+  }
+
+  function shareTelegram() {
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(images[0]?.url || "")}&text=${encodeURIComponent(`תיק עבודות — ${project.name}`)}`, "_blank");
     setShowShare(false);
   }
 
@@ -245,6 +252,41 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
     const body = `שלום,\n\nמצורפות תמונות מהפרויקט: ${project.name}${project.customerName ? ` — ${project.customerName}` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}\n\nגנן Pro`;
     window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank");
     setShowShare(false);
+  }
+
+  function shareSms() {
+    window.open(`sms:?body=${encodeURIComponent(shareText)}`, "_blank");
+    setShowShare(false);
+  }
+
+  async function copyLink() {
+    const text = images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n");
+    await navigator.clipboard.writeText(`תיק עבודות — ${project.name}\n\n${text}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    setShowShare(false);
+  }
+
+  async function nativeShare() {
+    if (navigator.share) {
+      await navigator.share({ title: `תיק עבודות — ${project.name}`, text: shareText });
+    }
+    setShowShare(false);
+  }
+
+  async function downloadAll() {
+    setShowShare(false);
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const res = await fetch(img.url);
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${project.name}-תמונה${i + 1}.${img.name.split(".").pop() || "jpg"}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      await new Promise(r => setTimeout(r, 300));
+    }
   }
 
   async function exportPdf() {
@@ -267,11 +309,7 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
       <div class="grid">${images.map((img, i) => `<div class="img-wrap"><img src="${img.url}" /><div class="caption">תמונה ${i + 1}</div></div>`).join("")}
       </div></body></html>`;
     const win = window.open("", "_blank");
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      setTimeout(() => { win.print(); }, 800);
-    }
+    if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.print(); }, 800); }
     setGeneratingPdf(false);
   }
 
@@ -350,14 +388,36 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
               {showShare && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowShare(false)} />
-                  <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-20 w-48" dir="rtl">
+                  <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-20 w-52" dir="rtl">
+                    {typeof navigator !== "undefined" && "share" in navigator && (
+                      <button onClick={nativeShare}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors font-medium">
+                        <span className="text-lg">📲</span> שתף (תפריט הטלפון)
+                      </button>
+                    )}
                     <button onClick={shareWhatsApp}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors">
-                      <span className="text-lg">💬</span> שתף ב-WhatsApp
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                      <span className="text-lg">💬</span> WhatsApp
+                    </button>
+                    <button onClick={shareTelegram}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                      <span className="text-lg">✈️</span> Telegram
                     </button>
                     <button onClick={shareGmail}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
-                      <span className="text-lg">✉️</span> שלח ב-Gmail
+                      <span className="text-lg">✉️</span> Gmail / מייל
+                    </button>
+                    <button onClick={shareSms}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                      <span className="text-lg">💌</span> SMS / iMessage
+                    </button>
+                    <button onClick={copyLink}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                      <span className="text-lg">{copied ? "✅" : "🔗"}</span> {copied ? "הועתק!" : "העתק קישורים"}
+                    </button>
+                    <button onClick={downloadAll}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                      <span className="text-lg">💾</span> הורד הכל (ZIP)
                     </button>
                     <button onClick={exportPdf} disabled={generatingPdf}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50 disabled:opacity-50">
