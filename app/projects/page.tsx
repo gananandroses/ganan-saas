@@ -67,8 +67,8 @@ function statusColor(s: ProjectStatus) {
 const VAT = 0.18;
 
 function materialNetCost(m: Material) {
-  // normalize each material to its before-VAT cost
-  return m.qty * (m.vatIncluded ? m.price / (1 + VAT) : m.price);
+  // cost = what was actually entered (the price paid / the contracted price)
+  return m.qty * m.price;
 }
 
 function calcFinancials(p: Project) {
@@ -153,9 +153,12 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
                 </button>
               </div>
               <span className="text-xs text-gray-400">
-                עלות נטו: <span className="text-gray-600 font-medium">₪{Math.round(netCost).toLocaleString()}</span>
+                סה"כ: <span className="text-gray-600 font-medium">₪{Math.round(netCost).toLocaleString()}</span>
                 {m.vatIncluded && m.price > 0 && (
-                  <span className="text-gray-400"> (חסכת מע"מ: ₪{Math.round(m.qty * m.price - netCost).toLocaleString()})</span>
+                  <span className="text-gray-400"> (מע"מ: ₪{Math.round(m.qty * m.price * VAT / (1 + VAT)).toLocaleString()})</span>
+                )}
+                {!m.vatIncluded && m.price > 0 && (
+                  <span className="text-gray-400"> (+ מע"מ: ₪{Math.round(netCost * VAT).toLocaleString()})</span>
                 )}
               </span>
             </div>
@@ -640,20 +643,17 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
               {/* Materials list */}
               {showFinance && project.materials.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                  {project.materials.map((m, i) => {
-                    const net = materialNetCost(m);
-                    return (
-                      <div key={i} className="flex justify-between text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          {m.name} ({m.qty} {m.unit})
-                          <span className={`px-1 rounded text-[10px] font-medium ${m.vatIncluded ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500"}`}>
-                            {m.vatIncluded ? 'כולל מע"מ' : 'לפני מע"מ'}
-                          </span>
+                  {project.materials.map((m, i) => (
+                    <div key={i} className="flex justify-between text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        {m.name} ({m.qty} {m.unit})
+                        <span className={`px-1 rounded text-[10px] font-medium ${m.vatIncluded ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500"}`}>
+                          {m.vatIncluded ? 'כולל מע"מ' : 'לפני מע"מ'}
                         </span>
-                        <span>₪{Math.round(net).toLocaleString()}</span>
-                      </div>
-                    );
-                  })}
+                      </span>
+                      <span>₪{(m.qty * m.price).toLocaleString()}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
