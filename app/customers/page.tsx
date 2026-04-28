@@ -961,7 +961,12 @@ export default function CustomersPage() {
   }
 
   async function handleDeleteCustomer(id: string) {
+    // Also delete the customer's jobs (find name first)
+    const customerToDelete = customers.find(c => c.id === id);
     await supabase.from("customers").delete().eq("id", id);
+    if (customerToDelete) {
+      await supabase.from("jobs").delete().eq("customer_name", customerToDelete.name);
+    }
     setCustomers((prev) => prev.filter((c) => c.id !== id));
     setSelectedCustomer(null);
   }

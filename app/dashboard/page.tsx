@@ -3,12 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
-import {
-  monthlyRevenue,
-  jobTypeDistribution,
-  upsellAlerts,
-  employees,
-} from "@/lib/mock-data";
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -21,9 +15,8 @@ import {
   MessageSquare,
   FileText,
   Clock,
-  MapPin,
-  ChevronUp,
   Leaf,
+  ChevronUp,
   Loader2,
 } from "lucide-react";
 import {
@@ -34,10 +27,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from "recharts";
 
 // ───────────────────────────────────────────────
@@ -45,7 +34,7 @@ import {
 // ───────────────────────────────────────────────
 
 function hebrewDate() {
-  const now = new Date("2026-04-25");
+  const now = new Date();
   return now.toLocaleDateString("he-IL", {
     weekday: "long",
     year: "numeric",
@@ -54,25 +43,12 @@ function hebrewDate() {
   });
 }
 
-const employeeMap: Record<string, string> = Object.fromEntries(
-  employees.map((e) => [e.id, e.name])
-);
-
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "ממתין", color: "bg-yellow-100 text-yellow-700" },
   in_progress: { label: "בביצוע", color: "bg-blue-100 text-blue-700" },
   completed: { label: "הושלם", color: "bg-green-100 text-green-700" },
   cancelled: { label: "בוטל", color: "bg-red-100 text-red-700" },
 };
-
-const priorityColors: Record<string, string> = {
-  low: "bg-gray-200",
-  medium: "bg-yellow-400",
-  high: "bg-orange-400",
-  urgent: "bg-red-500",
-};
-
-// Jobs display computed inside component from recentJobs state
 
 // ───────────────────────────────────────────────
 // KPI Card
@@ -134,35 +110,65 @@ function CustomBarTooltip({ active, payload, label }: { active?: boolean; payloa
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState({ monthlyIncome: 0, activeCustomers: 0, openBalance: 0, todayJobs: 0 });
+  const [stats, setStats] = useState({ monthlyIncome: 0, activeCustomers: 0, openBalance: 0, todayJobs: 0, debtorsSub: "טוען..." });
   const [recentJobs, setRecentJobs] = useState<Record<string, unknown>[]>([]);
+  const [chartData, setChartData] = useState<{month: string; income: number; expense: number}[]>([]);
+  const [chartTotals, setChartTotals] = useState({ totalIncome: 0, totalExpense: 0, netProfit: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       const thisMonth = new Date().toISOString().slice(0, 7);
       const today = new Date().toISOString().split("T")[0];
 
-      const [custRes, txRes, jobsRes] = await Promise.all([
-        supabase.from("customers").select("id, status, monthly_price, balance"),
+      const [custRes, txRes, jobsRes, txRes2] = await Promise.all([
+        supabase.from("customers").select("id, status, monthly_price, balance, name"),
         supabase.from("transactions").select("type, amount, status, transaction_date").eq("type", "income"),
-        supabase.from("jobs").select("*").order("job_date").limit(10),
+        supabase.from("jobs").select("*").gte("job_date", today).order("job_date").limit(10),
+        supabase.from("transactions").select("type, amount, transaction_date"),
       ]);
 
       const customers = custRes.data || [];
       const transactions = txRes.data || [];
       const jobs = jobsRes.data || [];
+      const allTx = txRes2.data || [];
 
       const monthlyIncome = transactions
         .filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth))
         .reduce((sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0), 0);
+
+      const debtors = customers
+        .filter((c: Record<string, unknown>) => (c.balance as number) > 0)
+        .slice(0, 2)
+        .map((c: Record<string, unknown>) => `${c.name} ₪${c.balance}`)
+        .join(' · ');
 
       setStats({
         monthlyIncome,
         activeCustomers: customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip").length,
         openBalance: customers.reduce((sum: number, c: Record<string, unknown>) => sum + ((c.balance as number) || 0), 0),
         todayJobs: jobs.filter((j: Record<string, unknown>) => j.job_date === today).length,
+        debtorsSub: debtors || "אין חובות פתוחים",
       });
       setRecentJobs(jobs.slice(0, 5));
+
+      // Calculate chart data from real transactions
+      const computed = Array.from({length: 6}, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 5 + i);
+        const month = d.toISOString().slice(0, 7);
+        const label = new Date(month + "-01").toLocaleDateString("he-IL", { month: "short" });
+        const income = allTx.filter((t: Record<string,unknown>) => t.type === "income" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+        const expense = allTx.filter((t: Record<string,unknown>) => t.type === "expense" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+        return { month: label, income, expense };
+      });
+      setChartData(computed);
+
+      const totalIncome = allTx.filter((t: Record<string,unknown>) => t.type === "income").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+      const totalExpense = allTx.filter((t: Record<string,unknown>) => t.type === "expense").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+      setChartTotals({ totalIncome, totalExpense, netProfit: totalIncome - totalExpense });
+
+      setLoading(false);
     }
     load();
   }, []);
@@ -232,7 +238,7 @@ export default function DashboardPage() {
             trend={stats.openBalance > 0 ? "דורש טיפול" : "הכל שולם ✓"}
             trendColor="text-orange-500"
             trendIcon={<AlertCircle size={13} />}
-            sub="דוד לוי ₪300 · רון מזרחי ₪250"
+            sub={stats.debtorsSub}
           />
         </div>
 
@@ -257,34 +263,40 @@ export default function DashboardPage() {
                 </span>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={monthlyRevenue} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fontSize: 12, fill: "#94a3b8" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#94a3b8" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}k`}
-                  width={46}
-                />
-                <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "#f8fafc" }} />
-                <Bar dataKey="income" fill="#22c55e" radius={[5, 5, 0, 0]} maxBarSize={36} />
-                <Bar dataKey="expense" fill="#fb923c" radius={[5, 5, 0, 0]} maxBarSize={36} />
-              </BarChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="flex items-center justify-center h-[240px]">
+                <Loader2 size={28} className="animate-spin text-green-500" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}k`}
+                    width={46}
+                  />
+                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "#f8fafc" }} />
+                  <Bar dataKey="income" fill="#22c55e" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                  <Bar dataKey="expense" fill="#fb923c" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
 
             {/* Summary row */}
             <div className="mt-4 grid grid-cols-3 gap-3 border-t border-gray-50 pt-4">
               {[
-                { label: "סה״כ הכנסות", value: "₪117,950", color: "text-green-600" },
-                { label: "סה״כ הוצאות", value: "₪21,600", color: "text-orange-500" },
-                { label: "רווח נקי", value: "₪96,350", color: "text-blue-600" },
+                { label: "סה״כ הכנסות", value: `₪${chartTotals.totalIncome.toLocaleString()}`, color: "text-green-600" },
+                { label: "סה״כ הוצאות", value: `₪${chartTotals.totalExpense.toLocaleString()}`, color: "text-orange-500" },
+                { label: "רווח נקי", value: `₪${chartTotals.netProfit.toLocaleString()}`, color: "text-blue-600" },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
@@ -294,7 +306,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Today's Jobs */}
+          {/* Upcoming Jobs */}
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -307,6 +319,9 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3 flex-1 overflow-y-auto">
+              {recentJobs.length === 0 && !loading && (
+                <div className="text-center py-8 text-gray-400 text-sm">אין עבודות קרובות</div>
+              )}
               {recentJobs.map((job) => {
                 const j = job as Record<string, unknown>;
                 const jobDate = (j.job_date ?? j.date ?? "") as string;
@@ -347,95 +362,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Bottom Row: Upsells + Pie + Quick Actions ── */}
+        {/* ── Bottom Row: Quick Actions ── */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-          {/* Upsell Alerts */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center">
-                <TrendingUp size={16} className="text-amber-500" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-gray-900">הזדמנויות מכירה</h2>
-                <p className="text-xs text-gray-400">{upsellAlerts.length} המלצות פעילות</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {upsellAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className="flex items-start justify-between gap-3 p-3 rounded-xl bg-amber-50/60 border border-amber-100 hover:border-amber-200 transition-colors"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-800">{alert.customerName}</p>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{alert.message}</p>
-                  </div>
-                  <span className="flex-shrink-0 text-xs font-bold bg-green-100 text-green-700 px-2.5 py-1 rounded-full whitespace-nowrap">
-                    ₪{alert.potential.toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-gray-50 flex items-center justify-between">
-              <p className="text-xs text-gray-400">פוטנציאל כולל</p>
-              <p className="text-sm font-bold text-green-600">
-                ₪{upsellAlerts.reduce((s, a) => s + a.potential, 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
-
-          {/* Job Type Pie Chart */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center">
-                <Briefcase size={16} className="text-green-600" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-gray-900">פילוח סוגי עבודות</h2>
-                <p className="text-xs text-gray-400">לפי אחוזים</p>
-              </div>
-            </div>
-
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie
-                  data={jobTypeDistribution}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={44}
-                  outerRadius={70}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {jobTypeDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => [`${value}%`, ""]}
-                  contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-
-            <div className="mt-3 space-y-1.5">
-              {jobTypeDistribution.map((item) => (
-                <div key={item.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="text-xs text-gray-600">{item.name}</span>
-                  </div>
-                  <span className="text-xs font-semibold text-gray-700">{item.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* Quick Actions */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 md:col-start-3">
             <div className="flex items-center gap-2 mb-5">
               <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
                 <Leaf size={16} className="text-blue-600" />

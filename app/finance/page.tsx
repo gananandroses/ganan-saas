@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
-import { monthlyRevenue, customers } from "@/lib/mock-data";
+
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -283,7 +283,7 @@ interface InvoiceState {
   note: string;
 }
 
-function InvoicePanel({ onClose }: { onClose: () => void }) {
+function InvoicePanel({ onClose, customers }: { onClose: () => void; customers: {id: string; name: string; city: string; phone: string}[] }) {
   const [step, setStep] = useState<"form" | "preview">("form");
   const [form, setForm] = useState<InvoiceState>({
     customerId: "",
@@ -552,6 +552,7 @@ export default function FinancePage() {
   const [showNewTransaction, setShowNewTransaction] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dbCustomers, setDbCustomers] = useState<{id: string; name: string; city: string; phone: string}[]>([]);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -579,7 +580,21 @@ export default function FinancePage() {
 
   useEffect(() => {
     fetchTransactions();
+    supabase.from("customers").select("id, name, city, phone").order("name").then(({data}) => {
+      if (data) setDbCustomers(data.map(c => ({id: String(c.id), name: String(c.name), city: String(c.city||''), phone: String(c.phone||'')})));
+    });
   }, []);
+
+  // Chart data from real transactions
+  const chartData = Array.from({length: 6}, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 5 + i);
+    const month = d.toISOString().slice(0, 7);
+    const label = new Date(month + "-01").toLocaleDateString("he-IL", { month: "short" });
+    const income = transactions.filter(t => t.type === "income" && t.date.startsWith(month)).reduce((s, t) => s + t.amount, 0);
+    const expense = transactions.filter(t => t.type === "expense" && t.date.startsWith(month)).reduce((s, t) => s + t.amount, 0);
+    return { month: label, income, expense };
+  });
 
   // Filtered transactions
   const filteredTx = transactions.filter((t) => {
@@ -637,7 +652,7 @@ export default function FinancePage() {
     <div dir="rtl" className="min-h-screen bg-slate-50">
       <Header title="פיננסים וחיובים" subtitle="ניהול הכנסות, הוצאות וחשבוניות" />
 
-      {showInvoice && <InvoicePanel onClose={() => setShowInvoice(false)} />}
+      {showInvoice && <InvoicePanel onClose={() => setShowInvoice(false)} customers={dbCustomers} />}
       {showNewTransaction && (
         <NewTransactionModal
           onClose={() => setShowNewTransaction(false)}
@@ -713,7 +728,7 @@ export default function FinancePage() {
               </span>
             </div>
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={monthlyRevenue} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#22c55e" stopOpacity={0.18} />
@@ -768,7 +783,7 @@ export default function FinancePage() {
             </div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
-                data={monthlyRevenue}
+                data={chartData}
                 margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
                 barGap={4}
               >
@@ -898,7 +913,15 @@ export default function FinancePage() {
                         </td>
                         <td className="py-3 px-4">
                           {tx.status === "pending" || tx.status === "overdue" ? (
-                            <button className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
+                            <button
+                              onClick={() => {
+                                const c = dbCustomers.find(x => x.name === tx.customerName);
+                                const num = c?.phone?.replace(/\D/g, "") || "";
+                                const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                                const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
+                                window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
+                              }}
+                              className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
                               <MessageSquare size={12} />
                               שלח תזכורת
                             </button>
@@ -964,7 +987,15 @@ export default function FinancePage() {
                         <p className="text-xs text-gray-400 mt-0.5">{tx.date ? formatDate(tx.date) : "—"}</p>
                       </div>
                     </div>
-                    <button className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+                    <button
+                      onClick={() => {
+                        const c = dbCustomers.find(x => x.name === tx.customerName);
+                        const num = c?.phone?.replace(/\D/g, "") || "";
+                        const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                        const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
+                        window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
                       <MessageSquare size={12} />
                       שלח תזכורת WhatsApp
                     </button>
