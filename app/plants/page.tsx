@@ -60,20 +60,34 @@ function PlantImage({ plant, className }: { plant: Plant; className: string }) {
     const el = ref.current;
     if (!el) return;
 
-    const cacheKey = `wi_${plant.id}`;
+    const cacheKey = `inat_${plant.id}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) { if (cached !== "none") setImgUrl(cached); return; }
 
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       observer.disconnect();
-      const title = encodeURIComponent(plant.nameLatin.replace(/ × /g, "_").replace(/ /g, "_"));
-      fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+
+      // Try iNaturalist first — shows full plant in natural/garden setting
+      const q = encodeURIComponent(plant.nameLatin.replace(/ × /g, " ").replace(/ '/g, " "));
+      fetch(`https://api.inaturalist.org/v1/taxa?q=${q}&per_page=1&rank=species,genus`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          const url = data?.thumbnail?.source;
-          if (url) { setImgUrl(url); sessionStorage.setItem(cacheKey, url); }
-          else sessionStorage.setItem(cacheKey, "none");
+          const url = data?.results?.[0]?.default_photo?.medium_url;
+          if (url) {
+            setImgUrl(url);
+            sessionStorage.setItem(cacheKey, url);
+          } else {
+            // Fallback to Wikipedia
+            const title = encodeURIComponent(plant.nameLatin.replace(/ × /g, "_").replace(/ /g, "_"));
+            return fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(wdata => {
+                const wurl = wdata?.thumbnail?.source;
+                if (wurl) { setImgUrl(wurl); sessionStorage.setItem(cacheKey, wurl); }
+                else sessionStorage.setItem(cacheKey, "none");
+              });
+          }
         })
         .catch(() => sessionStorage.setItem(cacheKey, "none"));
     }, { rootMargin: "300px" });
