@@ -20,6 +20,8 @@ import {
   CalendarCheck,
   Settings,
   Loader2,
+  Pencil,
+  X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -428,6 +430,143 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
   );
 }
 
+// ===== EDIT ITEM MODAL =====
+
+interface EditItemModalProps {
+  item: InventoryItem;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
+  const [saving, setSaving] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
+  const [form, setForm] = useState({
+    name: item.name,
+    category: CATEGORIES.filter(c => c !== "הכל").includes(item.category as Category) ? item.category : "__other__",
+    unit: item.unit,
+    quantity: String(item.quantity),
+    min_stock: String(item.minStock),
+    price_per_unit: String(item.pricePerUnit),
+    supplier: item.supplier,
+  });
+
+  // If category was custom, pre-fill the text field
+  useState(() => {
+    if (!CATEGORIES.filter(c => c !== "הכל").includes(item.category as Category)) {
+      setCustomCategory(item.category);
+    }
+  });
+
+  const handleSave = async () => {
+    if (!form.name || !form.unit) return;
+    setSaving(true);
+    const finalCategory = form.category === "__other__" ? (customCategory || "אחר") : form.category;
+    await supabase.from("inventory").update({
+      name: form.name,
+      category: finalCategory,
+      unit: form.unit,
+      quantity: parseFloat(form.quantity) || 0,
+      min_stock: parseFloat(form.min_stock) || 0,
+      price_per_unit: parseFloat(form.price_per_unit) || 0,
+      supplier: form.supplier,
+    }).eq("id", item.id);
+    setSaving(false);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        </div>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="text-lg font-bold text-gray-900">עריכת פריט</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">שם הפריט</label>
+            <input type="text"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+              value={form.name}
+              onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">קטגוריה</label>
+              <select
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 bg-white"
+                value={form.category}
+                onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}>
+                {CATEGORIES.filter(c => c !== "הכל").map(c => <option key={c}>{c}</option>)}
+                <option value="__other__">אחר (כתוב בעצמך)</option>
+              </select>
+              {form.category === "__other__" && (
+                <input type="text" placeholder="שם הקטגוריה..."
+                  className="w-full mt-2 border border-green-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)} />
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">יחידת מידה</label>
+              <input type="text"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                value={form.unit}
+                onChange={(e) => setForm(f => ({ ...f, unit: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">כמות</label>
+              <input type="number"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                value={form.quantity}
+                onChange={(e) => setForm(f => ({ ...f, quantity: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">מינימום מלאי</label>
+              <input type="number"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                value={form.min_stock}
+                onChange={(e) => setForm(f => ({ ...f, min_stock: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">מחיר ליחידה (₪)</label>
+              <input type="number"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                value={form.price_per_unit}
+                onChange={(e) => setForm(f => ({ ...f, price_per_unit: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">ספק</label>
+              <input type="text"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                value={form.supplier}
+                onChange={(e) => setForm(f => ({ ...f, supplier: e.target.value }))} />
+            </div>
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-600">ביטול</button>
+          <button onClick={handleSave} disabled={saving || !form.name || !form.unit}
+            className="flex-1 py-3.5 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-2xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {saving ? "שומר..." : "שמור שינויים"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ===== MAIN COMPONENT =====
 
 export default function InventoryPage() {
@@ -438,6 +577,7 @@ export default function InventoryPage() {
   const [schedulingEquipment, setSchedulingEquipment] = useState<EquipmentItem | null>(null);
   const [maintenanceDate, setMaintenanceDate] = useState("");
   const [schedulingSaving, setSchedulingSaving] = useState(false);
+  const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
 
   async function handleScheduleMaintenance() {
     if (!schedulingEquipment || !maintenanceDate) return;
@@ -691,12 +831,20 @@ export default function InventoryPage() {
                       </div>
                     </div>
 
-                    {/* Stock Level Badge */}
-                    <span
-                      className={`px-2 py-1 rounded-lg text-xs font-semibold flex-shrink-0 ${stockStatus.bgColor} ${stockStatus.color}`}
-                    >
-                      {stockStatus.label}
-                    </span>
+                    {/* Stock Level Badge + Edit Button */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span
+                        className={`px-2 py-1 rounded-lg text-xs font-semibold ${stockStatus.bgColor} ${stockStatus.color}`}
+                      >
+                        {stockStatus.label}
+                      </span>
+                      <button
+                        onClick={() => setEditingItem(item)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -937,6 +1085,15 @@ export default function InventoryPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ===== EDIT ITEM MODAL ===== */}
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSaved={fetchInventory}
+        />
       )}
 
       {/* ===== NEW ITEM MODAL ===== */}

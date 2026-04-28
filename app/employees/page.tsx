@@ -352,10 +352,12 @@ function EmployeeCard({
   emp,
   isSelected,
   onSelect,
+  onUpdate,
 }: {
   emp: Employee;
   isSelected: boolean;
   onSelect: () => void;
+  onUpdate: () => void;
 }) {
   const cfg = statusConfig[emp.status];
   const monthlyEarnings = emp.hourlyRate * emp.hoursThisMonth;
@@ -469,17 +471,25 @@ function EmployeeCard({
 
       {/* Card footer — actions */}
       <div className="px-4 pb-4 flex gap-2">
-        <button className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-xl py-2 transition-colors">
+        <button
+          onClick={(e) => { e.stopPropagation(); onUpdate(); }}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-xl py-2 transition-colors">
           <Activity size={13} />
           עדכן משימה
         </button>
-        <button className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl py-2 transition-colors">
+        <button
+          onClick={(e) => { e.stopPropagation(); window.open(`https://www.google.com/maps?q=${emp.lat},${emp.lng}`, "_blank"); }}
+          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl py-2 transition-colors">
           <Route size={13} />
-          הצג נתיבים
+          נווט אליו
         </button>
-        <button className="flex items-center justify-center gap-1 text-xs font-medium bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl px-3 py-2 transition-colors">
-          <Bell size={13} />
-        </button>
+        {emp.phone && (
+          <button
+            onClick={(e) => { e.stopPropagation(); const num = emp.phone.startsWith("0") ? "972" + emp.phone.slice(1).replace(/[-\s]/g,"") : emp.phone.replace(/[-\s]/g,""); window.open(`https://wa.me/${num}`, "_blank"); }}
+            className="flex items-center justify-center gap-1 text-xs font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-xl px-3 py-2 transition-colors">
+            <MessageCircle size={13} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -675,15 +685,17 @@ function PerformanceTable({
                   {/* Actions */}
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-1">
-                      <button className="p-1.5 hover:bg-green-50 text-green-600 rounded-lg transition-colors" title="עדכן משימה">
+                      <button onClick={() => onSelect(emp.id)} className="p-1.5 hover:bg-green-50 text-green-600 rounded-lg transition-colors" title="עדכן משימה">
                         <Activity size={14} />
                       </button>
-                      <button className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="הצג נתיבים">
+                      <button onClick={() => window.open(`https://www.google.com/maps?q=${emp.lat},${emp.lng}`, "_blank")} className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors" title="נווט אליו">
                         <Route size={14} />
                       </button>
-                      <button className="p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition-colors" title="שלח הודעה">
-                        <MessageCircle size={14} />
-                      </button>
+                      {emp.phone && (
+                        <button onClick={() => { const num = emp.phone.startsWith("0") ? "972" + emp.phone.slice(1).replace(/[-\s]/g,"") : emp.phone.replace(/[-\s]/g,""); window.open(`https://wa.me/${num}`, "_blank"); }} className="p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition-colors" title="שלח הודעה בוואטסאפ">
+                          <MessageCircle size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -691,6 +703,81 @@ function PerformanceTable({
             })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ===== UPDATE EMPLOYEE MODAL =====
+
+function UpdateEmployeeModal({
+  emp,
+  onClose,
+  onUpdated,
+}: {
+  emp: Employee;
+  onClose: () => void;
+  onUpdated: (updated: Employee) => void;
+}) {
+  const [status, setStatus] = useState<EmployeeStatus>(emp.status);
+  const [currentJob, setCurrentJob] = useState(emp.currentJob ?? "");
+  const [hours, setHours] = useState(String(emp.hoursThisMonth));
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await supabase.from("employees").update({
+      status,
+      current_job: currentJob || null,
+      hours_this_month: parseFloat(hours) || 0,
+    }).eq("id", emp.id);
+    setSaving(false);
+    onUpdated({ ...emp, status, currentJob: currentJob || undefined, hoursThisMonth: parseFloat(hours) || 0 });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        </div>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <h2 className="text-lg font-bold text-slate-800">עדכון עובד — {emp.name}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">סטטוס</label>
+            <select value={status} onChange={e => setStatus(e.target.value as EmployeeStatus)}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 bg-white">
+              <option value="active">זמין</option>
+              <option value="on_job">בשטח</option>
+              <option value="break">הפסקה</option>
+              <option value="offline">לא מחובר</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">משימה נוכחית</label>
+            <input type="text" placeholder="לדוגמה: גינת משפחת לוי, רמת גן"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+              value={currentJob} onChange={e => setCurrentJob(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">שעות החודש</label>
+            <input type="number" min="0"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+              value={hours} onChange={e => setHours(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex gap-3 px-5 py-4 border-t border-slate-100 flex-shrink-0 bg-white">
+          <button onClick={onClose} className="flex-1 border border-slate-200 text-slate-700 font-semibold rounded-2xl py-3 text-sm">ביטול</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-2xl py-3 text-sm transition-colors">
+            {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+            {saving ? "שומר..." : "שמור"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -923,6 +1010,7 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [updatingEmployee, setUpdatingEmployee] = useState<Employee | null>(null);
 
   useEffect(() => {
     fetchEmployees();
@@ -963,6 +1051,10 @@ export default function EmployeesPage() {
 
   function handleEmployeeCreated(emp: Employee) {
     setEmployees((prev) => [...prev, emp].sort((a, b) => a.name.localeCompare(b.name)));
+  }
+
+  function handleEmployeeUpdated(updated: Employee) {
+    setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
   }
 
   // Stats
@@ -1054,6 +1146,7 @@ export default function EmployeesPage() {
                   emp={emp}
                   isSelected={selectedId === emp.id}
                   onSelect={() => handleSelect(emp.id)}
+                  onUpdate={() => setUpdatingEmployee(emp)}
                 />
               ))}
             </div>
@@ -1066,6 +1159,15 @@ export default function EmployeesPage() {
             onSelect={handleSelect}
           />
         </>
+      )}
+
+      {/* ===== UPDATE EMPLOYEE MODAL ===== */}
+      {updatingEmployee && (
+        <UpdateEmployeeModal
+          emp={updatingEmployee}
+          onClose={() => setUpdatingEmployee(null)}
+          onUpdated={handleEmployeeUpdated}
+        />
       )}
 
       {/* ===== NEW EMPLOYEE MODAL ===== */}
