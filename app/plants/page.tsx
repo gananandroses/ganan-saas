@@ -60,7 +60,7 @@ function PlantImage({ plant, className }: { plant: Plant; className: string }) {
     const el = ref.current;
     if (!el) return;
 
-    const cacheKey = `pi2_${plant.id}`;
+    const cacheKey = `pi3_${plant.id}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) { if (cached !== "none") setImgUrl(cached); return; }
 
