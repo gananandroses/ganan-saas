@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Plus, LayoutGrid, CalendarDays, CheckSquare, Square,
   TrendingUp, AlertTriangle, DollarSign, Briefcase,
@@ -724,11 +724,14 @@ function mapProject(row: Record<string, unknown>): Project {
 
 // ── Main Page ─────────────────────────────────────────────────
 
+type KpiModal = "total" | "active" | "budget" | "profit" | null;
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "kanban">("cards");
+  const [kpiModal, setKpiModal] = useState<KpiModal>(null);
 
   async function fetchProjects() {
     setLoading(true);
@@ -740,8 +743,8 @@ export default function ProjectsPage() {
   useEffect(() => { fetchProjects(); }, []);
 
   const totalBudget = projects.reduce((s, p) => s + p.budget, 0);
-  const totalCost = projects.reduce((s, p) => s + calcFinancials(p).totalCost, 0);
-  const totalProfit = totalBudget - totalCost;
+  const totalCost   = projects.reduce((s, p) => s + calcFinancials(p).totalCost, 0);
+  const totalProfit = projects.reduce((s, p) => s + calcFinancials(p).profit, 0);
   const activeCount = projects.filter(p => p.status === "active").length;
 
   const kanbanCols: { key: ProjectStatus; label: string; color: string; header: string }[] = [
@@ -774,27 +777,124 @@ export default function ProjectsPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          {[
-            { label: 'סה"כ', value: projects.length, icon: <Briefcase size={18} />, color: "text-violet-600", bg: "bg-violet-50" },
-            { label: "פעילים", value: activeCount, icon: <TrendingUp size={18} />, color: "text-blue-600", bg: "bg-blue-50" },
-            { label: "תקציב", value: `₪${totalBudget.toLocaleString()}`, icon: <DollarSign size={18} />, color: "text-green-600", bg: "bg-green-50" },
+          {([
+            { key: "total" as KpiModal,  label: 'סה"כ',   value: String(projects.length), icon: <Briefcase size={18} />, color: "text-violet-600", bg: "bg-violet-50" },
+            { key: "active" as KpiModal, label: "פעילים", value: String(activeCount),      icon: <TrendingUp size={18} />, color: "text-blue-600",  bg: "bg-blue-50" },
+            { key: "budget" as KpiModal, label: "תקציב",  value: `₪${Math.round(totalBudget).toLocaleString()}`, icon: <DollarSign size={18} />, color: "text-green-600", bg: "bg-green-50" },
             {
+              key: "profit" as KpiModal,
               label: totalProfit >= 0 ? "רווח כולל" : "הפסד כולל",
-              value: `₪${Math.abs(totalProfit).toLocaleString()}`,
+              value: `₪${Math.round(Math.abs(totalProfit)).toLocaleString()}`,
               icon: totalProfit >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />,
               color: totalProfit >= 0 ? "text-green-600" : "text-red-600",
               bg: totalProfit >= 0 ? "bg-green-50" : "bg-red-50",
             },
-          ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3">
+          ] as { key: KpiModal; label: string; value: string; icon: React.ReactNode; color: string; bg: string }[]).map(s => (
+            <button key={s.label} onClick={() => setKpiModal(s.key)}
+              className="bg-white rounded-xl border border-gray-200 p-3 flex items-center gap-3 hover:shadow-md hover:border-gray-300 transition-all text-right w-full">
               <div className={`w-9 h-9 rounded-xl ${s.bg} ${s.color} flex items-center justify-center flex-shrink-0`}>{s.icon}</div>
               <div>
                 <p className="text-lg font-bold text-gray-800">{s.value}</p>
                 <p className="text-xs text-gray-500">{s.label}</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
+
+        {/* KPI Modal */}
+        {kpiModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setKpiModal(null)}>
+            <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="font-bold text-gray-800 text-base">
+                  {kpiModal === "total"  && `כל הפרויקטים (${projects.length})`}
+                  {kpiModal === "active" && `פרויקטים פעילים (${activeCount})`}
+                  {kpiModal === "budget" && "פירוט תקציב"}
+                  {kpiModal === "profit" && "פירוט רווח / הפסד"}
+                </h3>
+                <button onClick={() => setKpiModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-4 space-y-3">
+                {kpiModal === "total" && projects.map(p => {
+                  const { profit } = calcFinancials(p);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                      <div>
+                        <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                        <p className="text-xs text-gray-500">{p.customerName} · {statusLabel(p.status)}</p>
+                      </div>
+                      <span className={`text-sm font-bold ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                        {profit >= 0 ? "+" : "-"}₪{Math.round(Math.abs(profit)).toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+                {kpiModal === "active" && projects.filter(p => p.status === "active").map(p => (
+                  <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <div>
+                      <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                      <p className="text-xs text-gray-500">{p.customerName}</p>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-gray-700">₪{Math.round(p.budget).toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">{p.progress}% הושלם</p>
+                    </div>
+                  </div>
+                ))}
+                {kpiModal === "budget" && (
+                  <>
+                    {projects.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                        <div>
+                          <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                          <p className="text-xs text-gray-400">{p.vatIncluded ? 'כולל מע"מ' : 'לפני מע"מ'}</p>
+                        </div>
+                        <span className="text-sm font-bold text-gray-700">₪{Math.round(p.budget).toLocaleString()}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-3 border-t border-gray-200 font-bold text-green-700">
+                      <span>סה"כ תקציב</span>
+                      <span>₪{Math.round(totalBudget).toLocaleString()}</span>
+                    </div>
+                  </>
+                )}
+                {kpiModal === "profit" && (
+                  <>
+                    {projects.map(p => {
+                      const { profit, budgetBeforeVat, totalCost: tc, materialsCost, laborCost } = calcFinancials(p);
+                      return (
+                        <div key={p.id} className="py-2 border-b border-gray-50 last:border-0 space-y-1">
+                          <div className="flex justify-between">
+                            <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                            <span className={`text-sm font-bold ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
+                              {profit >= 0 ? "+" : "-"}₪{Math.round(Math.abs(profit)).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-400">
+                            <span>תקציב נטו</span>
+                            <span>₪{Math.round(budgetBeforeVat).toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-400">
+                            <span>עלות ({materialsCost > 0 ? `חומרים ₪${Math.round(materialsCost).toLocaleString()}` : ""}{laborCost > 0 ? ` + עבודה ₪${Math.round(laborCost).toLocaleString()}` : ""})</span>
+                            <span>₪{Math.round(tc).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="flex justify-between pt-3 border-t border-gray-200 font-bold">
+                      <span className={totalProfit >= 0 ? "text-green-700" : "text-red-600"}>
+                        {totalProfit >= 0 ? "רווח כולל" : "הפסד כולל"}
+                      </span>
+                      <span className={totalProfit >= 0 ? "text-green-700" : "text-red-600"}>
+                        ₪{Math.round(Math.abs(totalProfit)).toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* View toggle */}
         <div className="flex bg-white border border-gray-200 rounded-xl overflow-hidden mb-5 w-fit">
