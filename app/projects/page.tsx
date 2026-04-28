@@ -18,6 +18,7 @@ interface Material {
   qty: number;
   unit: string;
   price: number;
+  vatIncluded: boolean;
 }
 
 interface Project {
@@ -65,8 +66,13 @@ function statusColor(s: ProjectStatus) {
 
 const VAT = 0.18;
 
+function materialNetCost(m: Material) {
+  // normalize each material to its before-VAT cost
+  return m.qty * (m.vatIncluded ? m.price / (1 + VAT) : m.price);
+}
+
 function calcFinancials(p: Project) {
-  const materialsCost = p.materials.reduce((s, m) => s + m.qty * m.price, 0);
+  const materialsCost = p.materials.reduce((s, m) => s + materialNetCost(m), 0);
   const laborCost = p.laborHours * p.hourlyRate;
   const totalCost = materialsCost + laborCost;
   const budgetBeforeVat = p.vatIncluded ? p.budget / (1 + VAT) : p.budget;
@@ -80,55 +86,82 @@ const UNITS = ["יח'", "מ\"ר", "מ\"ל", "מטר", "ק\"ג", "ל'", "שק", "
 
 function MaterialsEditor({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {
   function add() {
-    onChange([...materials, { name: "", qty: 1, unit: "יח'", price: 0 }]);
+    onChange([...materials, { name: "", qty: 1, unit: "יח'", price: 0, vatIncluded: false }]);
   }
   function remove(i: number) {
     onChange(materials.filter((_, idx) => idx !== i));
   }
-  function update(i: number, field: keyof Material, value: string | number) {
+  function update(i: number, field: keyof Material, value: string | number | boolean) {
     const next = materials.map((m, idx) => idx === i ? { ...m, [field]: value } : m);
     onChange(next);
   }
 
   return (
     <div className="space-y-2">
-      {materials.map((m, i) => (
-        <div key={i} className="flex gap-2 items-center">
-          <input
-            placeholder="שם חומר"
-            value={m.name}
-            onChange={e => update(i, "name", e.target.value)}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-          <input
-            type="number"
-            placeholder="כמות"
-            value={m.qty || ""}
-            onChange={e => update(i, "qty", parseFloat(e.target.value) || 0)}
-            className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-          <select
-            value={m.unit}
-            onChange={e => update(i, "unit", e.target.value)}
-            className="w-20 border border-gray-200 rounded-lg px-1 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-          </select>
-          <input
-            type="number"
-            placeholder="מחיר"
-            value={m.price || ""}
-            onChange={e => update(i, "price", parseFloat(e.target.value) || 0)}
-            className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-          <span className="text-xs text-gray-400 w-16 text-left flex-shrink-0">
-            ₪{(m.qty * m.price).toLocaleString()}
-          </span>
-          <button onClick={() => remove(i)} className="text-gray-300 hover:text-red-500 flex-shrink-0">
-            <Trash2 size={14} />
-          </button>
-        </div>
-      ))}
+      {materials.map((m, i) => {
+        const netCost = materialNetCost(m);
+        return (
+          <div key={i} className="space-y-1">
+            <div className="flex gap-2 items-center">
+              <input
+                placeholder="שם חומר"
+                value={m.name}
+                onChange={e => update(i, "name", e.target.value)}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <input
+                type="number"
+                placeholder="כמות"
+                value={m.qty || ""}
+                onChange={e => update(i, "qty", parseFloat(e.target.value) || 0)}
+                className="w-16 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <select
+                value={m.unit}
+                onChange={e => update(i, "unit", e.target.value)}
+                className="w-20 border border-gray-200 rounded-lg px-1 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400"
+              >
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <input
+                type="number"
+                placeholder="מחיר"
+                value={m.price || ""}
+                onChange={e => update(i, "price", parseFloat(e.target.value) || 0)}
+                className="w-20 border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <button onClick={() => remove(i)} className="text-gray-300 hover:text-red-500 flex-shrink-0">
+                <Trash2 size={14} />
+              </button>
+            </div>
+            {/* VAT toggle + net cost per material */}
+            <div className="flex items-center gap-2 pr-1">
+              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => update(i, "vatIncluded", false)}
+                  className={`px-2 py-1 transition-colors ${!m.vatIncluded ? "bg-green-600 text-white font-semibold" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                >
+                  לפני מע"מ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => update(i, "vatIncluded", true)}
+                  className={`px-2 py-1 transition-colors ${m.vatIncluded ? "bg-green-600 text-white font-semibold" : "bg-white text-gray-500 hover:bg-gray-50"}`}
+                >
+                  כולל מע"מ
+                </button>
+              </div>
+              <span className="text-xs text-gray-400">
+                עלות נטו: <span className="text-gray-600 font-medium">₪{Math.round(netCost).toLocaleString()}</span>
+                {m.vatIncluded && m.price > 0 && (
+                  <span className="text-gray-400"> (חסכת מע"מ: ₪{Math.round(m.qty * m.price - netCost).toLocaleString()})</span>
+                )}
+              </span>
+            </div>
+          </div>
+        );
+      })}
       <button onClick={add}
         className="flex items-center gap-1.5 text-sm text-green-600 hover:text-green-700 font-medium py-1">
         <Plus size={14} /> הוסף חומר
@@ -607,12 +640,20 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
               {/* Materials list */}
               {showFinance && project.materials.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
-                  {project.materials.map((m, i) => (
-                    <div key={i} className="flex justify-between text-xs text-gray-500">
-                      <span>{m.name} ({m.qty} {m.unit})</span>
-                      <span>₪{(m.qty * m.price).toLocaleString()}</span>
-                    </div>
-                  ))}
+                  {project.materials.map((m, i) => {
+                    const net = materialNetCost(m);
+                    return (
+                      <div key={i} className="flex justify-between text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          {m.name} ({m.qty} {m.unit})
+                          <span className={`px-1 rounded text-[10px] font-medium ${m.vatIncluded ? "bg-amber-100 text-amber-600" : "bg-gray-100 text-gray-500"}`}>
+                            {m.vatIncluded ? 'כולל מע"מ' : 'לפני מע"מ'}
+                          </span>
+                        </span>
+                        <span>₪{Math.round(net).toLocaleString()}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -673,7 +714,7 @@ function mapProject(row: Record<string, unknown>): Project {
     progress: Number(row.progress) || 0,
     status: (row.status as ProjectStatus) || "planning",
     tasks: (row.tasks as string[]) || [],
-    materials: (row.materials as Material[]) || [],
+    materials: ((row.materials as Material[]) || []).map(m => ({ ...m, vatIncluded: Boolean(m.vatIncluded) })),
     laborHours: Number(row.labor_hours) || 0,
     hourlyRate: Number(row.hourly_rate) || 0,
     notes: (row.notes as string) || "",
