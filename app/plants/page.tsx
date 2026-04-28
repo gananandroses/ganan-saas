@@ -303,41 +303,25 @@ export default function PlantsPage() {
       </div>
 
       {/* Category pills */}
-      <div className="bg-white border-b border-gray-100 py-3">
-        <div className="relative flex items-center">
-          {/* Scroll right (RTL = start) */}
-          <button onClick={() => scrollPills("right")}
-            className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white shadow-md border border-gray-200 rounded-full z-10 mr-1 ml-1 hover:bg-gray-50">
-            <ChevronRight size={16} className="text-gray-500" />
-          </button>
-
-          <div ref={pillsRef}
-            className="flex gap-2 overflow-x-auto flex-1 py-1"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}>
-            {PLANT_CATEGORIES.map((cat) => {
-              const active = activeCategory === cat.key;
-              return (
-                <button
-                  key={cat.key}
-                  onClick={() => setActiveCategory(cat.key)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
-                    active
-                      ? "bg-green-600 text-white shadow-sm"
-                      : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
-                  }`}
-                >
-                  <span>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Scroll left */}
-          <button onClick={() => scrollPills("left")}
-            className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-white shadow-md border border-gray-200 rounded-full z-10 ml-1 mr-1 hover:bg-gray-50">
-            <ChevronLeft size={16} className="text-gray-500" />
-          </button>
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
+        <div className="flex flex-wrap gap-2">
+          {PLANT_CATEGORIES.map((cat) => {
+            const active = activeCategory === cat.key;
+            return (
+              <button
+                key={cat.key}
+                onClick={() => setActiveCategory(cat.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
+                  active
+                    ? "bg-green-600 text-white shadow-sm"
+                    : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
+                }`}
+              >
+                <span>{cat.emoji}</span>
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
