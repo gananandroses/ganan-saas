@@ -5,7 +5,7 @@ import {
   Plus, LayoutGrid, CalendarDays, CheckSquare, Square,
   TrendingUp, AlertTriangle, DollarSign, Briefcase,
   Pencil, ArrowRight, BarChart2, X, Loader2, RefreshCw,
-  Camera, ImageIcon, Trash2, ChevronLeft, ChevronRight, Upload, Share2,
+  Camera, ImageIcon, Trash2, ChevronLeft, ChevronRight, Upload, Share2, Folder, FolderPlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -224,6 +224,8 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
 const BUCKET = "project-images";
 
 function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: () => void }) {
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
+  const [folders, setFolders] = useState<{ name: string; imageCount: number }[]>([]);
   const [images, setImages] = useState<{ name: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -233,47 +235,43 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
   const [showShare, setShowShare] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const shareText = `תיק עבודות — ${project.name}${project.customerName ? ` (${project.customerName})` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}`;
+  const shareTitle = currentFolder
+    ? `תיק עבודות — ${project.name} / ${currentFolder}`
+    : `תיק עבודות — ${project.name}${project.customerName ? ` (${project.customerName})` : ""}`;
+  const shareText = `${shareTitle}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}`;
 
   function shareWhatsApp() {
     window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank");
     setShowShare(false);
   }
-
   function shareTelegram() {
-    window.open(`https://t.me/share/url?url=${encodeURIComponent(images[0]?.url || "")}&text=${encodeURIComponent(`תיק עבודות — ${project.name}`)}`, "_blank");
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(images[0]?.url || "")}&text=${encodeURIComponent(shareTitle)}`, "_blank");
     setShowShare(false);
   }
-
   function shareGmail() {
-    const subject = `תיק עבודות — ${project.name}`;
-    const body = `שלום,\n\nמצורפות תמונות מהפרויקט: ${project.name}${project.customerName ? ` — ${project.customerName}` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}\n\nגנן Pro`;
-    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank");
+    const body = `שלום,\n\nמצורפות תמונות מהפרויקט: ${project.name}${project.customerName ? ` — ${project.customerName}` : ""}${currentFolder ? `\nתיקייה: ${currentFolder}` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}\n\nגנן Pro`;
+    window.open(`mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(body)}`, "_blank");
     setShowShare(false);
   }
-
   function shareSms() {
     window.open(`sms:?body=${encodeURIComponent(shareText)}`, "_blank");
     setShowShare(false);
   }
-
   async function copyLink() {
-    const text = images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n");
-    await navigator.clipboard.writeText(`תיק עבודות — ${project.name}\n\n${text}`);
+    await navigator.clipboard.writeText(shareText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     setShowShare(false);
   }
-
   async function nativeShare() {
-    if (navigator.share) {
-      await navigator.share({ title: `תיק עבודות — ${project.name}`, text: shareText });
-    }
+    if (navigator.share) await navigator.share({ title: shareTitle, text: shareText });
     setShowShare(false);
   }
-
   async function downloadAll() {
     setShowShare(false);
     for (let i = 0; i < images.length; i++) {
@@ -282,52 +280,92 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
       const blob = await res.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${project.name}-תמונה${i + 1}.${img.name.split(".").pop() || "jpg"}`;
+      a.download = `${project.name}${currentFolder ? `-${currentFolder}` : ""}-תמונה${i + 1}.${img.name.split(".").pop() || "jpg"}`;
       a.click();
       URL.revokeObjectURL(a.href);
       await new Promise(r => setTimeout(r, 300));
     }
   }
-
   async function exportPdf() {
     setGeneratingPdf(true);
     setShowShare(false);
     const date = new Date().toLocaleDateString("he-IL");
-    const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>תיק עבודות — ${project.name}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:Arial,sans-serif;background:#fff;color:#111;padding:32px}
-      h1{font-size:22px;font-weight:bold;margin-bottom:4px}
-      .sub{font-size:13px;color:#666;margin-bottom:24px}
+    const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${shareTitle}</title><style>
+      *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;background:#fff;color:#111;padding:32px}
+      h1{font-size:22px;font-weight:bold;margin-bottom:4px}.sub{font-size:13px;color:#666;margin-bottom:24px}
       .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
       .img-wrap{break-inside:avoid;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb}
-      img{width:100%;height:220px;object-fit:cover;display:block}
-      .caption{font-size:11px;color:#888;padding:6px 10px;background:#f9fafb}
+      img{width:100%;height:220px;object-fit:cover;display:block}.caption{font-size:11px;color:#888;padding:6px 10px;background:#f9fafb}
       @media print{body{padding:16px}.grid{gap:12px}img{height:200px}}
     </style></head><body>
-      <h1>תיק עבודות — ${project.name}</h1>
+      <h1>${shareTitle}</h1>
       <div class="sub">${project.customerName ? `לקוח: ${project.customerName} · ` : ""}${images.length} תמונות · ${date}</div>
-      <div class="grid">${images.map((img, i) => `<div class="img-wrap"><img src="${img.url}" /><div class="caption">תמונה ${i + 1}</div></div>`).join("")}
-      </div></body></html>`;
+      <div class="grid">${images.map((img, i) => `<div class="img-wrap"><img src="${img.url}" /><div class="caption">תמונה ${i + 1}</div></div>`).join("")}</div>
+    </body></html>`;
     const win = window.open("", "_blank");
     if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.print(); }, 800); }
     setGeneratingPdf(false);
   }
 
-  async function fetchImages() {
+  async function fetchContents() {
     setLoading(true);
-    const { data } = await supabase.storage.from(BUCKET).list(project.id, { sortBy: { column: "created_at", order: "asc" } });
-    if (data) {
-      const files = data.filter(f => f.name !== ".emptyFolderPlaceholder");
-      const mapped = files.map(f => ({
-        name: f.name,
-        url: supabase.storage.from(BUCKET).getPublicUrl(`${project.id}/${f.name}`).data.publicUrl,
-      }));
-      setImages(mapped);
+    setImages([]);
+    setFolders([]);
+    if (currentFolder === null) {
+      // Root level: list folders and root files
+      const { data } = await supabase.storage.from(BUCKET).list(project.id, { sortBy: { column: "name", order: "asc" } });
+      if (data) {
+        const folderItems = data.filter(f => f.id === null);
+        const rootFiles = data.filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
+
+        // Count images in each folder
+        const foldersWithCount = await Promise.all(
+          folderItems.map(async (folder) => {
+            const { data: folderFiles } = await supabase.storage.from(BUCKET).list(`${project.id}/${folder.name}`);
+            const count = (folderFiles || []).filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder").length;
+            return { name: folder.name, imageCount: count };
+          })
+        );
+        setFolders(foldersWithCount);
+
+        // Root-level images (legacy / no folder)
+        const mapped = rootFiles.map(f => ({
+          name: f.name,
+          url: supabase.storage.from(BUCKET).getPublicUrl(`${project.id}/${f.name}`).data.publicUrl,
+        }));
+        setImages(mapped);
+      }
+    } else {
+      // Inside a folder
+      const { data } = await supabase.storage.from(BUCKET).list(`${project.id}/${currentFolder}`, { sortBy: { column: "created_at", order: "asc" } });
+      if (data) {
+        const files = data.filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
+        setImages(files.map(f => ({
+          name: f.name,
+          url: supabase.storage.from(BUCKET).getPublicUrl(`${project.id}/${currentFolder}/${f.name}`).data.publicUrl,
+        })));
+      }
     }
     setLoading(false);
   }
 
-  useEffect(() => { fetchImages(); }, [project.id]);
+  useEffect(() => { fetchContents(); }, [project.id, currentFolder]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function createFolder() {
+    if (!newFolderName.trim()) return;
+    setCreatingFolder(true);
+    const placeholder = new Blob([""], { type: "text/plain" });
+    await supabase.storage.from(BUCKET).upload(
+      `${project.id}/${newFolderName.trim()}/.emptyFolderPlaceholder`,
+      placeholder,
+      { upsert: true }
+    );
+    const name = newFolderName.trim();
+    setNewFolderName("");
+    setShowNewFolder(false);
+    setCreatingFolder(false);
+    setCurrentFolder(name);
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
@@ -337,7 +375,10 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
     for (const file of files) {
       const ext = file.name.split(".").pop() || "jpg";
       const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(`${project.id}/${filename}`, file, { upsert: false });
+      const path = currentFolder
+        ? `${project.id}/${currentFolder}/${filename}`
+        : `${project.id}/${filename}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
       if (error) {
         if (error.message.includes("bucket") || error.message.includes("not found")) {
           setUploadError("❌ ה-bucket 'project-images' לא קיים ב-Supabase. צור אותו ב: Storage → New bucket → project-images (Public)");
@@ -351,33 +392,46 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
         return;
       }
     }
-    await fetchImages();
+    await fetchContents();
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleDelete(img: { name: string; url: string }) {
     setDeleting(img.name);
-    await supabase.storage.from(BUCKET).remove([`${project.id}/${img.name}`]);
+    const path = currentFolder
+      ? `${project.id}/${currentFolder}/${img.name}`
+      : `${project.id}/${img.name}`;
+    await supabase.storage.from(BUCKET).remove([path]);
     setImages(prev => prev.filter(i => i.name !== img.name));
     if (lightbox !== null) setLightbox(null);
     setDeleting(null);
   }
 
+  const totalImagesAll = folders.reduce((s, f) => s + f.imageCount, 0) + images.length;
+
   return (
     <div className="fixed inset-0 z-[70] bg-white flex flex-col" dir="rtl">
       {/* Top nav */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3 flex-shrink-0 gap-2">
-        <button onClick={onClose} className="flex items-center gap-1.5 text-gray-600 text-sm font-medium flex-shrink-0">
-          <ChevronRight size={18} /> חזור
+        <button
+          onClick={currentFolder !== null ? () => { setCurrentFolder(null); setLightbox(null); } : onClose}
+          className="flex items-center gap-1.5 text-gray-600 text-sm font-medium flex-shrink-0"
+        >
+          <ChevronRight size={18} />
+          {currentFolder !== null ? "תיקיות" : "חזור"}
         </button>
         <div className="text-center flex-1 min-w-0">
           <p className="text-sm font-bold text-gray-900 truncate">{project.name}</p>
-          <p className="text-xs text-gray-400">{images.length} תמונות</p>
+          <p className="text-xs text-gray-400">
+            {currentFolder !== null
+              ? `📁 ${currentFolder} · ${images.length} תמונות`
+              : `${folders.length} תיקיות · ${totalImagesAll} תמונות`}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Share button */}
-          {images.length > 0 && (
+          {/* Share (only inside a folder with images) */}
+          {currentFolder !== null && images.length > 0 && (
             <div className="relative">
               <button
                 onClick={() => setShowShare(s => !s)}
@@ -390,37 +444,29 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
                   <div className="fixed inset-0 z-10" onClick={() => setShowShare(false)} />
                   <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-20 w-52" dir="rtl">
                     {typeof navigator !== "undefined" && "share" in navigator && (
-                      <button onClick={nativeShare}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors font-medium">
+                      <button onClick={nativeShare} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 font-medium">
                         <span className="text-lg">📲</span> שתף (תפריט הטלפון)
                       </button>
                     )}
-                    <button onClick={shareWhatsApp}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                    <button onClick={shareWhatsApp} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
                       <span className="text-lg">💬</span> WhatsApp
                     </button>
-                    <button onClick={shareTelegram}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                    <button onClick={shareTelegram} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
                       <span className="text-lg">✈️</span> Telegram
                     </button>
-                    <button onClick={shareGmail}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                    <button onClick={shareGmail} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
                       <span className="text-lg">✉️</span> Gmail / מייל
                     </button>
-                    <button onClick={shareSms}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                    <button onClick={shareSms} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
                       <span className="text-lg">💌</span> SMS / iMessage
                     </button>
-                    <button onClick={copyLink}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                    <button onClick={copyLink} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
                       <span className="text-lg">{copied ? "✅" : "🔗"}</span> {copied ? "הועתק!" : "העתק קישורים"}
                     </button>
-                    <button onClick={downloadAll}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
-                      <span className="text-lg">💾</span> הורד הכל (ZIP)
+                    <button onClick={downloadAll} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50">
+                      <span className="text-lg">💾</span> הורד הכל
                     </button>
-                    <button onClick={exportPdf} disabled={generatingPdf}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50 disabled:opacity-50">
+                    <button onClick={exportPdf} disabled={generatingPdf} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 border-t border-gray-50 disabled:opacity-50">
                       {generatingPdf ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">📄</span>}
                       {generatingPdf ? "מכין PDF..." : "ייצא PDF"}
                     </button>
@@ -429,15 +475,24 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
               )}
             </div>
           )}
-          {/* Upload button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
-          >
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? "מעלה..." : "הוסף"}
-          </button>
+          {/* Upload (inside folder) or New Folder (root) */}
+          {currentFolder !== null ? (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
+            >
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              {uploading ? "מעלה..." : "הוסף"}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowNewFolder(true)}
+              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
+            >
+              <FolderPlus size={14} /> תיקייה חדשה
+            </button>
+          )}
         </div>
         <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
       </div>
@@ -450,60 +505,153 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
         </div>
       )}
 
-      {/* Gallery grid */}
+      {/* New folder dialog */}
+      {showNewFolder && (
+        <div className="mx-4 mt-3 bg-green-50 border border-green-200 rounded-xl p-4 flex-shrink-0 space-y-3">
+          <p className="text-sm font-semibold text-green-800">תיקייה חדשה</p>
+          <input
+            autoFocus
+            type="text"
+            placeholder="שם התיקייה (למשל: לפני, אחרי, שלב 1)"
+            value={newFolderName}
+            onChange={e => setNewFolderName(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") createFolder(); if (e.key === "Escape") setShowNewFolder(false); }}
+            className="w-full border border-green-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={createFolder}
+              disabled={!newFolderName.trim() || creatingFolder}
+              className="flex items-center gap-1.5 bg-green-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl"
+            >
+              {creatingFolder ? <Loader2 size={13} className="animate-spin" /> : <FolderPlus size={13} />}
+              {creatingFolder ? "יוצר..." : "צור תיקייה"}
+            </button>
+            <button onClick={() => { setShowNewFolder(false); setNewFolderName(""); }}
+              className="text-sm font-medium text-gray-500 px-4 py-2 rounded-xl hover:bg-white">
+              ביטול
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <Loader2 size={32} className="animate-spin text-green-500" />
           </div>
-        ) : images.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-              <ImageIcon size={36} className="text-gray-300" />
-            </div>
-            <p className="text-gray-500 font-medium mb-1">אין תמונות עדיין</p>
-            <p className="text-gray-400 text-sm mb-5">הוסף תמונות לתיק העבודות שלך</p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-semibold text-sm"
-            >
-              <Camera size={16} /> העלה תמונה ראשונה
-            </button>
+        ) : currentFolder === null ? (
+          /* ── Folder list view ── */
+          <div>
+            {folders.length === 0 && images.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                  <Folder size={36} className="text-gray-300" />
+                </div>
+                <p className="text-gray-500 font-medium mb-1">אין תיקיות עדיין</p>
+                <p className="text-gray-400 text-sm mb-5">צור תיקייה ראשונה והוסף תמונות</p>
+                <button
+                  onClick={() => setShowNewFolder(true)}
+                  className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-semibold text-sm"
+                >
+                  <FolderPlus size={16} /> צור תיקייה ראשונה
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6 pb-6">
+                {/* Folders grid */}
+                {folders.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">תיקיות</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {folders.map(folder => (
+                        <button
+                          key={folder.name}
+                          onClick={() => setCurrentFolder(folder.name)}
+                          className="aspect-square rounded-2xl border-2 border-gray-100 hover:border-green-400 bg-gray-50 hover:bg-green-50 flex flex-col items-center justify-center gap-2 transition-all group p-3"
+                        >
+                          <Folder size={32} className="text-amber-400 group-hover:text-green-500 transition-colors" />
+                          <span className="text-xs font-semibold text-gray-700 group-hover:text-green-700 text-center leading-tight break-words w-full">{folder.name}</span>
+                          <span className="text-xs text-gray-400">{folder.imageCount} תמונות</span>
+                        </button>
+                      ))}
+                      {/* New folder tile */}
+                      <button
+                        onClick={() => setShowNewFolder(true)}
+                        className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 hover:border-green-400 hover:bg-green-50 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-green-600 transition-all"
+                      >
+                        <FolderPlus size={28} />
+                        <span className="text-xs font-medium">תיקייה חדשה</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {/* Root-level images (legacy) */}
+                {images.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">תמונות ללא תיקייה</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {images.map((img, idx) => (
+                        <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.url} alt={`תמונה ${idx + 1}`}
+                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                            onClick={() => setLightbox(idx)} />
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(img); }} disabled={deleting === img.name}
+                            className="absolute top-1.5 left-1.5 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            {deleting === img.name ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          </button>
+                          <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md">{idx + 1}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pb-6">
-            {images.map((img, idx) => (
-              <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img.url}
-                  alt={`תמונה ${idx + 1}`}
-                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
-                  onClick={() => setLightbox(idx)}
-                />
-                {/* Delete overlay */}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(img); }}
-                  disabled={deleting === img.name}
-                  className="absolute top-1.5 left-1.5 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  {deleting === img.name ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                </button>
-                {/* Index badge */}
-                <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md">
-                  {idx + 1}
-                </div>
+          /* ── Images inside folder ── */
+          images.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                <ImageIcon size={36} className="text-gray-300" />
               </div>
-            ))}
-            {/* Upload tile */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-green-400 hover:bg-green-50 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-green-600 transition-all"
-            >
-              <Plus size={24} />
-              <span className="text-xs font-medium">הוסף</span>
-            </button>
-          </div>
+              <p className="text-gray-500 font-medium mb-1">התיקייה ריקה</p>
+              <p className="text-gray-400 text-sm mb-5">הוסף תמונות לתיקייה "{currentFolder}"</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl font-semibold text-sm"
+              >
+                <Camera size={16} /> העלה תמונה ראשונה
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pb-6">
+              {images.map((img, idx) => (
+                <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt={`תמונה ${idx + 1}`}
+                    className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                    onClick={() => setLightbox(idx)} />
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(img); }} disabled={deleting === img.name}
+                    className="absolute top-1.5 left-1.5 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {deleting === img.name ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  </button>
+                  <div className="absolute bottom-1.5 right-1.5 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-md">{idx + 1}</div>
+                </div>
+              ))}
+              {/* Upload tile */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-green-400 hover:bg-green-50 flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-green-600 transition-all"
+              >
+                <Plus size={24} />
+                <span className="text-xs font-medium">הוסף</span>
+              </button>
+            </div>
+          )
         )}
       </div>
 
@@ -514,35 +662,26 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
             className="absolute top-4 left-4 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center">
             <X size={20} />
           </button>
-          {/* Prev */}
           {lightbox > 0 && (
             <button onClick={(e) => { e.stopPropagation(); setLightbox(l => l! - 1); }}
               className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center">
               <ChevronRight size={22} />
             </button>
           )}
-          {/* Next */}
           {lightbox < images.length - 1 && (
             <button onClick={(e) => { e.stopPropagation(); setLightbox(l => l! + 1); }}
               className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center">
               <ChevronLeft size={22} />
             </button>
           )}
-          {/* Image */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={images[lightbox].url}
-            alt={`תמונה ${lightbox + 1}`}
+          <img src={images[lightbox].url} alt={`תמונה ${lightbox + 1}`}
             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-          {/* Counter + delete */}
+            onClick={e => e.stopPropagation()} />
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4">
             <span className="text-white/70 text-sm">{lightbox + 1} / {images.length}</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); handleDelete(images[lightbox]); }}
-              className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg"
-            >
+            <button onClick={(e) => { e.stopPropagation(); handleDelete(images[lightbox]); }}
+              className="flex items-center gap-1.5 bg-red-600/80 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg">
               <Trash2 size={13} /> מחק תמונה
             </button>
           </div>
