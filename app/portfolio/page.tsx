@@ -4,8 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import {
   Loader2, ImageIcon, X, ChevronLeft, ChevronRight, Camera,
-  Folder, FolderPlus, Upload, Trash2, Share2, Plus, Search,
+  Folder, FolderPlus, Upload, Trash2, Share2, Plus, Search, Play,
 } from "lucide-react";
+
+function isVideo(name: string) {
+  return /\.(mp4|mov|avi|webm|mkv|m4v)$/i.test(name);
+}
 
 const BUCKET = "project-images";
 const PREFIX = "portfolio";
@@ -19,7 +23,7 @@ interface FolderItem {
 export default function PortfolioPage() {
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [images, setImages] = useState<{ name: string; url: string }[]>([]);
+  const [images, setImages] = useState<{ name: string; url: string; isVideo: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -47,8 +51,9 @@ export default function PortfolioPage() {
             const { data: files } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${folder.name}`, { sortBy: { column: "created_at", order: "asc" } });
             const realFiles = (files || []).filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
             const count = realFiles.length;
-            const coverUrl = count > 0
-              ? supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${folder.name}/${realFiles[0].name}`).data.publicUrl
+            const coverFile = realFiles.find(f => !isVideo(f.name)) || realFiles[0];
+            const coverUrl = coverFile
+              ? supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${folder.name}/${coverFile.name}`).data.publicUrl
               : null;
             return { name: folder.name, imageCount: count, coverUrl };
           })
@@ -62,6 +67,7 @@ export default function PortfolioPage() {
         setImages(files.map(f => ({
           name: f.name,
           url: supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${currentFolder}/${f.name}`).data.publicUrl,
+          isVideo: isVideo(f.name),
         })));
       }
     }
@@ -234,7 +240,7 @@ export default function PortfolioPage() {
         </div>
       </div>
 
-      <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
+      <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleUpload} />
 
       {/* New folder dialog */}
       {showNewFolder && (
@@ -325,10 +331,10 @@ export default function PortfolioPage() {
                       <p className="text-white/60 text-xs">{folder.imageCount} תמונות</p>
                     </div>
                   </button>
-                  {/* Delete folder button */}
+                  {/* Delete folder button — always visible */}
                   <button
                     onClick={async (e) => { e.stopPropagation(); if (confirm(`למחוק את התיקייה "${folder.name}" וכל תמונותיה?`)) await deleteFolder(folder.name); }}
-                    className="absolute top-2 left-2 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 left-2 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center transition-colors"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -359,11 +365,22 @@ export default function PortfolioPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {images.map((img, idx) => (
-                <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-800">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt={`תמונה ${idx + 1}`}
-                    className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
-                    onClick={() => setLightbox(idx)} />
+                <div key={img.name} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-800 cursor-pointer"
+                  onClick={() => setLightbox(idx)}>
+                  {img.isVideo ? (
+                    <>
+                      <video src={img.url} className="w-full h-full object-cover" muted playsInline />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="w-10 h-10 bg-white/80 rounded-full flex items-center justify-center">
+                          <Play size={18} className="text-gray-800 mr-[-2px]" fill="currentColor" />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={img.url} alt={`פריט ${idx + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  )}
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(img); }} disabled={deleting === img.name}
                     className="absolute top-1.5 left-1.5 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     {deleting === img.name ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
@@ -396,8 +413,12 @@ export default function PortfolioPage() {
           </div>
 
           <div className="flex-1 flex items-center justify-center px-16 relative" onClick={e => e.stopPropagation()}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={images[lightbox].url} alt="" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+            {images[lightbox].isVideo ? (
+              <video src={images[lightbox].url} controls autoPlay className="max-w-full max-h-full rounded-xl shadow-2xl" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={images[lightbox].url} alt="" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+            )}
             {lightbox > 0 && (
               <button onClick={() => setLightbox(l => l! - 1)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white">
@@ -415,9 +436,18 @@ export default function PortfolioPage() {
           <div className="flex gap-2 px-5 py-4 overflow-x-auto flex-shrink-0" onClick={e => e.stopPropagation()}>
             {images.map((img, ii) => (
               <button key={img.name} onClick={() => setLightbox(ii)}
-                className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all ${ii === lightbox ? "ring-2 ring-green-500 opacity-100" : "opacity-40 hover:opacity-70"}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden transition-all relative ${ii === lightbox ? "ring-2 ring-green-500 opacity-100" : "opacity-40 hover:opacity-70"}`}>
+                {img.isVideo ? (
+                  <>
+                    <video src={img.url} className="w-full h-full object-cover" muted />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Play size={12} className="text-white" fill="white" />
+                    </div>
+                  </>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                )}
               </button>
             ))}
           </div>
