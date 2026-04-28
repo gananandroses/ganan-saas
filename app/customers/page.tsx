@@ -821,6 +821,8 @@ const filterButtons: { id: FilterType; label: string }[] = [
 export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [viewMode, setViewMode] = useState<"list" | "city">("list");
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -892,6 +894,22 @@ export default function CustomersPage() {
   const activeCount = customers.filter(
     (c) => c.status === "active" || c.status === "vip"
   ).length;
+
+  // City grouping
+  const cityGroups = useMemo(() => {
+    const map: Record<string, Customer[]> = {};
+    filteredCustomers.forEach(c => {
+      const city = c.city?.trim() || "לא ידוע";
+      if (!map[city]) map[city] = [];
+      map[city].push(c);
+    });
+    return Object.entries(map).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredCustomers]);
+
+  const cityViewCustomers = useMemo(() => {
+    if (!selectedCity) return filteredCustomers;
+    return filteredCustomers.filter(c => (c.city?.trim() || "לא ידוע") === selectedCity);
+  }, [filteredCustomers, selectedCity]);
 
   // Add customer form state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1123,6 +1141,17 @@ export default function CustomersPage() {
                 </button>
               );
             })}
+            {/* City view toggle */}
+            <button
+              onClick={() => { setViewMode(v => v === "city" ? "list" : "city"); setSelectedCity(null); }}
+              className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                viewMode === "city"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-blue-300 hover:text-blue-700"
+              }`}
+            >
+              <MapPin size={13} /> לפי עיר
+            </button>
           </div>
         </div>
 
@@ -1132,6 +1161,66 @@ export default function CustomersPage() {
             <Users size={40} className="mx-auto mb-3 opacity-30" />
             <p className="text-lg font-medium">לא נמצאו לקוחות</p>
             <p className="text-sm mt-1">נסה לשנות את החיפוש או הסינון</p>
+          </div>
+        ) : viewMode === "city" ? (
+          /* ── City view ── */
+          <div className="space-y-5">
+            {/* City pills */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedCity(null)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                  selectedCity === null ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                }`}
+              >
+                <MapPin size={13} /> הכל
+                <span className={`text-xs rounded-full px-1.5 py-0.5 font-bold ${selectedCity === null ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                  {filteredCustomers.length}
+                </span>
+              </button>
+              {cityGroups.map(([city, list]) => (
+                <button
+                  key={city}
+                  onClick={() => setSelectedCity(city === selectedCity ? null : city)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                    selectedCity === city ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700"
+                  }`}
+                >
+                  {city}
+                  <span className={`text-xs rounded-full px-1.5 py-0.5 font-bold ${selectedCity === city ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                    {list.length}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Grouped or filtered */}
+            {selectedCity ? (
+              <div>
+                <p className="text-sm text-gray-500 mb-3">{cityViewCustomers.length} לקוחות ב{selectedCity}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {cityViewCustomers.map(customer => (
+                    <CustomerCard key={customer.id} customer={customer} onClick={() => setSelectedCustomer(customer)} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              cityGroups.map(([city, list]) => (
+                <div key={city}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin size={14} className="text-blue-500" />
+                    <h3 className="text-sm font-bold text-gray-700">{city}</h3>
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">{list.length} לקוחות</span>
+                    <div className="flex-1 h-px bg-gray-100" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {list.map(customer => (
+                      <CustomerCard key={customer.id} customer={customer} onClick={() => setSelectedCustomer(customer)} />
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         ) : (
           <>
