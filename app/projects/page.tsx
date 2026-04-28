@@ -204,7 +204,7 @@ function ProjectFormModal({
   }
 
   const VAT_RATE = 0.18;
-  const materialsCost = materials.reduce((s, m) => s + m.qty * m.price, 0);
+  const materialsCost = materials.reduce((s, m) => s + materialNetCost(m), 0);
   const laborCost = (parseFloat(form.labor_hours) || 0) * (parseFloat(form.hourly_rate) || 0);
   const totalCost = materialsCost + laborCost;
   const budgetRaw = parseFloat(form.budget) || 0;
