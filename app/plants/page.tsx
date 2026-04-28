@@ -254,9 +254,15 @@ export default function PlantsPage() {
   const filtered = useMemo(() => {
     return PLANTS.filter((p) => {
       const matchCat = activeCategory === "all" || p.categories.includes(activeCategory);
-      const q = search.toLowerCase();
-      const matchSearch = !q || p.nameHe.includes(q) || p.nameLatin.toLowerCase().includes(q);
-      return matchCat && matchSearch;
+      const q = search.toLowerCase().trim();
+      if (!q) return matchCat;
+      const matchName = p.nameHe.includes(q) || p.nameLatin.toLowerCase().includes(q);
+      const matchDesc = (p.description ?? "").includes(q);
+      const matchCategory = p.categories.some(cat => {
+        const catObj = PLANT_CATEGORIES.find(c => c.key === cat);
+        return catObj ? catObj.label.includes(q) : false;
+      });
+      return matchCat && (matchName || matchDesc || matchCategory);
     });
   }, [search, activeCategory]);
 
@@ -293,7 +299,7 @@ export default function PlantsPage() {
 
       {/* Category pills */}
       <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        <div className="flex gap-2 pb-2 scrollbar-hide" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
           {PLANT_CATEGORIES.map((cat) => {
             const active = activeCategory === cat.key;
             return (
