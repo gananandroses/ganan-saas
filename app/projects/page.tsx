@@ -63,12 +63,15 @@ function statusColor(s: ProjectStatus) {
   }[s];
 }
 
+const VAT = 0.18;
+
 function calcFinancials(p: Project) {
   const materialsCost = p.materials.reduce((s, m) => s + m.qty * m.price, 0);
   const laborCost = p.laborHours * p.hourlyRate;
   const totalCost = materialsCost + laborCost;
-  const profit = p.budget - totalCost;
-  return { materialsCost, laborCost, totalCost, profit };
+  const budgetBeforeVat = p.vatIncluded ? p.budget / (1 + VAT) : p.budget;
+  const profit = budgetBeforeVat - totalCost;
+  return { materialsCost, laborCost, totalCost, profit, budgetBeforeVat };
 }
 
 const UNITS = ["יח'", "מ\"ר", "מ\"ל", "מטר", "ק\"ג", "ל'", "שק", "ערימה", "עץ", "צמח"];
@@ -559,9 +562,23 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
           {showFinance && (
             <div className="mt-3 space-y-1.5 text-right" onClick={e => e.stopPropagation()}>
               <div className="flex justify-between text-xs">
-                <span className="text-gray-500">תקציב לקוח</span>
+                <span className="text-gray-500">
+                  {project.vatIncluded ? 'תקציב לקוח (כולל מע"מ)' : 'תקציב לקוח (לפני מע"מ)'}
+                </span>
                 <span className="font-semibold text-gray-700">₪{project.budget.toLocaleString()}</span>
               </div>
+              {project.vatIncluded && (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">מע"מ 18%</span>
+                    <span className="text-gray-500">₪{Math.round(project.budget - budgetBeforeVat).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs border-b border-dashed border-gray-200 pb-1.5">
+                    <span className="text-gray-500 font-medium">תקציב נטו (לפני מע"מ)</span>
+                    <span className="font-semibold text-gray-700">₪{Math.round(budgetBeforeVat).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
               {materialsCost > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500 flex items-center gap-1"><Package size={10} /> חומרים ({project.materials.length} פריטים)</span>
@@ -583,7 +600,7 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
               <div className={`flex justify-between text-sm font-bold pt-0.5 ${profit >= 0 ? "text-green-600" : "text-red-500"}`}>
                 <span className="flex items-center gap-1">
                   {profit >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {profit >= 0 ? "רווח" : "הפסד"}
+                  {profit >= 0 ? 'רווח (לפני מע"מ)' : 'הפסד'}
                 </span>
                 <span>₪{Math.abs(profit).toLocaleString()}</span>
               </div>
