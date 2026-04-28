@@ -556,6 +556,7 @@ export default function FinancePage() {
   const [showInvoice, setShowInvoice] = useState(false);
   const [showNewTransaction, setShowNewTransaction] = useState(false);
   const [showDebtModal, setShowDebtModal] = useState(false);
+  const [detailModal, setDetailModal] = useState<null | "income" | "expense" | "profit">(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbCustomers, setDbCustomers] = useState<{id: string; name: string; city: string; phone: string}[]>([]);
@@ -709,6 +710,91 @@ export default function FinancePage() {
         </div>
       )}
 
+      {/* ===== DETAIL MODALS (income / expense / profit) ===== */}
+      {detailModal && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setDetailModal(null)}>
+          <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col" style={{maxHeight: '85dvh'}} dir="rtl" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+              <div>
+                <h2 className="font-bold text-gray-900">
+                  {detailModal === "income" ? "פירוט הכנסות" : detailModal === "expense" ? "פירוט הוצאות" : "פירוט רווח נקי"}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {detailModal === "income" && `${transactions.filter(t => t.type === "income").length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
+                  {detailModal === "expense" && `${transactions.filter(t => t.type === "expense").length} תנועות · ₪${totalExpense.toLocaleString()} סה״כ`}
+                  {detailModal === "profit" && `הכנסות פחות הוצאות`}
+                </p>
+              </div>
+              <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+            </div>
+
+            {/* Profit summary row */}
+            {detailModal === "profit" && (
+              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex-shrink-0 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-xs text-gray-400">הכנסות</p>
+                  <p className="text-sm font-bold text-green-600">+₪{totalIncome.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">הוצאות</p>
+                  <p className="text-sm font-bold text-red-500">-₪{totalExpense.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">רווח נקי</p>
+                  <p className={`text-sm font-bold ${netProfit >= 0 ? "text-blue-600" : "text-red-600"}`}>₪{netProfit.toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Transaction list */}
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+              {(detailModal === "profit"
+                ? [...transactions].sort((a, b) => b.date.localeCompare(a.date))
+                : transactions.filter(t => t.type === detailModal)
+              ).map(tx => (
+                <div key={tx.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900 text-sm">{tx.customerName}</p>
+                      {detailModal === "profit" && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${tx.type === "income" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                          {tx.type === "income" ? "הכנסה" : "הוצאה"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">{tx.description || "—"}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs text-gray-400">{tx.date ? `${tx.date.slice(8,10)}/${tx.date.slice(5,7)}/${tx.date.slice(0,4)}` : ""}</p>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${METHOD_COLORS[tx.method] ?? "bg-gray-100 text-gray-600"}`}>{METHOD_LABELS[tx.method]}</span>
+                    </div>
+                  </div>
+                  <div className="text-left flex-shrink-0">
+                    <p className={`font-bold text-sm ${tx.type === "income" ? "text-green-600" : "text-red-500"}`}>
+                      {tx.type === "income" ? "+" : "-"}₪{tx.amount.toLocaleString()}
+                    </p>
+                    <StatusBadge status={tx.status} />
+                  </div>
+                </div>
+              ))}
+              {transactions.filter(t => detailModal === "profit" || t.type === detailModal).length === 0 && (
+                <div className="py-12 text-center text-gray-400 text-sm">אין תנועות להצגה</div>
+              )}
+            </div>
+
+            {/* Footer total */}
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-3xl sm:rounded-b-2xl flex-shrink-0 flex items-center justify-between">
+              <span className="text-sm text-gray-500">סה״כ</span>
+              <span className={`text-base font-bold ${detailModal === "expense" ? "text-red-500" : detailModal === "profit" ? (netProfit >= 0 ? "text-blue-600" : "text-red-600") : "text-green-600"}`}>
+                {detailModal === "income" && `₪${totalIncome.toLocaleString()}`}
+                {detailModal === "expense" && `₪${totalExpense.toLocaleString()}`}
+                {detailModal === "profit" && `₪${netProfit.toLocaleString()}`}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewTransaction && (
         <NewTransactionModal
           onClose={() => setShowNewTransaction(false)}
@@ -743,6 +829,7 @@ export default function FinancePage() {
             label="סה״כ הכנסות"
             value={`₪${totalIncome.toLocaleString()}`}
             sub="כל הזמנים"
+            onClick={() => setDetailModal("income")}
           />
           <KpiCard
             icon={<TrendingDown size={19} className="text-orange-500" />}
@@ -750,6 +837,7 @@ export default function FinancePage() {
             label="סה״כ הוצאות"
             value={`₪${totalExpense.toLocaleString()}`}
             sub="ציוד + חומרים"
+            onClick={() => setDetailModal("expense")}
           />
           <KpiCard
             icon={<DollarSign size={19} className="text-blue-600" />}
@@ -758,6 +846,7 @@ export default function FinancePage() {
             value={`₪${netProfit.toLocaleString()}`}
             highlight="border-green-200 ring-1 ring-green-100"
             sub={totalIncome > 0 ? `שולי רווח ${Math.round((netProfit / totalIncome) * 100)}%` : undefined}
+            onClick={() => setDetailModal("profit")}
           />
           <KpiCard
             icon={<AlertCircle size={19} className="text-red-500" />}
