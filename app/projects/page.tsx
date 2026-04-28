@@ -5,7 +5,7 @@ import {
   Plus, LayoutGrid, CalendarDays, CheckSquare, Square,
   TrendingUp, AlertTriangle, DollarSign, Briefcase,
   Pencil, ArrowRight, BarChart2, X, Loader2, RefreshCw,
-  Camera, ImageIcon, Trash2, ChevronLeft, ChevronRight, Upload,
+  Camera, ImageIcon, Trash2, ChevronLeft, ChevronRight, Upload, Share2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -230,7 +230,50 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showShare, setShowShare] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function shareWhatsApp() {
+    const text = `תיק עבודות — ${project.name}${project.customerName ? ` (${project.customerName})` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+    setShowShare(false);
+  }
+
+  function shareGmail() {
+    const subject = `תיק עבודות — ${project.name}`;
+    const body = `שלום,\n\nמצורפות תמונות מהפרויקט: ${project.name}${project.customerName ? ` — ${project.customerName}` : ""}\n\n${images.map((img, i) => `תמונה ${i + 1}: ${img.url}`).join("\n")}\n\nגנן Pro`;
+    window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank");
+    setShowShare(false);
+  }
+
+  async function exportPdf() {
+    setGeneratingPdf(true);
+    setShowShare(false);
+    const date = new Date().toLocaleDateString("he-IL");
+    const html = `<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>תיק עבודות — ${project.name}</title><style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;background:#fff;color:#111;padding:32px}
+      h1{font-size:22px;font-weight:bold;margin-bottom:4px}
+      .sub{font-size:13px;color:#666;margin-bottom:24px}
+      .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+      .img-wrap{break-inside:avoid;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb}
+      img{width:100%;height:220px;object-fit:cover;display:block}
+      .caption{font-size:11px;color:#888;padding:6px 10px;background:#f9fafb}
+      @media print{body{padding:16px}.grid{gap:12px}img{height:200px}}
+    </style></head><body>
+      <h1>תיק עבודות — ${project.name}</h1>
+      <div class="sub">${project.customerName ? `לקוח: ${project.customerName} · ` : ""}${images.length} תמונות · ${date}</div>
+      <div class="grid">${images.map((img, i) => `<div class="img-wrap"><img src="${img.url}" /><div class="caption">תמונה ${i + 1}</div></div>`).join("")}
+      </div></body></html>`;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => { win.print(); }, 800);
+    }
+    setGeneratingPdf(false);
+  }
 
   async function fetchImages() {
     setLoading(true);
@@ -286,22 +329,56 @@ function ProjectGalleryModal({ project, onClose }: { project: Project; onClose: 
   return (
     <div className="fixed inset-0 z-[70] bg-white flex flex-col" dir="rtl">
       {/* Top nav */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3 flex-shrink-0">
-        <button onClick={onClose} className="flex items-center gap-1.5 text-gray-600 text-sm font-medium">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3 flex-shrink-0 gap-2">
+        <button onClick={onClose} className="flex items-center gap-1.5 text-gray-600 text-sm font-medium flex-shrink-0">
           <ChevronRight size={18} /> חזור
         </button>
-        <div className="text-center">
-          <p className="text-sm font-bold text-gray-900 truncate max-w-[160px]">{project.name}</p>
-          <p className="text-xs text-gray-400">גלריית תמונות · {images.length} תמונות</p>
+        <div className="text-center flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-900 truncate">{project.name}</p>
+          <p className="text-xs text-gray-400">{images.length} תמונות</p>
         </div>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
-        >
-          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          {uploading ? "מעלה..." : "הוסף"}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Share button */}
+          {images.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowShare(s => !s)}
+                className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-2 rounded-xl border border-blue-200 transition-colors"
+              >
+                <Share2 size={14} /> שתף
+              </button>
+              {showShare && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowShare(false)} />
+                  <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-20 w-48" dir="rtl">
+                    <button onClick={shareWhatsApp}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors">
+                      <span className="text-lg">💬</span> שתף ב-WhatsApp
+                    </button>
+                    <button onClick={shareGmail}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50">
+                      <span className="text-lg">✉️</span> שלח ב-Gmail
+                    </button>
+                    <button onClick={exportPdf} disabled={generatingPdf}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700 transition-colors border-t border-gray-50 disabled:opacity-50">
+                      {generatingPdf ? <Loader2 size={16} className="animate-spin" /> : <span className="text-lg">📄</span>}
+                      {generatingPdf ? "מכין PDF..." : "ייצא PDF"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {/* Upload button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-2 rounded-xl transition-colors"
+          >
+            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            {uploading ? "מעלה..." : "הוסף"}
+          </button>
+        </div>
         <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
       </div>
 
