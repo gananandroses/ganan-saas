@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Bell, Lock, Palette, Phone, Mail, Building, Save, Loader2, CheckCircle } from "lucide-react";
+import { User, Bell, Lock, Palette, Phone, Mail, Building, Save, Loader2, CheckCircle, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userEmail, setUserEmail] = useState("");
@@ -41,9 +43,14 @@ export default function SettingsPage() {
   return (
     <div dir="rtl" className="p-6 max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">הגדרות</h1>
-        <p className="text-sm text-gray-500 mt-0.5">ניהול פרטי עסק והעדפות מערכת</p>
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+          <ChevronRight className="w-5 h-5 text-gray-500" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">הגדרות</h1>
+          <p className="text-sm text-gray-500 mt-0.5">ניהול פרטי עסק והעדפות מערכת</p>
+        </div>
       </div>
 
       {/* Business Info */}
