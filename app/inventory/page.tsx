@@ -269,6 +269,7 @@ interface NewItemModalProps {
 
 function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
   const [saving, setSaving] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
   const [form, setForm] = useState({
     name: "",
     category: "דשנים",
@@ -282,9 +283,10 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
   const handleSubmit = async () => {
     if (!form.name || !form.unit) return;
     setSaving(true);
+    const finalCategory = form.category === "__other__" ? (customCategory || "אחר") : form.category;
     await supabase.from("inventory").insert({
       name: form.name,
-      category: form.category,
+      category: finalCategory,
       unit: form.unit,
       quantity: parseFloat(form.quantity) || 0,
       min_stock: parseFloat(form.min_stock) || 0,
@@ -335,7 +337,18 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
                 {CATEGORIES.filter((c) => c !== "הכל").map((c) => (
                   <option key={c}>{c}</option>
                 ))}
+                <option value="__other__">אחר (כתוב בעצמך)</option>
               </select>
+              {form.category === "__other__" && (
+                <input
+                  type="text"
+                  placeholder="שם הקטגוריה..."
+                  className="w-full mt-2 border border-green-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  autoFocus
+                />
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">יחידת מידה</label>
@@ -422,6 +435,27 @@ export default function InventoryPage() {
   const [showNewItemModal, setShowNewItemModal] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [schedulingEquipment, setSchedulingEquipment] = useState<EquipmentItem | null>(null);
+  const [maintenanceDate, setMaintenanceDate] = useState("");
+  const [schedulingSaving, setSchedulingSaving] = useState(false);
+
+  async function handleScheduleMaintenance() {
+    if (!schedulingEquipment || !maintenanceDate) return;
+    setSchedulingSaving(true);
+    await supabase.from("jobs").insert({
+      customer_name: "תחזוקה פנימית",
+      type: `תחזוקת ציוד — ${schedulingEquipment.name}`,
+      job_date: maintenanceDate,
+      job_time: "08:00",
+      status: "pending",
+      priority: "high",
+      notes: `תחזוקה מתוכננת: ${schedulingEquipment.name}`,
+    });
+    setSchedulingSaving(false);
+    setSchedulingEquipment(null);
+    setMaintenanceDate("");
+    alert(`✅ תחזוקה נוספה ליומן בתאריך ${maintenanceDate}`);
+  }
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -817,6 +851,7 @@ export default function InventoryPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-400">{eq.hoursUsed} שעות שימוש</span>
                     <button
+                      onClick={() => { setSchedulingEquipment(eq); setMaintenanceDate(""); }}
                       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                         needsMaintenance || overdue
                           ? "bg-orange-600 hover:bg-orange-700 text-white"
@@ -872,6 +907,37 @@ export default function InventoryPage() {
           </button>
         </div>
       </div>
+
+      {/* ===== MAINTENANCE SCHEDULE MODAL ===== */}
+      {schedulingEquipment && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setSchedulingEquipment(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" dir="rtl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900">תזמן תחזוקה</h3>
+            <p className="text-sm text-gray-500">{schedulingEquipment.icon} {schedulingEquipment.name}</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">תאריך תחזוקה</label>
+              <input
+                type="date"
+                value={maintenanceDate}
+                onChange={e => setMaintenanceDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setSchedulingEquipment(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600">
+                ביטול
+              </button>
+              <button onClick={handleScheduleMaintenance} disabled={!maintenanceDate || schedulingSaving}
+                className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                {schedulingSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                {schedulingSaving ? "שומר..." : "הוסף ליומן"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== NEW ITEM MODAL ===== */}
       {showNewItemModal && (
