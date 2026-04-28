@@ -95,15 +95,20 @@ interface KpiCardProps {
   value: string;
   highlight?: string;
   sub?: string;
+  onClick?: () => void;
 }
 
-function KpiCard({ icon, iconBg, label, value, highlight, sub }: KpiCardProps) {
+function KpiCard({ icon, iconBg, label, value, highlight, sub, onClick }: KpiCardProps) {
   return (
-    <div className={`bg-white rounded-2xl shadow-sm p-5 border flex flex-col gap-2 ${highlight ?? "border-gray-100"}`}>
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-2xl shadow-sm p-5 border flex flex-col gap-2 ${highlight ?? "border-gray-100"} ${onClick ? "cursor-pointer active:scale-[0.98] transition-transform" : ""}`}
+    >
       <div className="flex items-center justify-between">
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
           {icon}
         </div>
+        {onClick && <span className="text-xs text-gray-400">לפרטים ›</span>}
       </div>
       <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
       <p className="text-sm text-gray-500">{label}</p>
@@ -550,6 +555,7 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [showInvoice, setShowInvoice] = useState(false);
   const [showNewTransaction, setShowNewTransaction] = useState(false);
+  const [showDebtModal, setShowDebtModal] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbCustomers, setDbCustomers] = useState<{id: string; name: string; city: string; phone: string}[]>([]);
@@ -653,6 +659,56 @@ export default function FinancePage() {
       <Header title="פיננסים וחיובים" subtitle="ניהול הכנסות, הוצאות וחשבוניות" />
 
       {showInvoice && <InvoicePanel onClose={() => setShowInvoice(false)} customers={dbCustomers} />}
+
+      {/* ===== DEBT MODAL ===== */}
+      {showDebtModal && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setShowDebtModal(false)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="font-bold text-gray-900">חובות פתוחים</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{alerts.length} לקוחות · ₪{openDebt.toLocaleString()} סה״כ</p>
+              </div>
+              <button onClick={() => setShowDebtModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
+              {alerts.map((tx) => {
+                const c = dbCustomers.find(x => x.name === tx.customerName);
+                const phone = c?.phone?.replace(/\D/g, "") || "";
+                const intl = phone.startsWith("0") ? "972" + phone.slice(1) : phone;
+                const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description || "שירותי גינון"}. נשמח לסידור התשלום 🌿`);
+                return (
+                  <div key={tx.id} className="px-5 py-4 flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm">{tx.customerName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{tx.description || "—"}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{tx.date ? `${tx.date.slice(8, 10)}/${tx.date.slice(5, 7)}` : ""}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`text-sm font-bold ${tx.status === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
+                        ₪{tx.amount.toLocaleString()}
+                      </span>
+                      {intl && (
+                        <a href={`https://wa.me/${intl}?text=${msg}`} target="_blank" rel="noreferrer"
+                          className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg">
+                          <MessageSquare size={12} />
+                          שלח
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-3xl sm:rounded-b-2xl">
+              <p className="text-xs text-gray-400 text-center">לחץ על "שלח" לשליחת תזכורת WhatsApp</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewTransaction && (
         <NewTransactionModal
           onClose={() => setShowNewTransaction(false)}
@@ -710,6 +766,7 @@ export default function FinancePage() {
             value={`₪${openDebt.toLocaleString()}`}
             highlight="border-red-200 ring-1 ring-red-100"
             sub={`${alerts.length} לקוחות עם חוב פתוח`}
+            onClick={alerts.length > 0 ? () => setShowDebtModal(true) : undefined}
           />
         </div>
 
