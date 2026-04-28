@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, Sparkles, BarChart3, Zap, FolderKanban,
   Settings, ChevronLeft, Leaf, Bell, LogOut,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
 const navItems = [
   { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
@@ -22,6 +23,12 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <aside className="fixed top-0 right-0 h-screen w-64 bg-white border-l border-gray-100 flex flex-col z-40 shadow-sm">
@@ -71,7 +78,7 @@ export default function Sidebar() {
           <Settings size={18} className="text-gray-400" />
           <span>הגדרות</span>
         </Link>
-        <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all">
+        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all">
           <LogOut size={18} />
           <span>יציאה</span>
         </button>
