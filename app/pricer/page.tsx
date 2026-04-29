@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
-import { Search, X, Plus, Minus, Trash2, Printer, ShoppingCart, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Search, X, Plus, Minus, Trash2, Printer, ShoppingCart, ChevronDown, ChevronUp, Pencil, Check, FolderKanban, ChevronRight } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
+import { supabase } from "@/lib/supabase/client";
 
 const VAT = 0.17;
 
@@ -161,10 +162,80 @@ function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => voi
   );
 }
 
+// ── Save to project modal ───────────────────────────────────────────────────
+function SaveToProjectModal({
+  materials, onClose,
+}: {
+  materials: { name: string; qty: number; unit: string; price: number; vatIncluded: boolean }[];
+  onClose: () => void;
+}) {
+  const [projects, setProjects] = useState<{ id: string; name: string; customer_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    supabase.from("projects").select("id, name, customer_name").order("created_at", { ascending: false })
+      .then(({ data }) => { if (data) setProjects(data); setLoading(false); });
+  }, []);
+
+  async function saveToProject(projectId: string) {
+    setSaving(true);
+    const { data } = await supabase.from("projects").select("materials").eq("id", projectId).single();
+    const existing: typeof materials = data?.materials ?? [];
+    // Merge: same name+unit → add qty, otherwise append
+    const merged = [...existing];
+    materials.forEach(nm => {
+      const idx = merged.findIndex(m => m.name === nm.name && m.unit === nm.unit);
+      if (idx >= 0) merged[idx] = { ...merged[idx], qty: merged[idx].qty + nm.qty };
+      else merged.push(nm);
+    });
+    await supabase.from("projects").update({ materials: merged }).eq("id", projectId);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(onClose, 1200);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[70vh] flex flex-col overflow-hidden" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900">שמור לפרויקט</h3>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+        <p className="px-5 pt-3 text-sm text-gray-500">{materials.length} פריטים · בחר פרויקט להוסיף אליו</p>
+
+        {saved ? (
+          <div className="flex-1 flex items-center justify-center py-10 text-green-600 font-bold text-lg">✓ נשמר בהצלחה</div>
+        ) : loading ? (
+          <div className="flex-1 flex items-center justify-center py-10">
+            <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : projects.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center py-10 text-gray-400 text-sm">אין פרויקטים קיימים</div>
+        ) : (
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+            {projects.map(p => (
+              <button key={p.id} onClick={() => saveToProject(p.id)} disabled={saving}
+                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-green-50 transition-colors text-right disabled:opacity-50">
+                <div>
+                  <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                  {p.customer_name && <p className="text-xs text-gray-400">{p.customer_name}</p>}
+                </div>
+                <ChevronRight size={16} className="text-gray-300 rotate-180" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Quote panel ─────────────────────────────────────────────────────────────
 function QuotePanel({
   quote, overridePrices, overrideUnits, vatItems,
-  onQtyChange, onQtySet, onRemove, onClear, onPrint, collapsed, onToggle,
+  onQtyChange, onQtySet, onRemove, onClear, onPrint, onSaveToProject, collapsed, onToggle,
 }: {
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
@@ -175,6 +246,7 @@ function QuotePanel({
   onRemove: (id: string) => void;
   onClear: () => void;
   onPrint: () => void;
+  onSaveToProject: () => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -250,9 +322,14 @@ function QuotePanel({
                 <span className="text-xl font-black text-gray-900">{formatPrice(total)}</span>
               </div>
               <div className="flex gap-2">
+                <button onClick={onSaveToProject}
+                  className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-xl transition-colors shadow-sm">
+                  <FolderKanban size={15} /><span>שמור לפרויקט</span>
+                </button>
                 <button onClick={onPrint}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 rounded-xl transition-colors shadow-sm">
-                  <Printer size={15} /><span>הדפס / PDF</span>
+                  className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm transition-colors shadow-sm"
+                  title="הדפס / PDF">
+                  <Printer size={15} />
                 </button>
                 <button onClick={onClear}
                   className="px-3 py-2 border border-gray-200 text-gray-500 hover:text-red-500 hover:border-red-200 rounded-xl text-sm transition-colors"
@@ -286,6 +363,7 @@ export default function PricerPage() {
   const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
   const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>({});
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const printStyleRef = useRef(false);
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
@@ -348,8 +426,19 @@ export default function PricerPage() {
 
   const total = quote.reduce((sum, qi) => sum + ep(qi.item) * vm(qi.item) * qi.qty, 0);
 
+  const quoteMaterials = quote.map(qi => ({
+    name: qi.item.name,
+    qty: qi.qty,
+    unit: eu(qi.item),
+    price: ep(qi.item),
+    vatIncluded: vat(qi.item) === "after",
+  }));
+
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
+      {showSaveModal && (
+        <SaveToProjectModal materials={quoteMaterials} onClose={() => setShowSaveModal(false)} />
+      )}
 
       {/* ── Print view ── */}
       <div id="quote-print" className="hidden print:block p-8" dir="rtl">
@@ -463,6 +552,7 @@ export default function PricerPage() {
               onRemove={id => setQuote(prev => prev.filter(qi => qi.item.id !== id))}
               onClear={() => setQuote([])}
               onPrint={handlePrint}
+              onSaveToProject={() => setShowSaveModal(true)}
               collapsed={panelCollapsed} onToggle={() => setPanelCollapsed(p => !p)}
             />
           </div>
@@ -479,6 +569,7 @@ export default function PricerPage() {
                   onRemove={id => setQuote(prev => prev.filter(qi => qi.item.id !== id))}
                   onClear={() => setQuote([])}
                   onPrint={handlePrint}
+                  onSaveToProject={() => setShowSaveModal(true)}
                   collapsed={panelCollapsed} onToggle={() => setPanelCollapsed(p => !p)}
                 />
               </div>

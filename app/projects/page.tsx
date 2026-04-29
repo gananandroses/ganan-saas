@@ -6,8 +6,10 @@ import {
   TrendingUp, AlertTriangle, DollarSign, Briefcase,
   Pencil, ArrowRight, BarChart2, X, Loader2, RefreshCw,
   Trash2, Clock, Package, TrendingDown, ChevronDown, ChevronUp, FileText,
+  ShoppingCart, Search,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -82,11 +84,165 @@ function calcFinancials(p: Project) {
 
 const UNITS = ["יח'", "מ\"ר", "מ\"ל", "מטר", "ק\"ג", "ל'", "שק", "ערימה", "עץ", "צמח"];
 
+// ── Pricer Picker Modal ───────────────────────────────────────
+
+interface PickerItem { item: PriceItem; qty: number; vat: boolean }
+
+function PricerPickerModal({ onClose, onImport }: {
+  onClose: () => void;
+  onImport: (materials: Material[]) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [picked, setPicked] = useState<Record<string, PickerItem>>({});
+
+  const filtered = PRICE_LIST.filter(item => {
+    const matchCat = category === "all" || item.category === category;
+    const q = search.trim().toLowerCase();
+    return matchCat && (!q || item.name.toLowerCase().includes(q));
+  });
+
+  function adjust(item: PriceItem, delta: number) {
+    setPicked(prev => {
+      const cur = prev[item.id]?.qty ?? 0;
+      const next = Math.max(0, cur + delta);
+      if (next === 0) { const { [item.id]: _, ...rest } = prev; return rest; }
+      return { ...prev, [item.id]: { item, qty: next, vat: prev[item.id]?.vat ?? false } };
+    });
+  }
+
+  function toggleVat(id: string) {
+    setPicked(prev => prev[id] ? { ...prev, [id]: { ...prev[id], vat: !prev[id].vat } } : prev);
+  }
+
+  const count = Object.values(picked).reduce((s, p) => s + p.qty, 0);
+
+  function handleImport() {
+    const mats: Material[] = Object.values(picked).map(p => ({
+      name: p.item.name,
+      qty: p.qty,
+      unit: p.item.unit,
+      price: p.item.price,
+      vatIncluded: p.vat,
+    }));
+    onImport(mats);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl">
+      {/* Header */}
+      <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-700"><X size={20} /></button>
+        <h2 className="font-bold text-gray-900 flex-1">בחר מהמחירון</h2>
+        {count > 0 && (
+          <button onClick={handleImport}
+            className="flex items-center gap-1.5 bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl shadow-sm">
+            <ShoppingCart size={15} />
+            הוסף לפרויקט ({count})
+          </button>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
+        <div className="relative">
+          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש פריט..."
+            className="w-full bg-white border border-gray-200 rounded-xl py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+        </div>
+      </div>
+
+      {/* Category pills */}
+      <div className="px-4 py-2 border-b border-gray-100 overflow-x-auto">
+        <div className="flex gap-2 whitespace-nowrap">
+          {PRICE_CATEGORIES.map(cat => (
+            <button key={cat.key} onClick={() => setCategory(cat.key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                category === cat.key ? "bg-green-600 text-white" : "bg-white border border-gray-200 text-gray-600"
+              }`}>
+              {cat.emoji} {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Items */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {filtered.map(item => {
+          const p = picked[item.id];
+          const qty = p?.qty ?? 0;
+          return (
+            <div key={item.id} className={`flex items-center gap-3 bg-white rounded-xl px-4 py-3 border transition-all ${qty > 0 ? "border-green-300 bg-green-50/30" : "border-gray-100 shadow-sm"}`}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800 truncate">{item.name}</p>
+                <p className="text-xs text-gray-400">₪{item.price} / {item.unit}</p>
+                {qty > 0 && (
+                  <button onClick={() => toggleVat(item.id)}
+                    className={`mt-1 text-xs px-2 py-0.5 rounded-full border font-medium transition-colors ${
+                      p?.vat ? "bg-blue-100 text-blue-700 border-blue-200" : "bg-gray-100 text-gray-500 border-gray-200"
+                    }`}>
+                    {p?.vat ? "כולל מע\"מ" : "ללא מע\"מ"}
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {qty > 0 ? (
+                  <>
+                    <button onClick={() => adjust(item, -1)}
+                      className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-red-300 hover:text-red-500 transition-colors">
+                      <span className="text-base leading-none">−</span>
+                    </button>
+                    <span className="w-6 text-center font-bold text-gray-800 text-sm">{qty}</span>
+                    <button onClick={() => adjust(item, 1)}
+                      className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center text-white hover:bg-green-700 transition-colors">
+                      <Plus size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => adjust(item, 1)}
+                    className="w-8 h-8 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-colors shadow-sm">
+                    <Plus size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Bottom bar */}
+      {count > 0 && (
+        <div className="sticky bottom-0 border-t border-gray-200 bg-white px-4 py-3">
+          <button onClick={handleImport}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl py-3.5 text-base transition-colors shadow-sm">
+            <ShoppingCart size={18} />
+            הוסף {count} פריטים לפרויקט
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Materials Section ─────────────────────────────────────────
 
 function MaterialsEditor({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {
+  const [showPicker, setShowPicker] = useState(false);
+
   function add() {
     onChange([...materials, { name: "", qty: 1, unit: "יח'", price: 0, vatIncluded: false }]);
+  }
+
+  function importFromPricer(newMats: Material[]) {
+    // merge: if same name exists, add qty; otherwise append
+    const merged = [...materials];
+    newMats.forEach(nm => {
+      const idx = merged.findIndex(m => m.name === nm.name && m.unit === nm.unit);
+      if (idx >= 0) merged[idx] = { ...merged[idx], qty: merged[idx].qty + nm.qty };
+      else merged.push(nm);
+    });
+    onChange(merged);
   }
   function remove(i: number) {
     onChange(materials.filter((_, idx) => idx !== i));
@@ -165,10 +321,22 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
           </div>
         );
       })}
-      <button onClick={add}
-        className="flex items-center gap-1.5 text-sm text-green-600 hover:text-green-700 font-medium py-1">
-        <Plus size={14} /> הוסף חומר
-      </button>
+      <div className="flex items-center gap-3 mt-1">
+        <button onClick={add}
+          className="flex items-center gap-1.5 text-sm text-green-600 hover:text-green-700 font-medium py-1">
+          <Plus size={14} /> הוסף חומר
+        </button>
+        <button onClick={() => setShowPicker(true)}
+          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium py-1 border border-blue-200 hover:border-blue-400 rounded-lg px-2.5 transition-colors">
+          <ShoppingCart size={13} /> בחר מהמחירון
+        </button>
+      </div>
+      {showPicker && (
+        <PricerPickerModal
+          onClose={() => setShowPicker(false)}
+          onImport={importFromPricer}
+        />
+      )}
     </div>
   );
 }
