@@ -4,6 +4,8 @@ import { useState, useMemo, useRef } from "react";
 import { Search, X, Plus, Minus, Trash2, Printer, ShoppingCart, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
+const VAT = 0.17;
+
 interface QuoteItem {
   item: PriceItem;
   qty: number;
@@ -90,6 +92,7 @@ function ItemRow({
   item,
   price,
   unit,
+  vatMul,
   onAdd,
   onPriceChange,
   onUnitChange,
@@ -97,6 +100,7 @@ function ItemRow({
   item: PriceItem;
   price: number;
   unit: string;
+  vatMul: number;
   onAdd: () => void;
   onPriceChange: (newPrice: number) => void;
   onUnitChange: (newUnit: string) => void;
@@ -116,8 +120,8 @@ function ItemRow({
       {/* Price + unit — both editable */}
       <div className="flex-shrink-0 text-left space-y-0.5">
         <InlineEdit
-          value={formatPrice(price).replace("₪", "")}
-          onCommit={v => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); if (!isNaN(n) && n >= 0) onPriceChange(n); }}
+          value={formatPrice(price * vatMul).replace("₪", "")}
+          onCommit={v => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); if (!isNaN(n) && n >= 0) onPriceChange(n / vatMul); }}
           inputClass="w-20 text-sm font-bold text-green-700 border border-green-400 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-green-400 text-right"
           displayClass="text-base font-bold"
           isCustom={isPriceCustom}
@@ -195,6 +199,7 @@ function QuotePanel({
   quote,
   overridePrices,
   overrideUnits,
+  vatMul,
   onQtyChange,
   onQtySet,
   onRemove,
@@ -206,6 +211,7 @@ function QuotePanel({
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
   overrideUnits: Record<string, string>;
+  vatMul: number;
   onQtyChange: (id: string, delta: number) => void;
   onQtySet: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
@@ -221,7 +227,7 @@ function QuotePanel({
     return overrideUnits[item.id] ?? item.unit;
   }
 
-  const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * qi.qty, 0);
+  const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * vatMul * qi.qty, 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col overflow-hidden">
@@ -256,7 +262,7 @@ function QuotePanel({
                     <div key={item.id} className="px-4 py-2.5 flex items-center gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-700 leading-snug truncate">{item.name}</p>
-                        <p className="text-xs text-gray-400">{formatPrice(p)} / {effectiveUnit(item)}</p>
+                        <p className="text-xs text-gray-400">{formatPrice(p * vatMul)} / {effectiveUnit(item)}</p>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
@@ -274,7 +280,7 @@ function QuotePanel({
                         </button>
                       </div>
                       <div className="w-16 text-left flex-shrink-0">
-                        <p className="text-xs font-bold text-green-700">{formatPrice(p * qty)}</p>
+                        <p className="text-xs font-bold text-green-700">{formatPrice(p * vatMul * qty)}</p>
                       </div>
                       <button onClick={() => onRemove(item.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                         <Trash2 size={13} />
@@ -330,6 +336,8 @@ export default function PricerPage() {
   const [quote, setQuote] = useState<QuoteItem[]>([]);
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
+  const [vatMode, setVatMode] = useState<"before" | "after">("before");
+  const vatMul = vatMode === "after" ? 1 + VAT : 1;
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const printStyleRef = useRef(false);
 
@@ -418,14 +426,15 @@ export default function PricerPage() {
     window.print();
   }
 
-  const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * qi.qty, 0);
+  const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * vatMul * qi.qty, 0);
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Print-only quote sheet */}
       <div id="quote-print" className="hidden print:block p-8" dir="rtl">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">הצעת מחיר — חומרי גינון</h1>
-        <p className="text-sm text-gray-500 mb-6">{new Date().toLocaleDateString("he-IL")}</p>
+        <p className="text-sm text-gray-500 mb-1">{new Date().toLocaleDateString("he-IL")}</p>
+        <p className="text-xs text-gray-500 mb-6">{vatMode === "after" ? "מחירים כולל מע\"מ (17%)" : "מחירים לפני מע\"מ"}</p>
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-100 text-gray-700">
@@ -438,7 +447,7 @@ export default function PricerPage() {
           </thead>
           <tbody>
             {quote.map(({ item, qty }) => {
-              const p = effectivePrice(item);
+              const p = effectivePrice(item) * vatMul;
               return (
                 <tr key={item.id} className="border-b border-gray-100">
                   <td className="p-2 border border-gray-200">{item.name}</td>
@@ -464,10 +473,33 @@ export default function PricerPage() {
       <div className="print:hidden">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-5">
-          <h1 className="text-2xl font-bold text-gray-900 mb-0.5">💰 מחירון גינון</h1>
-          <p className="text-gray-500 text-sm">
-            {PRICE_LIST.length} פריטים · מחירי עלות ממוצעים לגנן · לחץ על המחיר לעריכה
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-0.5">💰 מחירון גינון</h1>
+              <p className="text-gray-500 text-sm">
+                {PRICE_LIST.length} פריטים · מחירי עלות ממוצעים לגנן · לחץ על המחיר לעריכה
+              </p>
+            </div>
+            {/* VAT toggle */}
+            <div className="flex-shrink-0 flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setVatMode("before")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  vatMode === "before" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                לפני מע"מ
+              </button>
+              <button
+                onClick={() => setVatMode("after")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  vatMode === "after" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                כולל מע"מ
+              </button>
+            </div>
+          </div>
           <div className="mt-4 relative">
             <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -526,6 +558,7 @@ export default function PricerPage() {
                     item={item}
                     price={effectivePrice(item)}
                     unit={effectiveUnit(item)}
+                    vatMul={vatMul}
                     onAdd={() => addToQuote(item)}
                     onPriceChange={newPrice => setPriceOverride(item.id, newPrice)}
                     onUnitChange={newUnit => setUnitOverride(item.id, newUnit)}
@@ -541,6 +574,7 @@ export default function PricerPage() {
               quote={quote}
               overridePrices={overridePrices}
               overrideUnits={overrideUnits}
+              vatMul={vatMul}
               onQtyChange={changeQty}
               onQtySet={setQty}
               onRemove={removeItem}
@@ -561,6 +595,7 @@ export default function PricerPage() {
                   quote={quote}
                   overridePrices={overridePrices}
                   overrideUnits={overrideUnits}
+                  vatMul={vatMul}
                   onQtyChange={changeQty}
                   onQtySet={setQty}
                   onRemove={removeItem}
