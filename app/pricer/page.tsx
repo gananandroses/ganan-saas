@@ -13,39 +13,97 @@ function formatPrice(n: number) {
   return "₪" + n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function ItemRow({
-  item,
-  price,
-  onAdd,
-  onPriceChange,
+function InlineEdit({
+  value,
+  onCommit,
+  inputClass,
+  displayClass,
+  isCustom,
+  onReset,
+  numeric,
+  prefix,
 }: {
-  item: PriceItem;
-  price: number;
-  onAdd: () => void;
-  onPriceChange: (newPrice: number) => void;
+  value: string;
+  onCommit: (v: string) => void;
+  inputClass: string;
+  displayClass: string;
+  isCustom: boolean;
+  onReset: () => void;
+  numeric?: boolean;
+  prefix?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const catEmoji = PRICE_CATEGORIES.find(c => c.key === item.category)?.emoji ?? "📦";
-  const isCustom = price !== item.price;
 
-  function startEdit() {
-    setDraft(String(price));
+  function start() {
+    setDraft(value);
     setEditing(true);
     setTimeout(() => inputRef.current?.select(), 0);
   }
 
-  function commitEdit() {
-    const val = parseFloat(draft.replace(/[^0-9.]/g, ""));
-    if (!isNaN(val) && val >= 0) onPriceChange(val);
+  function commit() {
+    const v = draft.trim();
+    if (v) onCommit(v);
     setEditing(false);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") commitEdit();
-    if (e.key === "Escape") setEditing(false);
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        {prefix && <span className="text-sm text-gray-500">{prefix}</span>}
+        <input
+          ref={inputRef}
+          type={numeric ? "number" : "text"}
+          min={numeric ? 0 : undefined}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+          className={inputClass}
+        />
+        <button onClick={commit} className="text-green-600 hover:text-green-800 flex-shrink-0">
+          <Check size={14} />
+        </button>
+      </div>
+    );
   }
+
+  return (
+    <button onClick={start} className={`group/ie flex items-center gap-1 ${displayClass}`} title="לחץ לעריכה">
+      {prefix && !isCustom && <span>{prefix}</span>}
+      <span className={isCustom ? "text-orange-600" : ""}>{value}</span>
+      <Pencil size={11} className="text-gray-300 group-hover/ie:text-green-500 transition-colors flex-shrink-0" />
+      {isCustom && (
+        <button
+          onClick={e => { e.stopPropagation(); onReset(); }}
+          className="text-xs text-orange-400 hover:text-orange-600 underline mr-1"
+        >
+          איפוס
+        </button>
+      )}
+    </button>
+  );
+}
+
+function ItemRow({
+  item,
+  price,
+  unit,
+  onAdd,
+  onPriceChange,
+  onUnitChange,
+}: {
+  item: PriceItem;
+  price: number;
+  unit: string;
+  onAdd: () => void;
+  onPriceChange: (newPrice: number) => void;
+  onUnitChange: (newUnit: string) => void;
+}) {
+  const catEmoji = PRICE_CATEGORIES.find(c => c.key === item.category)?.emoji ?? "📦";
+  const isPriceCustom = price !== item.price;
+  const isUnitCustom = unit !== item.unit;
 
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow group">
@@ -55,46 +113,29 @@ function ItemRow({
         {item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}
       </div>
 
-      {/* Price — editable */}
-      <div className="flex-shrink-0 text-left">
-        {editing ? (
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-gray-500">₪</span>
-            <input
-              ref={inputRef}
-              type="number"
-              min={0}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={handleKeyDown}
-              className="w-20 text-sm font-bold text-green-700 border border-green-400 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-green-400 text-right"
-            />
-            <button onClick={commitEdit} className="text-green-600 hover:text-green-800">
-              <Check size={14} />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={startEdit}
-            className="group/price flex items-center gap-1 hover:text-green-800 transition-colors"
-            title="ערוך מחיר"
-          >
-            <span className={`text-base font-bold ${isCustom ? "text-orange-600" : "text-green-700"}`}>
-              {formatPrice(price)}
-            </span>
-            <Pencil size={11} className="text-gray-300 group-hover/price:text-green-500 transition-colors" />
-          </button>
-        )}
-        <p className="text-xs text-gray-400">לכל {item.unit}</p>
-        {isCustom && (
-          <button
-            onClick={() => onPriceChange(item.price)}
-            className="text-xs text-orange-400 hover:text-orange-600 underline"
-          >
-            איפוס
-          </button>
-        )}
+      {/* Price + unit — both editable */}
+      <div className="flex-shrink-0 text-left space-y-0.5">
+        <InlineEdit
+          value={formatPrice(price).replace("₪", "")}
+          onCommit={v => { const n = parseFloat(v.replace(/[^0-9.]/g, "")); if (!isNaN(n) && n >= 0) onPriceChange(n); }}
+          inputClass="w-20 text-sm font-bold text-green-700 border border-green-400 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-green-400 text-right"
+          displayClass="text-base font-bold"
+          isCustom={isPriceCustom}
+          onReset={() => onPriceChange(item.price)}
+          numeric
+          prefix="₪"
+        />
+        <div className="flex items-center gap-0.5">
+          <span className="text-xs text-gray-400">לכל&nbsp;</span>
+          <InlineEdit
+            value={unit}
+            onCommit={onUnitChange}
+            inputClass="w-24 text-xs border border-green-400 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-green-400"
+            displayClass="text-xs text-gray-400"
+            isCustom={isUnitCustom}
+            onReset={() => onUnitChange(item.unit)}
+          />
+        </div>
       </div>
 
       <button
@@ -153,6 +194,7 @@ function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => voi
 function QuotePanel({
   quote,
   overridePrices,
+  overrideUnits,
   onQtyChange,
   onQtySet,
   onRemove,
@@ -163,6 +205,7 @@ function QuotePanel({
 }: {
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
+  overrideUnits: Record<string, string>;
   onQtyChange: (id: string, delta: number) => void;
   onQtySet: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
@@ -173,6 +216,9 @@ function QuotePanel({
 }) {
   function effectivePrice(item: PriceItem) {
     return overridePrices[item.id] ?? item.price;
+  }
+  function effectiveUnit(item: PriceItem) {
+    return overrideUnits[item.id] ?? item.unit;
   }
 
   const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * qi.qty, 0);
@@ -210,7 +256,7 @@ function QuotePanel({
                     <div key={item.id} className="px-4 py-2.5 flex items-center gap-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-gray-700 leading-snug truncate">{item.name}</p>
-                        <p className="text-xs text-gray-400">{formatPrice(p)} / {item.unit}</p>
+                        <p className="text-xs text-gray-400">{formatPrice(p)} / {effectiveUnit(item)}</p>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
@@ -283,11 +329,27 @@ export default function PricerPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [quote, setQuote] = useState<QuoteItem[]>([]);
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
+  const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const printStyleRef = useRef(false);
 
   function effectivePrice(item: PriceItem) {
     return overridePrices[item.id] ?? item.price;
+  }
+
+  function effectiveUnit(item: PriceItem) {
+    return overrideUnits[item.id] ?? item.unit;
+  }
+
+  function setUnitOverride(id: string, newUnit: string) {
+    setOverrideUnits(prev => {
+      const item = PRICE_LIST.find(i => i.id === id);
+      if (item && newUnit === item.unit) {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: newUnit };
+    });
   }
 
   function setPriceOverride(id: string, newPrice: number) {
@@ -380,7 +442,7 @@ export default function PricerPage() {
               return (
                 <tr key={item.id} className="border-b border-gray-100">
                   <td className="p-2 border border-gray-200">{item.name}</td>
-                  <td className="p-2 text-center border border-gray-200">{item.unit}</td>
+                  <td className="p-2 text-center border border-gray-200">{effectiveUnit(item)}</td>
                   <td className="p-2 text-center border border-gray-200">{qty}</td>
                   <td className="p-2 text-left border border-gray-200">{formatPrice(p)}</td>
                   <td className="p-2 text-left font-bold border border-gray-200">{formatPrice(p * qty)}</td>
@@ -463,8 +525,10 @@ export default function PricerPage() {
                     key={item.id}
                     item={item}
                     price={effectivePrice(item)}
+                    unit={effectiveUnit(item)}
                     onAdd={() => addToQuote(item)}
                     onPriceChange={newPrice => setPriceOverride(item.id, newPrice)}
+                    onUnitChange={newUnit => setUnitOverride(item.id, newUnit)}
                   />
                 ))}
               </div>
@@ -476,6 +540,7 @@ export default function PricerPage() {
             <QuotePanel
               quote={quote}
               overridePrices={overridePrices}
+              overrideUnits={overrideUnits}
               onQtyChange={changeQty}
               onQtySet={setQty}
               onRemove={removeItem}
@@ -495,6 +560,7 @@ export default function PricerPage() {
                 <QuotePanel
                   quote={quote}
                   overridePrices={overridePrices}
+                  overrideUnits={overrideUnits}
                   onQtyChange={changeQty}
                   onQtySet={setQty}
                   onRemove={removeItem}
