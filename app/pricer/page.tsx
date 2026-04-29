@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
-import { Search, X, Plus, Minus, Trash2, Printer, ShoppingCart, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, X, Plus, Minus, Trash2, Printer, ShoppingCart, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
 interface QuoteItem {
@@ -13,8 +13,40 @@ function formatPrice(n: number) {
   return "₪" + n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function ItemRow({ item, onAdd }: { item: PriceItem; onAdd: () => void }) {
+function ItemRow({
+  item,
+  price,
+  onAdd,
+  onPriceChange,
+}: {
+  item: PriceItem;
+  price: number;
+  onAdd: () => void;
+  onPriceChange: (newPrice: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const catEmoji = PRICE_CATEGORIES.find(c => c.key === item.category)?.emoji ?? "📦";
+  const isCustom = price !== item.price;
+
+  function startEdit() {
+    setDraft(String(price));
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  function commitEdit() {
+    const val = parseFloat(draft.replace(/[^0-9.]/g, ""));
+    if (!isNaN(val) && val >= 0) onPriceChange(val);
+    setEditing(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") commitEdit();
+    if (e.key === "Escape") setEditing(false);
+  }
+
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow group">
       <span className="text-xl flex-shrink-0">{catEmoji}</span>
@@ -22,10 +54,49 @@ function ItemRow({ item, onAdd }: { item: PriceItem; onAdd: () => void }) {
         <p className="text-sm font-semibold text-gray-800 leading-snug">{item.name}</p>
         {item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}
       </div>
+
+      {/* Price — editable */}
       <div className="flex-shrink-0 text-left">
-        <p className="text-base font-bold text-green-700">{formatPrice(item.price)}</p>
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-gray-500">₪</span>
+            <input
+              ref={inputRef}
+              type="number"
+              min={0}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={handleKeyDown}
+              className="w-20 text-sm font-bold text-green-700 border border-green-400 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-green-400 text-right"
+            />
+            <button onClick={commitEdit} className="text-green-600 hover:text-green-800">
+              <Check size={14} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={startEdit}
+            className="group/price flex items-center gap-1 hover:text-green-800 transition-colors"
+            title="ערוך מחיר"
+          >
+            <span className={`text-base font-bold ${isCustom ? "text-orange-600" : "text-green-700"}`}>
+              {formatPrice(price)}
+            </span>
+            <Pencil size={11} className="text-gray-300 group-hover/price:text-green-500 transition-colors" />
+          </button>
+        )}
         <p className="text-xs text-gray-400">לכל {item.unit}</p>
+        {isCustom && (
+          <button
+            onClick={() => onPriceChange(item.price)}
+            className="text-xs text-orange-400 hover:text-orange-600 underline"
+          >
+            איפוס
+          </button>
+        )}
       </div>
+
       <button
         onClick={onAdd}
         className="flex-shrink-0 w-8 h-8 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-colors shadow-sm"
@@ -37,9 +108,53 @@ function ItemRow({ item, onAdd }: { item: PriceItem; onAdd: () => void }) {
   );
 }
 
+function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function startEdit() {
+    setDraft(String(qty));
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  function commit() {
+    const val = parseInt(draft, 10);
+    if (!isNaN(val) && val >= 0) onChange(val);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="number"
+        min={0}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+        className="w-9 text-center text-sm font-bold text-gray-800 border border-green-400 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-400 py-0.5"
+      />
+    );
+  }
+  return (
+    <button
+      onClick={startEdit}
+      className="w-7 text-center text-sm font-bold text-gray-800 hover:text-green-700 hover:underline"
+      title="לחץ לעריכת כמות"
+    >
+      {qty}
+    </button>
+  );
+}
+
 function QuotePanel({
   quote,
+  overridePrices,
   onQtyChange,
+  onQtySet,
   onRemove,
   onClear,
   onPrint,
@@ -47,14 +162,20 @@ function QuotePanel({
   onToggle,
 }: {
   quote: QuoteItem[];
+  overridePrices: Record<string, number>;
   onQtyChange: (id: string, delta: number) => void;
+  onQtySet: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
   onPrint: () => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const total = quote.reduce((sum, qi) => sum + qi.item.price * qi.qty, 0);
+  function effectivePrice(item: PriceItem) {
+    return overridePrices[item.id] ?? item.price;
+  }
+
+  const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * qi.qty, 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 flex flex-col overflow-hidden">
@@ -75,7 +196,6 @@ function QuotePanel({
 
       {!collapsed && (
         <>
-          {/* Items */}
           <div className="flex-1 overflow-y-auto max-h-[420px]">
             {quote.length === 0 ? (
               <div className="py-10 text-center text-gray-400">
@@ -84,44 +204,42 @@ function QuotePanel({
               </div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {quote.map(({ item, qty }) => (
-                  <div key={item.id} className="px-4 py-2.5 flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-gray-700 leading-snug truncate">{item.name}</p>
-                      <p className="text-xs text-gray-400">{formatPrice(item.price)} / {item.unit}</p>
-                    </div>
-                    {/* Qty controls */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => onQtyChange(item.id, -1)}
-                        className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors"
-                      >
-                        <Minus size={10} />
+                {quote.map(({ item, qty }) => {
+                  const p = effectivePrice(item);
+                  return (
+                    <div key={item.id} className="px-4 py-2.5 flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-gray-700 leading-snug truncate">{item.name}</p>
+                        <p className="text-xs text-gray-400">{formatPrice(p)} / {item.unit}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => onQtyChange(item.id, -1)}
+                          className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors"
+                        >
+                          <Minus size={10} />
+                        </button>
+                        <QtyInput qty={qty} onChange={n => onQtySet(item.id, n)} />
+                        <button
+                          onClick={() => onQtyChange(item.id, 1)}
+                          className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors"
+                        >
+                          <Plus size={10} />
+                        </button>
+                      </div>
+                      <div className="w-16 text-left flex-shrink-0">
+                        <p className="text-xs font-bold text-green-700">{formatPrice(p * qty)}</p>
+                      </div>
+                      <button onClick={() => onRemove(item.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                        <Trash2 size={13} />
                       </button>
-                      <span className="w-7 text-center text-sm font-bold text-gray-800">{qty}</span>
-                      <button
-                        onClick={() => onQtyChange(item.id, 1)}
-                        className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors"
-                      >
-                        <Plus size={10} />
-                      </button>
                     </div>
-                    <div className="w-16 text-left flex-shrink-0">
-                      <p className="text-xs font-bold text-green-700">{formatPrice(item.price * qty)}</p>
-                    </div>
-                    <button
-                      onClick={() => onRemove(item.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* Footer */}
           {quote.length > 0 && (
             <div className="border-t border-gray-100 px-4 py-3 space-y-3">
               <div className="flex items-center justify-between">
@@ -152,7 +270,6 @@ function QuotePanel({
   );
 }
 
-/* ── Print stylesheet injected once ── */
 const PRINT_STYLE = `
 @media print {
   body * { visibility: hidden !important; }
@@ -165,8 +282,25 @@ export default function PricerPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [quote, setQuote] = useState<QuoteItem[]>([]);
+  const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const printStyleRef = useRef(false);
+
+  function effectivePrice(item: PriceItem) {
+    return overridePrices[item.id] ?? item.price;
+  }
+
+  function setPriceOverride(id: string, newPrice: number) {
+    setOverridePrices(prev => {
+      const item = PRICE_LIST.find(i => i.id === id);
+      if (item && newPrice === item.price) {
+        // Remove override if reverting to default
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: newPrice };
+    });
+  }
 
   const filtered = useMemo(() => {
     return PRICE_LIST.filter((item) => {
@@ -190,11 +324,18 @@ export default function PricerPage() {
   }
 
   function changeQty(id: string, delta: number) {
-    setQuote(prev => {
-      return prev
-        .map(qi => qi.item.id === id ? { ...qi, qty: qi.qty + delta } : qi)
-        .filter(qi => qi.qty > 0);
-    });
+    setQuote(prev =>
+      prev.map(qi => qi.item.id === id ? { ...qi, qty: qi.qty + delta } : qi)
+         .filter(qi => qi.qty > 0)
+    );
+  }
+
+  function setQty(id: string, qty: number) {
+    if (qty === 0) {
+      setQuote(prev => prev.filter(qi => qi.item.id !== id));
+    } else {
+      setQuote(prev => prev.map(qi => qi.item.id === id ? { ...qi, qty } : qi));
+    }
   }
 
   function removeItem(id: string) {
@@ -206,7 +347,6 @@ export default function PricerPage() {
   }
 
   function handlePrint() {
-    // Inject print style once
     if (!printStyleRef.current) {
       const style = document.createElement("style");
       style.innerHTML = PRINT_STYLE;
@@ -216,7 +356,7 @@ export default function PricerPage() {
     window.print();
   }
 
-  const total = quote.reduce((sum, qi) => sum + qi.item.price * qi.qty, 0);
+  const total = quote.reduce((sum, qi) => sum + effectivePrice(qi.item) * qi.qty, 0);
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -235,15 +375,18 @@ export default function PricerPage() {
             </tr>
           </thead>
           <tbody>
-            {quote.map(({ item, qty }) => (
-              <tr key={item.id} className="border-b border-gray-100">
-                <td className="p-2 border border-gray-200">{item.name}</td>
-                <td className="p-2 text-center border border-gray-200">{item.unit}</td>
-                <td className="p-2 text-center border border-gray-200">{qty}</td>
-                <td className="p-2 text-left border border-gray-200">{formatPrice(item.price)}</td>
-                <td className="p-2 text-left font-bold border border-gray-200">{formatPrice(item.price * qty)}</td>
-              </tr>
-            ))}
+            {quote.map(({ item, qty }) => {
+              const p = effectivePrice(item);
+              return (
+                <tr key={item.id} className="border-b border-gray-100">
+                  <td className="p-2 border border-gray-200">{item.name}</td>
+                  <td className="p-2 text-center border border-gray-200">{item.unit}</td>
+                  <td className="p-2 text-center border border-gray-200">{qty}</td>
+                  <td className="p-2 text-left border border-gray-200">{formatPrice(p)}</td>
+                  <td className="p-2 text-left font-bold border border-gray-200">{formatPrice(p * qty)}</td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
             <tr className="bg-gray-50 font-bold">
@@ -252,7 +395,7 @@ export default function PricerPage() {
             </tr>
           </tfoot>
         </table>
-        <p className="text-xs text-gray-400 mt-6">* המחירים הינם ממוצע סיטונאי ועשויים להשתנות</p>
+        <p className="text-xs text-gray-400 mt-6">* המחירים עודכנו ידנית על ידי הגנן</p>
       </div>
 
       {/* Screen layout */}
@@ -260,8 +403,9 @@ export default function PricerPage() {
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-5">
           <h1 className="text-2xl font-bold text-gray-900 mb-0.5">💰 מחירון גינון</h1>
-          <p className="text-gray-500 text-sm">{PRICE_LIST.length} פריטים · מחירי עלות ממוצעים לגנן</p>
-          {/* Search */}
+          <p className="text-gray-500 text-sm">
+            {PRICE_LIST.length} פריטים · מחירי עלות ממוצעים לגנן · לחץ על המחיר לעריכה
+          </p>
           <div className="mt-4 relative">
             <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -304,7 +448,6 @@ export default function PricerPage() {
 
         {/* Main content */}
         <div className="px-4 sm:px-6 py-5 lg:flex lg:gap-5 lg:items-start">
-          {/* Items list */}
           <div className="flex-1">
             <p className="text-xs text-gray-400 mb-3">{filtered.length} פריטים מוצגים</p>
             {filtered.length === 0 ? (
@@ -316,17 +459,25 @@ export default function PricerPage() {
             ) : (
               <div className="space-y-2">
                 {filtered.map(item => (
-                  <ItemRow key={item.id} item={item} onAdd={() => addToQuote(item)} />
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    price={effectivePrice(item)}
+                    onAdd={() => addToQuote(item)}
+                    onPriceChange={newPrice => setPriceOverride(item.id, newPrice)}
+                  />
                 ))}
               </div>
             )}
           </div>
 
-          {/* Quote panel — desktop sticky sidebar */}
+          {/* Quote panel — desktop */}
           <div className="hidden lg:block w-72 flex-shrink-0 sticky top-5">
             <QuotePanel
               quote={quote}
+              overridePrices={overridePrices}
               onQtyChange={changeQty}
+              onQtySet={setQty}
               onRemove={removeItem}
               onClear={clearQuote}
               onPrint={handlePrint}
@@ -336,14 +487,16 @@ export default function PricerPage() {
           </div>
         </div>
 
-        {/* Mobile: floating quote button + bottom sheet */}
+        {/* Mobile bottom sheet */}
         <div className="lg:hidden">
           {quote.length > 0 && (
             <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-xl">
               <div className="px-4 pt-3 pb-4">
                 <QuotePanel
                   quote={quote}
+                  overridePrices={overridePrices}
                   onQtyChange={changeQty}
+                  onQtySet={setQty}
                   onRemove={removeItem}
                   onClear={clearQuote}
                   onPrint={handlePrint}
@@ -353,7 +506,6 @@ export default function PricerPage() {
               </div>
             </div>
           )}
-          {/* Spacer so content isn't hidden behind panel */}
           {quote.length > 0 && <div className="h-44" />}
         </div>
       </div>
