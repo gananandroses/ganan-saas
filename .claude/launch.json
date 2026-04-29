@@ -5,12 +5,9 @@
       "name": "garden-saas",
       "runtimeExecutable": "/usr/local/bin/npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "/Users/arielhassin/Desktop/\u05e7\u05dc\u05d5\u05d3 \u05e7\u05d5\u05d3 - \u05d0\u05d5\u05d8\u05d5\u05de\u05e6\u05d9\u05d4 \u05d2\u05e0\u05df /garden-saas",
+      "cwd": "/Users/arielhassin/Desktop/קלוד קוד - אוטומציה גנן /garden-saas",
       "port": 3000,
-      "autoPort": false,
-      "env": {
-        "PATH": "/usr/local/bin:/usr/bin:/bin"
-      }
+      "autoPort": false
     }
   ]
 }
