@@ -295,7 +295,12 @@ function QuotePanel({
           {quote.length > 0 && (
             <div className="border-t border-gray-100 px-4 py-3 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">סה"כ חומרים</span>
+                <div>
+                  <span className="text-sm text-gray-500">סה"כ חומרים</span>
+                  <span className={`mr-2 text-xs font-medium px-1.5 py-0.5 rounded-full ${vatMul > 1 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                    {vatMul > 1 ? "כולל מע\"מ" : "לפני מע\"מ"}
+                  </span>
+                </div>
                 <span className="text-xl font-black text-gray-900">{formatPrice(total)}</span>
               </div>
               <div className="flex gap-2">
