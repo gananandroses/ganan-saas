@@ -730,6 +730,12 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  const [hiddenItems, setHiddenItems] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("pricer_hidden_items");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -809,12 +815,29 @@ export default function PricerPage() {
       try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
       return next;
     });
-    // Also remove from quote if present
     setQuote(prev => prev.filter(qi => qi.item.id !== id));
-    // Clean up overrides
     setOverridePrices(prev => { const { [id]: _, ...rest } = prev; return rest; });
     setOverrideUnits(prev => { const { [id]: _, ...rest } = prev; return rest; });
     setVatItems(prev => { const { [id]: _, ...rest } = prev; return rest; });
+  }
+
+  function hideItem(id: string) {
+    setHiddenItems(prev => {
+      const next = [...prev, id];
+      try { localStorage.setItem("pricer_hidden_items", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setQuote(prev => prev.filter(qi => qi.item.id !== id));
+  }
+
+  function restoreAllItems() {
+    setHiddenItems([]);
+    try { localStorage.removeItem("pricer_hidden_items"); } catch {}
+  }
+
+  function removeItem(id: string) {
+    if (id.startsWith("custom_")) deleteCustomItem(id);
+    else hideItem(id);
   }
 
   function saveCustomItemOnly(item: PriceItem, vatMode: "before" | "after") {
@@ -840,7 +863,9 @@ export default function PricerPage() {
     setPanelCollapsed(false);
   }
 
-  const allItems = useMemo(() => [...PRICE_LIST, ...customItems], [customItems]);
+  const allItems = useMemo(() =>
+    [...PRICE_LIST, ...customItems].filter(i => !hiddenItems.includes(i.id)),
+  [customItems, hiddenItems]);
 
   const filtered = useMemo(() => allItems.filter(item => {
     const matchCat = activeCategory === "all" || item.category === activeCategory;
@@ -1028,7 +1053,15 @@ export default function PricerPage() {
         {/* Main */}
         <div className="px-4 sm:px-6 py-5 lg:flex lg:gap-5 lg:items-start">
           <div className="flex-1">
-            <p className="text-xs text-gray-400 mb-3">{filtered.length} פריטים מוצגים</p>
+            <div className="flex items-center gap-3 mb-3">
+              <p className="text-xs text-gray-400">{filtered.length} פריטים מוצגים</p>
+              {hiddenItems.length > 0 && (
+                <button onClick={restoreAllItems}
+                  className="text-xs text-blue-500 hover:text-blue-700 underline underline-offset-2 transition-colors">
+                  שחזר {hiddenItems.length} פריטים מוסתרים
+                </button>
+              )}
+            </div>
             {filtered.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
                 <p className="text-4xl mb-3">🔍</p>
@@ -1047,7 +1080,7 @@ export default function PricerPage() {
                     onPriceChange={n => setPriceOverride(item.id, n)}
                     onUnitChange={s => setUnitOverride(item.id, s)}
                     onVatChange={v => setVatOverride(item.id, v)}
-                    onDelete={item.id.startsWith("custom_") ? () => deleteCustomItem(item.id) : undefined}
+                    onDelete={() => removeItem(item.id)}
                   />
                 ))}
               </div>
