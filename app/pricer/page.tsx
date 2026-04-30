@@ -855,6 +855,7 @@ export default function PricerPage() {
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits]   = useState<Record<string, string>>({});
   const [overrideNames, setOverrideNames]   = useState<Record<string, string>>({});
+  const [overrideCatNames, setOverrideCatNames] = useState<Record<string, string>>({});
   const [vatItems, setVatItems]             = useState<Record<string, "before" | "after">>({});
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     try {
@@ -901,6 +902,11 @@ export default function PricerPage() {
 
   useEffect(() => {
     if (!storageLoaded.current) return;
+    try { localStorage.setItem("pricer_override_cat_names", JSON.stringify(overrideCatNames)); } catch {}
+  }, [overrideCatNames]);
+
+  useEffect(() => {
+    if (!storageLoaded.current) return;
     try { localStorage.setItem("pricer_vat_items", JSON.stringify(vatItems)); } catch {}
   }, [vatItems]);
 
@@ -913,6 +919,8 @@ export default function PricerPage() {
       if (u) setOverrideUnits(JSON.parse(u));
       const nn = localStorage.getItem("pricer_override_names");
       if (nn) setOverrideNames(JSON.parse(nn));
+      const cn = localStorage.getItem("pricer_override_cat_names");
+      if (cn) setOverrideCatNames(JSON.parse(cn));
       const v = localStorage.getItem("pricer_vat_items");
       if (v) setVatItems(JSON.parse(v));
       // Merge all possible keys for deleted items/categories (handles migration from old key names)
@@ -1034,6 +1042,14 @@ export default function PricerPage() {
   function deleteCategory(key: string) {
     if (key.startsWith("user_")) deleteCustomCategory(key);
     else deleteBuiltinCategory(key);
+  }
+
+  function renameCategory(key: string, newLabel: string) {
+    if (key.startsWith("user_")) {
+      renameCustomCategory(key, newLabel);
+    } else {
+      setOverrideCatNames(prev => ({ ...prev, [key]: newLabel }));
+    }
   }
 
 
@@ -1278,7 +1294,8 @@ export default function PricerPage() {
           <div className="flex flex-wrap gap-2">
             {allCategories.map(cat => {
               const active = activeCategory === cat.key;
-              const isUserCat = cat.key.startsWith("user_");
+              const isAll = cat.key === "all";
+              const displayLabel = overrideCatNames[cat.key] ?? cat.label;
               return (
                 <div key={cat.key} className="group relative">
                   <button onClick={() => setActiveCategory(cat.key)}
@@ -1286,31 +1303,33 @@ export default function PricerPage() {
                       active ? "bg-green-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
                     }`}>
                     <span>{cat.emoji}</span>
-                    <span>{cat.label}</span>
-                    {/* Inline edit icon for user categories */}
-                    {isUserCat && (
+                    <span>{displayLabel}</span>
+                    {!isAll && (
                       <Pencil size={10} className={`opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0 ${active ? "text-white" : "text-gray-400"}`} />
                     )}
                   </button>
-                  {/* Edit name button (user categories only) */}
-                  {isUserCat && (
+                  {/* Rename button — all categories except "הכל" */}
+                  {!isAll && (
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        const newName = window.prompt("שם חדש לקטגוריה:", cat.label);
-                        if (newName && newName.trim()) renameCustomCategory(cat.key, newName.trim());
+                        const newName = window.prompt("שם חדש לקטגוריה:", displayLabel);
+                        if (newName?.trim()) renameCategory(cat.key, newName.trim());
                       }}
                       title="ערוך שם"
                       className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-blue-500 hover:bg-blue-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
                       <Pencil size={7} strokeWidth={3} />
                     </button>
                   )}
-                  <button
-                    onClick={e => { e.stopPropagation(); deleteCategory(cat.key); }}
-                    title="מחק קטגוריה"
-                    className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
-                    <X size={8} strokeWidth={3} />
-                  </button>
+                  {/* Delete button — all categories except "הכל" */}
+                  {!isAll && (
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteCategory(cat.key); }}
+                      title="מחק קטגוריה"
+                      className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
+                      <X size={8} strokeWidth={3} />
+                    </button>
+                  )}
                 </div>
               );
             })}
