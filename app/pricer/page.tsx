@@ -575,7 +575,12 @@ export default function PricerPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [quote, setQuote] = useState<QuoteItem[]>([]);
-  const [customItems, setCustomItems] = useState<PriceItem[]>([]);
+  const [customItems, setCustomItems] = useState<PriceItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("pricer_custom_items");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
   const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>({});
@@ -610,7 +615,11 @@ export default function PricerPage() {
   }
 
   function addCustomItemToQuote(item: PriceItem, qty: number, vatMode: "before" | "after") {
-    setCustomItems(prev => [...prev, item]);
+    setCustomItems(prev => {
+      const next = [...prev, item];
+      try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
+      return next;
+    });
     setOverridePrices(prev => ({ ...prev, [item.id]: item.price }));
     setVatItems(prev => ({ ...prev, [item.id]: vatMode }));
     setQuote(prev => [...prev, { item, qty }]);
