@@ -744,44 +744,39 @@ function QuotePanel({
                   const p = ep(item) * vm(item);
                   const isVat = (vatItems[item.id] ?? "before") === "after";
                   return (
-                    <div key={item.id} className="px-4 py-3 flex items-center gap-3">
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-xs font-semibold text-gray-800 leading-snug truncate">{item.name}</p>
-                          {isVat && (
-                            <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">+מע"מ</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-[11px] text-gray-400">{formatPrice(p)} / {eu(item)}</span>
-                          {isVat && (
-                            <span className="text-[11px] text-gray-400">
-                              · לפני מע"מ: <span className="text-gray-600 font-medium">{formatPrice(ep(item))}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Qty controls */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <button onClick={() => onQtyChange(item.id, -1)}
-                          className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors">
-                          <Minus size={10} />
-                        </button>
-                        <QtyInput qty={qty} onChange={n => onQtySet(item.id, n)} />
-                        <button onClick={() => onQtyChange(item.id, 1)}
-                          className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors">
-                          <Plus size={10} />
-                        </button>
-                      </div>
-
-                      {/* Line total + remove */}
-                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <p className="text-xs font-bold text-green-700 whitespace-nowrap">{formatPrice(p * qty)}</p>
-                        <button onClick={() => onRemove(item.id)} className="text-gray-300 hover:text-red-400 transition-colors">
+                    <div key={item.id} className="px-4 py-2.5">
+                      {/* Row 1: name + total + trash */}
+                      <div className="flex items-center gap-2">
+                        <p className="flex-1 text-xs font-semibold text-gray-800 leading-snug truncate min-w-0">{item.name}</p>
+                        <p className="text-xs font-bold text-green-700 whitespace-nowrap flex-shrink-0">{formatPrice(p * qty)}</p>
+                        <button onClick={() => onRemove(item.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                           <Trash2 size={13} />
                         </button>
+                      </div>
+
+                      {/* Row 2: badges + price info + qty controls */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {isVat && (
+                          <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 whitespace-nowrap">+מע"מ</span>
+                        )}
+                        <div className="flex-1 min-w-0 flex flex-col">
+                          <span className="text-[11px] text-gray-400 leading-tight">{formatPrice(p)} / {eu(item)}</span>
+                          {isVat && (
+                            <span className="text-[11px] text-blue-500 font-medium leading-tight">לפני מע"מ: {formatPrice(ep(item))}</span>
+                          )}
+                        </div>
+                        {/* Qty controls */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button onClick={() => onQtyChange(item.id, -1)}
+                            className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors">
+                            <Minus size={10} />
+                          </button>
+                          <QtyInput qty={qty} onChange={n => onQtySet(item.id, n)} />
+                          <button onClick={() => onQtyChange(item.id, 1)}
+                            className="w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center text-gray-500 hover:border-gray-400 transition-colors">
+                            <Plus size={10} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
