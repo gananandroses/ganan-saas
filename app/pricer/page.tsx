@@ -862,24 +862,8 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
-  const [deletedCategories, setDeletedCategories] = useState<string[]>(() => {
-    try {
-      const a = JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]");
-      const b = JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]");
-      const merged = [...new Set([...a, ...b])];
-      localStorage.setItem("pricer_hidden_categories", JSON.stringify(merged));
-      return merged;
-    } catch { return []; }
-  });
-  const [deletedItems, setDeletedItems] = useState<string[]>(() => {
-    try {
-      const a = JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]");
-      const b = JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]");
-      const merged = [...new Set([...a, ...b])];
-      localStorage.setItem("pricer_hidden_items", JSON.stringify(merged));
-      return merged;
-    } catch { return []; }
-  });
+  const [deletedCategories, setDeletedCategories] = useState<string[]>([]);
+  const [deletedItems, setDeletedItems] = useState<string[]>([]);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -931,6 +915,17 @@ export default function PricerPage() {
       if (nn) setOverrideNames(JSON.parse(nn));
       const v = localStorage.getItem("pricer_vat_items");
       if (v) setVatItems(JSON.parse(v));
+      // Merge all possible keys for deleted items/categories (handles migration from old key names)
+      const di = [...new Set([
+        ...JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]"),
+        ...JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]"),
+      ])];
+      if (di.length) { setDeletedItems(di); localStorage.setItem("pricer_hidden_items", JSON.stringify(di)); }
+      const dc = [...new Set([
+        ...JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]"),
+        ...JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]"),
+      ])];
+      if (dc.length) { setDeletedCategories(dc); localStorage.setItem("pricer_hidden_categories", JSON.stringify(dc)); }
     } catch {}
     storageLoaded.current = true;
   }, []);
