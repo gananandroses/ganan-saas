@@ -198,9 +198,10 @@ function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => voi
 }
 
 // ── Add custom item modal ───────────────────────────────────────────────────
-function AddCustomItemModal({ onClose, onAdd }: {
+function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom" }: {
   onClose: () => void;
   onAdd: (item: PriceItem, qty: number, vat: "before" | "after") => void;
+  defaultCategory?: string;
 }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -208,8 +209,11 @@ function AddCustomItemModal({ onClose, onAdd }: {
   const [customUnit, setCustomUnit] = useState("");
   const [qty, setQty] = useState("1");
   const [vat, setVat] = useState<"before" | "after">("before");
+  const [category, setCategory] = useState(defaultCategory);
   const UNITS = ["יח'", "מ\"ר", "מ'", "טון", "ק\"ג", "שק", "עץ", "צמח", "אחר"];
+  const CATS = PRICE_CATEGORIES.filter(c => c.key !== "all");
   const finalUnit = unit === "אחר" ? customUnit : unit;
+  const { Icon: CatIconComp, color: catColor } = CAT_ICONS[category] ?? CAT_ICONS.custom;
 
   function handleAdd() {
     if (!name.trim() || !finalUnit.trim()) return;
@@ -220,7 +224,7 @@ function AddCustomItemModal({ onClose, onAdd }: {
       name: name.trim(),
       unit: finalUnit.trim(),
       price: p,
-      category: "custom",
+      category,
     };
     onAdd(newItem, q, vat);
     onClose();
@@ -244,6 +248,27 @@ function AddCustomItemModal({ onClose, onAdd }: {
             onChange={e => setName(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
+
+          {/* Category picker */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">קטגוריה</label>
+            <div className="flex flex-wrap gap-1.5">
+              {CATS.map(cat => {
+                const { Icon, color } = CAT_ICONS[cat.key] ?? CAT_ICONS.custom;
+                const active = category === cat.key;
+                return (
+                  <button key={cat.key} onClick={() => setCategory(cat.key)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      active ? "border-purple-400 bg-purple-50 text-purple-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                    }`}>
+                    <Icon size={12} className={active ? "text-purple-600" : color} />
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs text-gray-500 mb-1">מחיר ליחידה (₪)</label>
@@ -288,7 +313,8 @@ function AddCustomItemModal({ onClose, onAdd }: {
           <button
             onClick={handleAdd}
             disabled={!name.trim()}
-            className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-sm transition-colors mt-1">
+            className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-sm transition-colors mt-1">
+            <CatIconComp size={15} className="opacity-80" />
             הוסף להצעה
           </button>
         </div>
