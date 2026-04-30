@@ -6,9 +6,18 @@ import {
   Search, X, Plus, Minus, Trash2, Printer, ShoppingCart,
   ChevronDown, ChevronUp, Pencil, Check, FolderKanban, ChevronRight,
   ArrowRight, Mountain, Leaf, Flower2, Package, Droplets, Layers,
-  LayoutGrid, Lock, Lightbulb, Wrench, HardHat, PenLine,
+  LayoutGrid, Lock, Lightbulb, Wrench, HardHat, PenLine, Tag,
 } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
+
+// ── Custom category type ─────────────────────────────────────────────────────
+interface CustomCategory { key: string; label: string; emoji: string; }
+
+const EMOJI_OPTIONS = [
+  "🌿","🌱","🌳","🌺","🌸","🍀","🌻","🌵","🌾","🍃",
+  "🪴","🪨","🪵","💧","☀️","🌙","⭐","🔥","❄️","🎋",
+  "🧱","🏡","🔧","💡","🎨","📦","🧪","🌍","🐝","🦋",
+];
 import { supabase } from "@/lib/supabase/client";
 
 // ── Category → icon + color map ──────────────────────────────────────────────
@@ -207,11 +216,89 @@ function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => voi
   );
 }
 
+// ── Add category modal ──────────────────────────────────────────────────────
+function AddCategoryModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (cat: CustomCategory) => void;
+}) {
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState("🌿");
+
+  function handleCreate() {
+    if (!name.trim()) return;
+    const key = `user_${Date.now()}`;
+    onCreate({ key, label: name.trim(), emoji });
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <Tag size={16} className="text-green-600" /> קטגוריה חדשה
+          </h3>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">שם הקטגוריה *</label>
+            <input
+              autoFocus
+              placeholder="למשל: תערובת שתילה"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleCreate()}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+          </div>
+
+          {/* Emoji picker */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">אמוג׳י</label>
+            <div className="flex flex-wrap gap-2">
+              {EMOJI_OPTIONS.map(em => (
+                <button key={em} onClick={() => setEmoji(em)}
+                  className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all border-2 ${
+                    emoji === em ? "border-green-500 bg-green-50 scale-110" : "border-transparent hover:border-gray-200 bg-gray-50"
+                  }`}>
+                  {em}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview */}
+          {name.trim() && (
+            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
+              <span className="text-sm text-gray-500">תצוגה מקדימה:</span>
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-600 text-white text-sm font-medium shadow-sm">
+                <span>{emoji}</span><span>{name.trim()}</span>
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={handleCreate}
+            disabled={!name.trim()}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-sm transition-colors flex items-center justify-center gap-2">
+            <Plus size={16} /> צור קטגוריה
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Add custom item modal ───────────────────────────────────────────────────
-function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom" }: {
+function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom", extraCategories = [] }: {
   onClose: () => void;
   onAdd: (item: PriceItem, qty: number, vat: "before" | "after") => void;
   defaultCategory?: string;
+  extraCategories?: CustomCategory[];
 }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -221,7 +308,10 @@ function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom" }: {
   const [vat, setVat] = useState<"before" | "after">("before");
   const [category, setCategory] = useState(defaultCategory);
   const UNITS = ["יח'", "מ\"ר", "מ'", "טון", "ק\"ג", "שק", "עץ", "צמח", "אחר"];
-  const CATS = PRICE_CATEGORIES.filter(c => c.key !== "all");
+  const CATS = [
+    ...PRICE_CATEGORIES.filter(c => c.key !== "all"),
+    ...extraCategories,
+  ];
   const finalUnit = unit === "אחר" ? customUnit : unit;
   const { Icon: CatIconComp, color: catColor } = CAT_ICONS[category] ?? CAT_ICONS.custom;
 
@@ -264,14 +354,17 @@ function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom" }: {
             <label className="block text-xs text-gray-500 mb-1.5">קטגוריה</label>
             <div className="flex flex-wrap gap-1.5">
               {CATS.map(cat => {
-                const { Icon, color } = CAT_ICONS[cat.key] ?? CAT_ICONS.custom;
+                const catMeta = CAT_ICONS[cat.key];
                 const active = category === cat.key;
                 return (
                   <button key={cat.key} onClick={() => setCategory(cat.key)}
                     className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                       active ? "border-purple-400 bg-purple-50 text-purple-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
                     }`}>
-                    <Icon size={12} className={active ? "text-purple-600" : color} />
+                    {catMeta
+                      ? <catMeta.Icon size={12} className={active ? "text-purple-600" : catMeta.color} />
+                      : <span className="text-sm leading-none">{"emoji" in cat ? (cat as CustomCategory).emoji : "🏷️"}</span>
+                    }
                     {cat.label}
                   </button>
                 );
@@ -594,10 +687,31 @@ export default function PricerPage() {
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
   const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>({});
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
+    try {
+      const saved = localStorage.getItem("pricer_custom_categories");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const printStyleRef = useRef(false);
+
+  function addCustomCategory(cat: CustomCategory) {
+    setCustomCategories(prev => {
+      const next = [...prev, cat];
+      try { localStorage.setItem("pricer_custom_categories", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setActiveCategory(cat.key);
+  }
+
+  const allCategories = useMemo(() => [
+    ...PRICE_CATEGORIES,
+    ...customCategories,
+  ], [customCategories]);
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
@@ -745,6 +859,14 @@ export default function PricerPage() {
         <AddCustomItemModal
           onClose={() => setShowAddModal(false)}
           onAdd={addCustomItemToQuote}
+          extraCategories={customCategories}
+        />
+      )}
+
+      {showAddCategoryModal && (
+        <AddCategoryModal
+          onClose={() => setShowAddCategoryModal(false)}
+          onCreate={addCustomCategory}
         />
       )}
 
@@ -782,7 +904,7 @@ export default function PricerPage() {
         {/* Category pills */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-3">
           <div className="flex flex-wrap gap-2">
-            {PRICE_CATEGORIES.map(cat => {
+            {allCategories.map(cat => {
               const active = activeCategory === cat.key;
               return (
                 <button key={cat.key} onClick={() => setActiveCategory(cat.key)}
@@ -793,6 +915,13 @@ export default function PricerPage() {
                 </button>
               );
             })}
+            {/* Add category button */}
+            <button
+              onClick={() => setShowAddCategoryModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border-2 border-dashed border-gray-300 text-gray-400 hover:border-green-400 hover:text-green-600 transition-all duration-150 whitespace-nowrap">
+              <Plus size={13} />
+              <span>קטגוריה חדשה</span>
+            </button>
           </div>
         </div>
 
