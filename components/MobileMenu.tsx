@@ -4,13 +4,14 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, Sparkles, BarChart3, Zap, FolderKanban,
-  Settings, LogOut, X, Leaf, Camera,
+  Settings, LogOut, X, Leaf, Camera, Tag,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 const allItems = [
   { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
+  { href: "/pricer", label: "מחירון", icon: Tag },
   { href: "/customers", label: "לקוחות (CRM)", icon: Users },
   { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
   { href: "/schedule", label: "לוח זמנים", icon: Calendar },
