@@ -129,23 +129,49 @@ function VatToggle({ value, onChange }: { value: "before" | "after"; onChange: (
 
 // ── Item row ────────────────────────────────────────────────────────────────
 function ItemRow({
-  item, price, unit, name, vat,
-  onAdd, onPriceChange, onUnitChange, onNameChange, onVatChange, onDelete,
+  item, price, unit, name, vat, effectiveCategory, categories,
+  onAdd, onPriceChange, onUnitChange, onNameChange, onVatChange, onCatChange, onDelete,
 }: {
   item: PriceItem; price: number; unit: string; name: string; vat: "before" | "after";
+  effectiveCategory: string;
+  categories: { key: string; label: string; emoji: string }[];
   onAdd: () => void;
   onPriceChange: (n: number) => void;
   onUnitChange: (s: string) => void;
   onNameChange: (s: string) => void;
+  onCatChange: (cat: string) => void;
   onVatChange: (v: "before" | "after") => void;
   onDelete?: () => void;
 }) {
+  const [catOpen, setCatOpen] = useState(false);
   const vatMul = vat === "after" ? 1 + VAT : 1;
   const displayPrice = price * vatMul;
+  const isMoved = effectiveCategory !== item.category;
 
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow">
-      <CatIcon category={item.category} />
+      {/* Category icon — click to move */}
+      <div className="relative flex-shrink-0">
+        <button
+          onClick={() => setCatOpen(o => !o)}
+          title="העבר לקטגוריה אחרת"
+          className={`rounded-xl transition-all ${isMoved ? "ring-2 ring-purple-400 ring-offset-1" : "hover:opacity-80"}`}>
+          <CatIcon category={effectiveCategory} />
+        </button>
+        {catOpen && (
+          <div className="absolute top-full right-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[160px] max-h-60 overflow-y-auto">
+            {categories.filter(c => c.key !== "all").map(c => (
+              <button
+                key={c.key}
+                onClick={() => { onCatChange(c.key); setCatOpen(false); }}
+                className={`w-full text-right px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-gray-50 transition-colors ${effectiveCategory === c.key ? "text-green-700 font-semibold" : "text-gray-700"}`}>
+                <span>{c.emoji}</span>
+                <span>{c.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="flex-1 min-w-0">
         <InlineEdit
@@ -856,6 +882,7 @@ export default function PricerPage() {
   const [overrideUnits, setOverrideUnits]   = useState<Record<string, string>>({});
   const [overrideNames, setOverrideNames]   = useState<Record<string, string>>({});
   const [overrideCatNames, setOverrideCatNames] = useState<Record<string, string>>({});
+  const [overrideItemCats, setOverrideItemCats] = useState<Record<string, string>>({});
   const [vatItems, setVatItems]             = useState<Record<string, "before" | "after">>({});
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     try {
@@ -907,6 +934,11 @@ export default function PricerPage() {
 
   useEffect(() => {
     if (!storageLoaded.current) return;
+    try { localStorage.setItem("pricer_override_item_cats", JSON.stringify(overrideItemCats)); } catch {}
+  }, [overrideItemCats]);
+
+  useEffect(() => {
+    if (!storageLoaded.current) return;
     try { localStorage.setItem("pricer_vat_items", JSON.stringify(vatItems)); } catch {}
   }, [vatItems]);
 
@@ -921,6 +953,8 @@ export default function PricerPage() {
       if (nn) setOverrideNames(JSON.parse(nn));
       const cn = localStorage.getItem("pricer_override_cat_names");
       if (cn) setOverrideCatNames(JSON.parse(cn));
+      const ic = localStorage.getItem("pricer_override_item_cats");
+      if (ic) setOverrideItemCats(JSON.parse(ic));
       const v = localStorage.getItem("pricer_vat_items");
       if (v) setVatItems(JSON.parse(v));
       // Merge all possible keys for deleted items/categories (handles migration from old key names)
@@ -972,6 +1006,7 @@ export default function PricerPage() {
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
   function en(item: PriceItem) { return overrideNames[item.id] ?? item.name; }
+  function ec(item: PriceItem) { return overrideItemCats[item.id] ?? item.category; }
   function vat(item: PriceItem) { return vatItems[item.id] ?? "before"; }
   function vm(item: PriceItem) { return vat(item) === "after" ? 1 + VAT : 1; }
 
@@ -1001,6 +1036,14 @@ export default function PricerPage() {
 
   function setVatOverride(id: string, v: "before" | "after") {
     setVatItems(prev => ({ ...prev, [id]: v }));
+  }
+
+  function setItemCatOverride(id: string, cat: string) {
+    setOverrideItemCats(prev => {
+      const item = [...PRICE_LIST, ...customItems].find(i => i.id === id);
+      if (item && cat === item.category) { const { [id]: _, ...rest } = prev; return rest; }
+      return { ...prev, [id]: cat };
+    });
   }
 
   function deleteCustomItem(id: string) {
@@ -1081,11 +1124,11 @@ export default function PricerPage() {
   [customItems, deletedItems]);
 
   const filtered = useMemo(() => allItems.filter(item => {
-    const matchCat = activeCategory === "all" || item.category === activeCategory;
+    const matchCat = activeCategory === "all" || ec(item) === activeCategory;
     const q = search.trim().toLowerCase();
     if (!q) return matchCat;
-    return matchCat && (item.name.toLowerCase().includes(q) || (item.notes ?? "").toLowerCase().includes(q));
-  }), [allItems, search, activeCategory]);
+    return matchCat && (en(item).toLowerCase().includes(q) || (item.notes ?? "").toLowerCase().includes(q));
+  }), [allItems, search, activeCategory, overrideItemCats, overrideNames]);
 
   function addToQuote(item: PriceItem) {
     setQuote(prev => {
@@ -1366,10 +1409,13 @@ export default function PricerPage() {
                     unit={eu(item)}
                     name={en(item)}
                     vat={vat(item)}
+                    effectiveCategory={ec(item)}
+                    categories={allCategories.map(c => ({ key: c.key, label: overrideCatNames[c.key] ?? c.label, emoji: c.emoji }))}
                     onAdd={() => addToQuote(item)}
                     onPriceChange={n => setPriceOverride(item.id, n)}
                     onUnitChange={s => setUnitOverride(item.id, s)}
                     onNameChange={s => setNameOverride(item.id, s)}
+                    onCatChange={cat => setItemCatOverride(item.id, cat)}
                     onVatChange={v => setVatOverride(item.id, v)}
                     onDelete={() => deleteItem(item.id)}
                   />
