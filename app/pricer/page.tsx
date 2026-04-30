@@ -754,8 +754,8 @@ function QuotePanel({
                           )}
                         </div>
                         {isVat && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            לפני מע"מ: <span className="font-medium">{formatPrice(ep(item))}</span>
+                          <p className="text-xs text-blue-500 mt-0.5 font-medium">
+                            לפני מע"מ: {formatPrice(ep(item))}
                           </p>
                         )}
                       </div>
