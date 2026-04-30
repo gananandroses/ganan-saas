@@ -834,15 +834,9 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
-  const [overridePrices, setOverridePrices] = useState<Record<string, number>>(() => {
-    try { const s = localStorage.getItem("pricer_override_prices"); return s ? JSON.parse(s) : {}; } catch { return {}; }
-  });
-  const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>(() => {
-    try { const s = localStorage.getItem("pricer_override_units"); return s ? JSON.parse(s) : {}; } catch { return {}; }
-  });
-  const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>(() => {
-    try { const s = localStorage.getItem("pricer_vat_items"); return s ? JSON.parse(s) : {}; } catch { return {}; }
-  });
+  const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
+  const [overrideUnits, setOverrideUnits]   = useState<Record<string, string>>({});
+  const [vatItems, setVatItems]             = useState<Record<string, "before" | "after">>({});
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     try {
       const saved = localStorage.getItem("pricer_custom_categories");
@@ -876,17 +870,38 @@ export default function PricerPage() {
   const printStyleRef = useRef(false);
 
   // ── Persist price/unit/vat overrides to localStorage ──────────────────────
+  // IMPORTANT: save effects must be defined BEFORE the load effect so on the
+  // initial render they skip (storageLoaded=false), and only save on subsequent
+  // renders (after load sets storageLoaded=true).
+  const storageLoaded = useRef(false);
+
   useEffect(() => {
+    if (!storageLoaded.current) return;
     try { localStorage.setItem("pricer_override_prices", JSON.stringify(overridePrices)); } catch {}
   }, [overridePrices]);
 
   useEffect(() => {
+    if (!storageLoaded.current) return;
     try { localStorage.setItem("pricer_override_units", JSON.stringify(overrideUnits)); } catch {}
   }, [overrideUnits]);
 
   useEffect(() => {
+    if (!storageLoaded.current) return;
     try { localStorage.setItem("pricer_vat_items", JSON.stringify(vatItems)); } catch {}
   }, [vatItems]);
+
+  // Load from localStorage once on mount (client-side only), then enable saving
+  useEffect(() => {
+    try {
+      const p = localStorage.getItem("pricer_override_prices");
+      if (p) setOverridePrices(JSON.parse(p));
+      const u = localStorage.getItem("pricer_override_units");
+      if (u) setOverrideUnits(JSON.parse(u));
+      const v = localStorage.getItem("pricer_vat_items");
+      if (v) setVatItems(JSON.parse(v));
+    } catch {}
+    storageLoaded.current = true;
+  }, []);
 
   function addCustomCategory(cat: CustomCategory) {
     setCustomCategories(prev => {
