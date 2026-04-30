@@ -864,14 +864,18 @@ export default function PricerPage() {
   });
   const [deletedCategories, setDeletedCategories] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("pricer_deleted_categories");
-      return saved ? JSON.parse(saved) : [];
+      // Merge old key (pricer_hidden_categories) + new key for migration
+      const old = JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]");
+      const nw  = JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]");
+      return [...new Set([...old, ...nw])];
     } catch { return []; }
   });
   const [deletedItems, setDeletedItems] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("pricer_deleted_items");
-      return saved ? JSON.parse(saved) : [];
+      // Merge old key (pricer_hidden_items) + new key for migration
+      const old = JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]");
+      const nw  = JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]");
+      return [...new Set([...old, ...nw])];
     } catch { return []; }
   });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
