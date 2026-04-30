@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, Pencil, Check, FolderKanban, ChevronRight,
   ArrowRight, Mountain, Leaf, Flower2, Package, Droplets, Layers,
   LayoutGrid, Lock, Lightbulb, Wrench, HardHat, PenLine, Tag,
-  Save, RotateCcw, Clock,
+  Save, RotateCcw, Clock, BookOpen,
 } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
@@ -582,11 +582,122 @@ function SaveToProjectModal({
   );
 }
 
+// ── Draft types ─────────────────────────────────────────────────────────────
+interface Draft {
+  id: string;
+  name: string;
+  savedAt: string;
+  quote: QuoteItem[];
+  overridePrices: Record<string, number>;
+  overrideUnits: Record<string, string>;
+  vatItems: Record<string, "before" | "after">;
+}
+
+// ── Save draft modal ─────────────────────────────────────────────────────────
+function SaveDraftModal({ itemCount, total, onClose, onSave }: {
+  itemCount: number; total: number;
+  onClose: () => void;
+  onSave: (name: string) => void;
+}) {
+  const defaultName = new Date().toLocaleDateString("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const [name, setName] = useState(defaultName);
+
+  function handleSave() {
+    onSave(name.trim() || defaultName);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <Save size={16} className="text-amber-500" /> שמור טיוטה
+          </h3>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div className="bg-amber-50 rounded-xl px-4 py-3 text-sm text-amber-800">
+            {itemCount} פריטים · סה"כ {formatPrice(total)} · הצעה תאופס אחרי השמירה
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1.5">שם הטיוטה</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSave()}
+              placeholder="למשל: גינת כהן — שלב ראשון"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          <button onClick={handleSave}
+            className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl py-3 text-sm transition-colors">
+            <Save size={15} /> שמור ואפס הצעה
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Drafts list modal ────────────────────────────────────────────────────────
+function DraftsListModal({ drafts, onClose, onLoad, onDelete }: {
+  drafts: Draft[];
+  onClose: () => void;
+  onLoad: (draft: Draft) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <BookOpen size={16} className="text-amber-500" /> טיוטות שמורות
+          </h3>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+
+        {drafts.length === 0 ? (
+          <div className="py-12 text-center text-gray-400">
+            <BookOpen size={32} className="mx-auto mb-3 opacity-30" />
+            <p className="text-sm">אין טיוטות שמורות</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+            {drafts.map(d => (
+              <div key={d.id} className="px-5 py-3.5 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{d.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(d.savedAt).toLocaleString("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    {" · "}{d.quote.length} פריטים
+                  </p>
+                </div>
+                <button onClick={() => { onLoad(d); onClose(); }}
+                  className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
+                  <RotateCcw size={11} /> טען
+                </button>
+                <button onClick={() => onDelete(d.id)}
+                  className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Quote panel ─────────────────────────────────────────────────────────────
 function QuotePanel({
   quote, overridePrices, overrideUnits, vatItems,
   onQtyChange, onQtySet, onRemove, onClear, onPrint, onSaveToProject, onSaveDraft,
-  draftSaved, collapsed, onToggle,
+  collapsed, onToggle,
 }: {
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
@@ -599,7 +710,6 @@ function QuotePanel({
   onPrint: () => void;
   onSaveToProject: () => void;
   onSaveDraft: () => void;
-  draftSaved: boolean;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -692,15 +802,8 @@ function QuotePanel({
               </div>
               {/* Save draft button */}
               <button onClick={onSaveDraft}
-                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
-                  draftSaved
-                    ? "border-green-400 bg-green-50 text-green-700"
-                    : "border-dashed border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400"
-                }`}>
-                {draftSaved
-                  ? <><Check size={14} /> נשמר כטיוטה!</>
-                  : <><Save size={14} /> שמור טיוטה (המשך מאוחר יותר)</>
-                }
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 border-dashed border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400 transition-all">
+                <Save size={14} /> שמור טיוטה — המשך מאוחר יותר
               </button>
             </div>
           )}
@@ -756,14 +859,13 @@ export default function PricerPage() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
-  const [draftSaved, setDraftSaved] = useState(false);
-  const [draftInfo, setDraftInfo] = useState<{ savedAt: string } | null>(() => {
+  const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [drafts, setDrafts] = useState<Draft[]>(() => {
     try {
-      const raw = localStorage.getItem("pricer_draft");
-      if (!raw) return null;
-      const d = JSON.parse(raw);
-      return { savedAt: d.savedAt };
-    } catch { return null; }
+      const raw = localStorage.getItem("pricer_drafts");
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
   });
   const printStyleRef = useRef(false);
 
@@ -925,32 +1027,43 @@ export default function PricerPage() {
     else setQuote(prev => prev.map(qi => qi.item.id === id ? { ...qi, qty } : qi));
   }
 
-  function saveDraft() {
-    const draft = { savedAt: new Date().toISOString(), quote, overridePrices, overrideUnits, vatItems };
-    try { localStorage.setItem("pricer_draft", JSON.stringify(draft)); } catch {}
-    setDraftInfo({ savedAt: draft.savedAt });
-    setDraftSaved(true);
-    setTimeout(() => setDraftSaved(false), 2500);
+  function saveDraftWithName(name: string) {
+    const draft: Draft = {
+      id: `draft_${Date.now()}`,
+      name,
+      savedAt: new Date().toISOString(),
+      quote,
+      overridePrices,
+      overrideUnits,
+      vatItems,
+    };
+    setDrafts(prev => {
+      const next = [draft, ...prev];
+      try { localStorage.setItem("pricer_drafts", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    // Clear current quote after saving
+    setQuote([]);
+    setOverridePrices({});
+    setOverrideUnits({});
+    setVatItems({});
+    setPanelCollapsed(true);
   }
 
-  function loadDraft() {
-    try {
-      const raw = localStorage.getItem("pricer_draft");
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      setQuote(d.quote ?? []);
-      setOverridePrices(d.overridePrices ?? {});
-      setOverrideUnits(d.overrideUnits ?? {});
-      setVatItems(d.vatItems ?? {});
-      setPanelCollapsed(false);
-      setDraftInfo(null);
-      localStorage.removeItem("pricer_draft");
-    } catch {}
+  function loadDraft(draft: Draft) {
+    setQuote(draft.quote ?? []);
+    setOverridePrices(draft.overridePrices ?? {});
+    setOverrideUnits(draft.overrideUnits ?? {});
+    setVatItems(draft.vatItems ?? {});
+    setPanelCollapsed(false);
   }
 
-  function clearDraft() {
-    try { localStorage.removeItem("pricer_draft"); } catch {}
-    setDraftInfo(null);
+  function deleteDraft(id: string) {
+    setDrafts(prev => {
+      const next = prev.filter(d => d.id !== id);
+      try { localStorage.setItem("pricer_drafts", JSON.stringify(next)); } catch {}
+      return next;
+    });
   }
 
   function handlePrint() {
@@ -1034,28 +1147,26 @@ export default function PricerPage() {
         />
       )}
 
+      {showSaveDraftModal && (
+        <SaveDraftModal
+          itemCount={quote.length}
+          total={quote.reduce((s, qi) => s + (overridePrices[qi.item.id] ?? qi.item.price) * ((vatItems[qi.item.id] ?? "before") === "after" ? 1 + VAT : 1) * qi.qty, 0)}
+          onClose={() => setShowSaveDraftModal(false)}
+          onSave={saveDraftWithName}
+        />
+      )}
+
+      {showDraftsModal && (
+        <DraftsListModal
+          drafts={drafts}
+          onClose={() => setShowDraftsModal(false)}
+          onLoad={loadDraft}
+          onDelete={deleteDraft}
+        />
+      )}
+
       {/* ── Screen view ── */}
       <div className="print:hidden">
-
-        {/* Draft restore banner */}
-        {draftInfo && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-3 flex items-center gap-3" dir="rtl">
-            <Clock size={16} className="text-amber-500 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-800">יש לך טיוטה שמורה</p>
-              <p className="text-xs text-amber-600">
-                נשמרה ב־{new Date(draftInfo.savedAt).toLocaleString("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-              </p>
-            </div>
-            <button onClick={loadDraft}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0">
-              <RotateCcw size={13} /> טען טיוטה
-            </button>
-            <button onClick={clearDraft} className="text-amber-400 hover:text-amber-600 flex-shrink-0">
-              <X size={16} />
-            </button>
-          </div>
-        )}
 
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-5">
@@ -1066,6 +1177,17 @@ export default function PricerPage() {
               <span className="hidden sm:inline">חזור</span>
             </button>
             <h1 className="text-2xl font-bold text-gray-900 flex-1">💰 מחירון גינון</h1>
+            {/* Drafts button */}
+            <button onClick={() => setShowDraftsModal(true)}
+              className="flex items-center gap-1.5 border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-semibold px-3 py-2 rounded-xl transition-colors flex-shrink-0 relative">
+              <BookOpen size={15} />
+              <span className="hidden sm:inline">טיוטות</span>
+              {drafts.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {drafts.length}
+                </span>
+              )}
+            </button>
             <button onClick={() => setShowAddModal(true)}
               className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-3 py-2 rounded-xl shadow-sm transition-colors flex-shrink-0">
               <PenLine size={15} />
@@ -1196,7 +1318,7 @@ export default function PricerPage() {
               onClear={() => setQuote([])}
               onPrint={handlePrint}
               onSaveToProject={() => setShowSaveModal(true)}
-              onSaveDraft={saveDraft} draftSaved={draftSaved}
+              onSaveDraft={() => setShowSaveDraftModal(true)}
               collapsed={panelCollapsed} onToggle={() => setPanelCollapsed(p => !p)}
             />
           </div>
@@ -1214,7 +1336,7 @@ export default function PricerPage() {
                   onClear={() => setQuote([])}
                   onPrint={handlePrint}
                   onSaveToProject={() => setShowSaveModal(true)}
-                  onSaveDraft={saveDraft} draftSaved={draftSaved}
+                  onSaveDraft={() => setShowSaveDraftModal(true)}
                   collapsed={panelCollapsed} onToggle={() => setPanelCollapsed(p => !p)}
                 />
               </div>
