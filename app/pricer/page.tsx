@@ -315,6 +315,8 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
   ];
   const finalUnit = unit === "אחר" ? customUnit : unit;
   const { Icon: CatIconComp } = CAT_ICONS[category] ?? CAT_ICONS.custom;
+  // Find the label of the currently selected category for display
+  const selectedCatLabel = CATS.find(c => c.key === category)?.label ?? category;
 
   function buildItem(): PriceItem {
     return {
@@ -347,6 +349,9 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
             <PenLine size={16} className="text-purple-500" /> פריט חדש
+            <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+              ← {selectedCatLabel}
+            </span>
           </h3>
           <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
@@ -932,6 +937,7 @@ export default function PricerPage() {
           onSave={saveCustomItemOnly}
           onAdd={addCustomItemToQuote}
           extraCategories={customCategories}
+          defaultCategory={activeCategory !== "all" ? activeCategory : "custom"}
         />
       )}
 
