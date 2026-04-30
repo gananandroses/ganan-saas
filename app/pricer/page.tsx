@@ -129,13 +129,14 @@ function VatToggle({ value, onChange }: { value: "before" | "after"; onChange: (
 
 // ── Item row ────────────────────────────────────────────────────────────────
 function ItemRow({
-  item, price, unit, vat,
-  onAdd, onPriceChange, onUnitChange, onVatChange, onDelete,
+  item, price, unit, name, vat,
+  onAdd, onPriceChange, onUnitChange, onNameChange, onVatChange, onDelete,
 }: {
-  item: PriceItem; price: number; unit: string; vat: "before" | "after";
+  item: PriceItem; price: number; unit: string; name: string; vat: "before" | "after";
   onAdd: () => void;
   onPriceChange: (n: number) => void;
   onUnitChange: (s: string) => void;
+  onNameChange: (s: string) => void;
   onVatChange: (v: "before" | "after") => void;
   onDelete?: () => void;
 }) {
@@ -147,7 +148,14 @@ function ItemRow({
       <CatIcon category={item.category} />
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 leading-snug">{item.name}</p>
+        <InlineEdit
+          value={name}
+          onCommit={v => { if (v.trim()) onNameChange(v.trim()); }}
+          inputClass="w-full text-sm font-semibold text-gray-800 border border-purple-400 rounded-lg px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+          displayClass="text-sm font-semibold text-gray-800 leading-snug"
+          isCustom={name !== item.name}
+          onReset={() => onNameChange(item.name)}
+        />
         {item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}
         {/* VAT toggle — visible and accessible right under the name */}
         <div className="mt-1.5">
@@ -590,6 +598,7 @@ interface Draft {
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
   overrideUnits: Record<string, string>;
+  overrideNames: Record<string, string>;
   vatItems: Record<string, "before" | "after">;
 }
 
@@ -695,13 +704,14 @@ function DraftsListModal({ drafts, onClose, onLoad, onDelete }: {
 
 // ── Quote panel ─────────────────────────────────────────────────────────────
 function QuotePanel({
-  quote, overridePrices, overrideUnits, vatItems,
+  quote, overridePrices, overrideUnits, overrideNames, vatItems,
   onQtyChange, onQtySet, onRemove, onClear, onPrint, onSaveToProject, onSaveDraft,
   collapsed, onToggle,
 }: {
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
   overrideUnits: Record<string, string>;
+  overrideNames: Record<string, string>;
   vatItems: Record<string, "before" | "after">;
   onQtyChange: (id: string, delta: number) => void;
   onQtySet: (id: string, qty: number) => void;
@@ -715,6 +725,7 @@ function QuotePanel({
 }) {
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
+  function en(item: PriceItem) { return overrideNames[item.id] ?? item.name; }
   function vm(item: PriceItem) { return (vatItems[item.id] ?? "before") === "after" ? 1 + VAT : 1; }
 
   const total = quote.reduce((sum, qi) => sum + ep(qi.item) * vm(qi.item) * qi.qty, 0);
@@ -747,7 +758,7 @@ function QuotePanel({
                     <div key={item.id} className="px-4 py-2.5">
                       {/* Row 1: name + total + trash */}
                       <div className="flex items-center gap-2">
-                        <p className="flex-1 text-xs font-semibold text-gray-800 leading-snug truncate min-w-0">{item.name}</p>
+                        <p className="flex-1 text-xs font-semibold text-gray-800 leading-snug truncate min-w-0">{en(item)}</p>
                         <p className="text-xs font-bold text-green-700 whitespace-nowrap flex-shrink-0">{formatPrice(p * qty)}</p>
                         <button onClick={() => onRemove(item.id)} className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0">
                           <Trash2 size={13} />
@@ -843,6 +854,7 @@ export default function PricerPage() {
   });
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits]   = useState<Record<string, string>>({});
+  const [overrideNames, setOverrideNames]   = useState<Record<string, string>>({});
   const [vatItems, setVatItems]             = useState<Record<string, "before" | "after">>({});
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     try {
@@ -894,6 +906,11 @@ export default function PricerPage() {
 
   useEffect(() => {
     if (!storageLoaded.current) return;
+    try { localStorage.setItem("pricer_override_names", JSON.stringify(overrideNames)); } catch {}
+  }, [overrideNames]);
+
+  useEffect(() => {
+    if (!storageLoaded.current) return;
     try { localStorage.setItem("pricer_vat_items", JSON.stringify(vatItems)); } catch {}
   }, [vatItems]);
 
@@ -904,6 +921,8 @@ export default function PricerPage() {
       if (p) setOverridePrices(JSON.parse(p));
       const u = localStorage.getItem("pricer_override_units");
       if (u) setOverrideUnits(JSON.parse(u));
+      const nn = localStorage.getItem("pricer_override_names");
+      if (nn) setOverrideNames(JSON.parse(nn));
       const v = localStorage.getItem("pricer_vat_items");
       if (v) setVatItems(JSON.parse(v));
     } catch {}
@@ -962,6 +981,7 @@ export default function PricerPage() {
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
+  function en(item: PriceItem) { return overrideNames[item.id] ?? item.name; }
   function vat(item: PriceItem) { return vatItems[item.id] ?? "before"; }
   function vm(item: PriceItem) { return vat(item) === "after" ? 1 + VAT : 1; }
 
@@ -981,6 +1001,14 @@ export default function PricerPage() {
     });
   }
 
+  function setNameOverride(id: string, newName: string) {
+    setOverrideNames(prev => {
+      const item = [...PRICE_LIST, ...customItems].find(i => i.id === id);
+      if (item && newName === item.name) { const { [id]: _, ...rest } = prev; return rest; }
+      return { ...prev, [id]: newName };
+    });
+  }
+
   function setVatOverride(id: string, v: "before" | "after") {
     setVatItems(prev => ({ ...prev, [id]: v }));
   }
@@ -994,6 +1022,7 @@ export default function PricerPage() {
     setQuote(prev => prev.filter(qi => qi.item.id !== id));
     setOverridePrices(prev => { const { [id]: _, ...rest } = prev; return rest; });
     setOverrideUnits(prev => { const { [id]: _, ...rest } = prev; return rest; });
+    setOverrideNames(prev => { const { [id]: _, ...rest } = prev; return rest; });
     setVatItems(prev => { const { [id]: _, ...rest } = prev; return rest; });
   }
 
@@ -1076,6 +1105,7 @@ export default function PricerPage() {
       quote,
       overridePrices,
       overrideUnits,
+      overrideNames,
       vatItems,
     };
     setDrafts(prev => {
@@ -1087,6 +1117,7 @@ export default function PricerPage() {
     setQuote([]);
     setOverridePrices({});
     setOverrideUnits({});
+    setOverrideNames({});
     setVatItems({});
     setPanelCollapsed(true);
   }
@@ -1095,6 +1126,7 @@ export default function PricerPage() {
     setQuote(draft.quote ?? []);
     setOverridePrices(draft.overridePrices ?? {});
     setOverrideUnits(draft.overrideUnits ?? {});
+    setOverrideNames(draft.overrideNames ?? {});
     setVatItems(draft.vatItems ?? {});
     setPanelCollapsed(false);
   }
@@ -1118,7 +1150,7 @@ export default function PricerPage() {
   const total = quote.reduce((sum, qi) => sum + ep(qi.item) * vm(qi.item) * qi.qty, 0);
 
   const quoteMaterials = quote.map(qi => ({
-    name: qi.item.name,
+    name: en(qi.item),
     qty: qi.qty,
     unit: eu(qi.item),
     price: ep(qi.item),
@@ -1151,7 +1183,7 @@ export default function PricerPage() {
               const p = ep(item) * vm(item);
               return (
                 <tr key={item.id} className="border-b border-gray-100">
-                  <td className="p-2 border border-gray-200">{item.name}</td>
+                  <td className="p-2 border border-gray-200">{en(item)}</td>
                   <td className="p-2 text-center border border-gray-200">{eu(item)}</td>
                   <td className="p-2 text-center border border-gray-200">{qty}</td>
                   <td className="p-2 text-center border border-gray-200">{vat(item) === "after" ? "כולל" : "ללא"}</td>
@@ -1338,10 +1370,12 @@ export default function PricerPage() {
                     item={item}
                     price={ep(item)}
                     unit={eu(item)}
+                    name={en(item)}
                     vat={vat(item)}
                     onAdd={() => addToQuote(item)}
                     onPriceChange={n => setPriceOverride(item.id, n)}
                     onUnitChange={s => setUnitOverride(item.id, s)}
+                    onNameChange={s => setNameOverride(item.id, s)}
                     onVatChange={v => setVatOverride(item.id, v)}
                     onDelete={() => removeItem(item.id)}
                   />
@@ -1353,7 +1387,7 @@ export default function PricerPage() {
           {/* Desktop quote panel */}
           <div className="hidden lg:block w-72 flex-shrink-0 sticky top-5">
             <QuotePanel
-              quote={quote} overridePrices={overridePrices} overrideUnits={overrideUnits} vatItems={vatItems}
+              quote={quote} overridePrices={overridePrices} overrideUnits={overrideUnits} overrideNames={overrideNames} vatItems={vatItems}
               onQtyChange={changeQty} onQtySet={setQty}
               onRemove={id => setQuote(prev => prev.filter(qi => qi.item.id !== id))}
               onClear={() => setQuote([])}
@@ -1371,7 +1405,7 @@ export default function PricerPage() {
             <div className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-xl">
               <div className="px-4 pt-3 pb-4">
                 <QuotePanel
-                  quote={quote} overridePrices={overridePrices} overrideUnits={overrideUnits} vatItems={vatItems}
+                  quote={quote} overridePrices={overridePrices} overrideUnits={overrideUnits} overrideNames={overrideNames} vatItems={vatItems}
                   onQtyChange={changeQty} onQtySet={setQty}
                   onRemove={id => setQuote(prev => prev.filter(qi => qi.item.id !== id))}
                   onClear={() => setQuote([])}
