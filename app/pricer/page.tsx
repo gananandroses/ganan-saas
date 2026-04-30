@@ -834,9 +834,15 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
-  const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
-  const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
-  const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>({});
+  const [overridePrices, setOverridePrices] = useState<Record<string, number>>(() => {
+    try { const s = localStorage.getItem("pricer_override_prices"); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
+  const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>(() => {
+    try { const s = localStorage.getItem("pricer_override_units"); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
+  const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>(() => {
+    try { const s = localStorage.getItem("pricer_vat_items"); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
     try {
       const saved = localStorage.getItem("pricer_custom_categories");
@@ -868,6 +874,19 @@ export default function PricerPage() {
     } catch { return []; }
   });
   const printStyleRef = useRef(false);
+
+  // ── Persist price/unit/vat overrides to localStorage ──────────────────────
+  useEffect(() => {
+    try { localStorage.setItem("pricer_override_prices", JSON.stringify(overridePrices)); } catch {}
+  }, [overridePrices]);
+
+  useEffect(() => {
+    try { localStorage.setItem("pricer_override_units", JSON.stringify(overrideUnits)); } catch {}
+  }, [overrideUnits]);
+
+  useEffect(() => {
+    try { localStorage.setItem("pricer_vat_items", JSON.stringify(vatItems)); } catch {}
+  }, [vatItems]);
 
   function addCustomCategory(cat: CustomCategory) {
     setCustomCategories(prev => {
