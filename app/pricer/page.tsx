@@ -334,6 +334,8 @@ function SaveToProjectModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creatingNew, setCreatingNew] = useState(false);
 
   useEffect(() => {
     supabase.from("projects").select("id, name, customer_name").order("created_at", { ascending: false })
@@ -344,7 +346,6 @@ function SaveToProjectModal({
     setSaving(true);
     const { data } = await supabase.from("projects").select("materials").eq("id", projectId).single();
     const existing: typeof materials = data?.materials ?? [];
-    // Merge: same name+unit → add qty, otherwise append
     const merged = [...existing];
     materials.forEach(nm => {
       const idx = merged.findIndex(m => m.name === nm.name && m.unit === nm.unit);
@@ -357,14 +358,31 @@ function SaveToProjectModal({
     setTimeout(onClose, 1200);
   }
 
+  async function createAndSave() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({ name: newName.trim(), materials, status: "planning", progress: 0 })
+      .select("id")
+      .single();
+    if (!error && data) {
+      setSaving(false);
+      setSaved(true);
+      setTimeout(onClose, 1200);
+    } else {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[70vh] flex flex-col overflow-hidden" dir="rtl">
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[75vh] flex flex-col overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900">שמור לפרויקט</h3>
           <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
-        <p className="px-5 pt-3 text-sm text-gray-500">{materials.length} פריטים · בחר פרויקט להוסיף אליו</p>
+        <p className="px-5 pt-3 pb-1 text-sm text-gray-500">{materials.length} פריטים · בחר פרויקט או צור חדש</p>
 
         {saved ? (
           <div className="flex-1 flex items-center justify-center py-10 text-green-600 font-bold text-lg">✓ נשמר בהצלחה</div>
@@ -372,20 +390,56 @@ function SaveToProjectModal({
           <div className="flex-1 flex items-center justify-center py-10">
             <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : projects.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center py-10 text-gray-400 text-sm">אין פרויקטים קיימים</div>
         ) : (
-          <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-            {projects.map(p => (
-              <button key={p.id} onClick={() => saveToProject(p.id)} disabled={saving}
-                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-green-50 transition-colors text-right disabled:opacity-50">
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
-                  {p.customer_name && <p className="text-xs text-gray-400">{p.customer_name}</p>}
+          <div className="flex-1 overflow-y-auto">
+            {/* Existing projects */}
+            {projects.length > 0 && (
+              <div className="divide-y divide-gray-50">
+                {projects.map(p => (
+                  <button key={p.id} onClick={() => saveToProject(p.id)} disabled={saving}
+                    className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-green-50 transition-colors text-right disabled:opacity-50">
+                    <div>
+                      <p className="font-semibold text-gray-800 text-sm">{p.name}</p>
+                      {p.customer_name && <p className="text-xs text-gray-400">{p.customer_name}</p>}
+                    </div>
+                    <ChevronRight size={16} className="text-gray-300 rotate-180" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* New project */}
+            <div className="px-5 py-4 border-t border-dashed border-gray-200 mt-1">
+              {!creatingNew ? (
+                <button onClick={() => setCreatingNew(true)}
+                  className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-green-300 text-green-700 hover:bg-green-50 rounded-xl py-3 text-sm font-semibold transition-colors">
+                  <Plus size={16} /> פרויקט חדש
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-600">שם הפרויקט החדש</p>
+                  <input
+                    autoFocus
+                    value={newName}
+                    onChange={e => setNewName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && createAndSave()}
+                    placeholder="למשל: גינת רחל כהן..."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={createAndSave} disabled={!newName.trim() || saving}
+                      className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold rounded-xl py-2.5 text-sm transition-colors flex items-center justify-center gap-1.5">
+                      {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Plus size={14} />}
+                      צור ושמור
+                    </button>
+                    <button onClick={() => setCreatingNew(false)}
+                      className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm hover:bg-gray-50">
+                      ביטול
+                    </button>
+                  </div>
                 </div>
-                <ChevronRight size={16} className="text-gray-300 rotate-180" />
-              </button>
-            ))}
+              )}
+            </div>
           </div>
         )}
       </div>
