@@ -3,11 +3,9 @@
   "configurations": [
     {
       "name": "garden-saas",
-      "runtimeExecutable": "/usr/local/bin/npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "/Users/arielhassin/Desktop/קלוד קוד - אוטומציה גנן /garden-saas",
-      "port": 3000,
-      "autoPort": false
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["/tmp/start-garden.sh"],
+      "port": 3000
     }
   ]
 }

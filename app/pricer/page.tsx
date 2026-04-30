@@ -864,129 +864,126 @@ export default function PricerPage() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [quote, setQuote] = useState<QuoteItem[]>([]);
-  const [customItems, setCustomItems] = useState<PriceItem[]>(() => {
-    try {
-      const saved = localStorage.getItem("pricer_custom_items");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [customItems, setCustomItems] = useState<PriceItem[]>([]);
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits]   = useState<Record<string, string>>({});
   const [overrideNames, setOverrideNames]   = useState<Record<string, string>>({});
   const [overrideCatNames, setOverrideCatNames] = useState<Record<string, string>>({});
   const [overrideItemCats, setOverrideItemCats] = useState<Record<string, string>>({});
   const [vatItems, setVatItems]             = useState<Record<string, "before" | "after">>({});
-  const [customCategories, setCustomCategories] = useState<CustomCategory[]>(() => {
-    try {
-      const saved = localStorage.getItem("pricer_custom_categories");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [deletedCategories, setDeletedCategories] = useState<string[]>([]);
   const [deletedItems, setDeletedItems] = useState<string[]>([]);
+  const [settingsLoading, setSettingsLoading] = useState(true);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
   const [showDraftsModal, setShowDraftsModal] = useState(false);
-  const [drafts, setDrafts] = useState<Draft[]>(() => {
-    try {
-      const raw = localStorage.getItem("pricer_drafts");
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
+  const [drafts, setDrafts] = useState<Draft[]>([]);
   const printStyleRef = useRef(false);
 
-  // ── Persist price/unit/vat overrides to localStorage ──────────────────────
-  // IMPORTANT: save effects must be defined BEFORE the load effect so on the
-  // initial render they skip (storageLoaded=false), and only save on subsequent
-  // renders (after load sets storageLoaded=true).
-  const storageLoaded = useRef(false);
+  // ── Load settings from Supabase (with localStorage fallback) ────────────────
+  const settingsLoaded = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!storageLoaded.current) return;
-    try { localStorage.setItem("pricer_override_prices", JSON.stringify(overridePrices)); } catch {}
-  }, [overridePrices]);
-
-  useEffect(() => {
-    if (!storageLoaded.current) return;
-    try { localStorage.setItem("pricer_override_units", JSON.stringify(overrideUnits)); } catch {}
-  }, [overrideUnits]);
-
-  useEffect(() => {
-    if (!storageLoaded.current) return;
-    try { localStorage.setItem("pricer_override_names", JSON.stringify(overrideNames)); } catch {}
-  }, [overrideNames]);
-
-  useEffect(() => {
-    if (!storageLoaded.current) return;
-    try { localStorage.setItem("pricer_override_cat_names", JSON.stringify(overrideCatNames)); } catch {}
-  }, [overrideCatNames]);
-
-  useEffect(() => {
-    if (!storageLoaded.current) return;
-    try { localStorage.setItem("pricer_override_item_cats", JSON.stringify(overrideItemCats)); } catch {}
-  }, [overrideItemCats]);
-
-  useEffect(() => {
-    if (!storageLoaded.current) return;
-    try { localStorage.setItem("pricer_vat_items", JSON.stringify(vatItems)); } catch {}
-  }, [vatItems]);
-
-  // Load from localStorage once on mount (client-side only), then enable saving
-  useEffect(() => {
-    try {
-      const p = localStorage.getItem("pricer_override_prices");
-      if (p) setOverridePrices(JSON.parse(p));
-      const u = localStorage.getItem("pricer_override_units");
-      if (u) setOverrideUnits(JSON.parse(u));
-      const nn = localStorage.getItem("pricer_override_names");
-      if (nn) setOverrideNames(JSON.parse(nn));
-      const cn = localStorage.getItem("pricer_override_cat_names");
-      if (cn) setOverrideCatNames(JSON.parse(cn));
-      const ic = localStorage.getItem("pricer_override_item_cats");
-      if (ic) setOverrideItemCats(JSON.parse(ic));
-      const v = localStorage.getItem("pricer_vat_items");
-      if (v) setVatItems(JSON.parse(v));
-      // Merge all possible keys for deleted items/categories (handles migration from old key names)
-      const di = [...new Set([
-        ...JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]"),
-        ...JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]"),
-      ])];
-      if (di.length) { setDeletedItems(di); localStorage.setItem("pricer_hidden_items", JSON.stringify(di)); }
-      const dc = [...new Set([
-        ...JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]"),
-        ...JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]"),
-      ])];
-      if (dc.length) { setDeletedCategories(dc); localStorage.setItem("pricer_hidden_categories", JSON.stringify(dc)); }
-    } catch {}
-    storageLoaded.current = true;
+    async function loadSettings() {
+      setSettingsLoading(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data } = await supabase
+            .from("pricer_settings")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
+          if (data) {
+            // Load from Supabase — merge hidden keys for backwards compatibility
+            if (data.custom_items?.length)      setCustomItems(data.custom_items);
+            if (data.custom_categories?.length) setCustomCategories(data.custom_categories);
+            if (Object.keys(data.override_prices ?? {}).length)    setOverridePrices(data.override_prices);
+            if (Object.keys(data.override_units ?? {}).length)     setOverrideUnits(data.override_units);
+            if (Object.keys(data.override_names ?? {}).length)     setOverrideNames(data.override_names);
+            if (Object.keys(data.override_cat_names ?? {}).length) setOverrideCatNames(data.override_cat_names);
+            if (Object.keys(data.override_item_cats ?? {}).length) setOverrideItemCats(data.override_item_cats);
+            if (Object.keys(data.vat_items ?? {}).length)          setVatItems(data.vat_items);
+            if (data.hidden_items?.length)      setDeletedItems(data.hidden_items);
+            if (data.hidden_categories?.length) setDeletedCategories(data.hidden_categories);
+            if (data.drafts?.length)            setDrafts(data.drafts);
+            settingsLoaded.current = true;
+            setSettingsLoading(false);
+            return;
+          }
+        }
+      } catch {}
+      // Fallback: load from localStorage (migration path)
+      try {
+        const ci = localStorage.getItem("pricer_custom_items");    if (ci)  setCustomItems(JSON.parse(ci));
+        const cc = localStorage.getItem("pricer_custom_categories");if (cc) setCustomCategories(JSON.parse(cc));
+        const p  = localStorage.getItem("pricer_override_prices"); if (p)  setOverridePrices(JSON.parse(p));
+        const u  = localStorage.getItem("pricer_override_units");  if (u)  setOverrideUnits(JSON.parse(u));
+        const nn = localStorage.getItem("pricer_override_names");  if (nn) setOverrideNames(JSON.parse(nn));
+        const cn = localStorage.getItem("pricer_override_cat_names"); if (cn) setOverrideCatNames(JSON.parse(cn));
+        const ic = localStorage.getItem("pricer_override_item_cats"); if (ic) setOverrideItemCats(JSON.parse(ic));
+        const v  = localStorage.getItem("pricer_vat_items");       if (v)  setVatItems(JSON.parse(v));
+        const dr = localStorage.getItem("pricer_drafts");          if (dr) setDrafts(JSON.parse(dr));
+        const di = [...new Set([
+          ...JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]"),
+          ...JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]"),
+        ])];
+        if (di.length) setDeletedItems(di);
+        const dc = [...new Set([
+          ...JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]"),
+          ...JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]"),
+        ])];
+        if (dc.length) setDeletedCategories(dc);
+      } catch {}
+      settingsLoaded.current = true;
+      setSettingsLoading(false);
+    }
+    loadSettings();
   }, []);
 
+  // ── Save all settings to Supabase (debounced 1.5s) ───────────────────────
+  useEffect(() => {
+    if (!settingsLoaded.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await supabase.from("pricer_settings").upsert({
+          user_id: user.id,
+          custom_items: customItems,
+          custom_categories: customCategories,
+          override_prices: overridePrices,
+          override_units: overrideUnits,
+          override_names: overrideNames,
+          override_cat_names: overrideCatNames,
+          override_item_cats: overrideItemCats,
+          vat_items: vatItems,
+          hidden_items: deletedItems,
+          hidden_categories: deletedCategories,
+          drafts,
+        }, { onConflict: "user_id" });
+      } catch {}
+    }, 1500);
+  }, [customItems, customCategories, overridePrices, overrideUnits, overrideNames,
+      overrideCatNames, overrideItemCats, vatItems, deletedItems, deletedCategories, drafts]);
+
   function addCustomCategory(cat: CustomCategory) {
-    setCustomCategories(prev => {
-      const next = [...prev, cat];
-      try { localStorage.setItem("pricer_custom_categories", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setCustomCategories(prev => [...prev, cat]);
     setActiveCategory(cat.key);
   }
 
   function renameCustomCategory(key: string, newLabel: string) {
-    setCustomCategories(prev => {
-      const next = prev.map(c => c.key === key ? { ...c, label: newLabel } : c);
-      try { localStorage.setItem("pricer_custom_categories", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setCustomCategories(prev => prev.map(c => c.key === key ? { ...c, label: newLabel } : c));
   }
 
   function deleteCustomCategory(key: string) {
-    setCustomCategories(prev => {
-      const next = prev.filter(c => c.key !== key);
-      try { localStorage.setItem("pricer_custom_categories", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setCustomCategories(prev => prev.filter(c => c.key !== key));
     if (activeCategory === key) setActiveCategory("all");
   }
 
@@ -1039,11 +1036,7 @@ export default function PricerPage() {
   }
 
   function deleteCustomItem(id: string) {
-    setCustomItems(prev => {
-      const next = prev.filter(i => i.id !== id);
-      try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setCustomItems(prev => prev.filter(i => i.id !== id));
     setQuote(prev => prev.filter(qi => qi.item.id !== id));
     setOverridePrices(prev => { const { [id]: _, ...rest } = prev; return rest; });
     setOverrideUnits(prev => { const { [id]: _, ...rest } = prev; return rest; });
@@ -1052,11 +1045,7 @@ export default function PricerPage() {
   }
 
   function deleteBuiltinItem(id: string) {
-    setDeletedItems(prev => {
-      const next = [...prev, id];
-      try { localStorage.setItem("pricer_hidden_items", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setDeletedItems(prev => [...prev, id]);
     setQuote(prev => prev.filter(qi => qi.item.id !== id));
   }
 
@@ -1066,11 +1055,7 @@ export default function PricerPage() {
   }
 
   function deleteBuiltinCategory(key: string) {
-    setDeletedCategories(prev => {
-      const next = [...prev, key];
-      try { localStorage.setItem("pricer_hidden_categories", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setDeletedCategories(prev => [...prev, key]);
     if (activeCategory === key) setActiveCategory("all");
   }
 
@@ -1089,22 +1074,13 @@ export default function PricerPage() {
 
 
   function saveCustomItemOnly(item: PriceItem, vatMode: "before" | "after") {
-    setCustomItems(prev => {
-      const next = [...prev, item];
-      try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setCustomItems(prev => [...prev, item]);
     setVatItems(prev => ({ ...prev, [item.id]: vatMode }));
-    // Switch to the item's category so the user sees it immediately
     setActiveCategory(item.category);
   }
 
   function addCustomItemToQuote(item: PriceItem, qty: number, vatMode: "before" | "after") {
-    setCustomItems(prev => {
-      const next = [...prev, item];
-      try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setCustomItems(prev => [...prev, item]);
     setOverridePrices(prev => ({ ...prev, [item.id]: item.price }));
     setVatItems(prev => ({ ...prev, [item.id]: vatMode }));
     setQuote(prev => [...prev, { item, qty }]);
@@ -1151,11 +1127,7 @@ export default function PricerPage() {
       overrideNames,
       vatItems,
     };
-    setDrafts(prev => {
-      const next = [draft, ...prev];
-      try { localStorage.setItem("pricer_drafts", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setDrafts(prev => [draft, ...prev]);
     // Clear current quote after saving
     setQuote([]);
     setOverridePrices({});
@@ -1175,11 +1147,7 @@ export default function PricerPage() {
   }
 
   function deleteDraft(id: string) {
-    setDrafts(prev => {
-      const next = prev.filter(d => d.id !== id);
-      try { localStorage.setItem("pricer_drafts", JSON.stringify(next)); } catch {}
-      return next;
-    });
+    setDrafts(prev => prev.filter(d => d.id !== id));
   }
 
   function handlePrint() {
@@ -1199,6 +1167,15 @@ export default function PricerPage() {
     price: ep(qi.item),
     vatIncluded: vat(qi.item) === "after",
   }));
+
+  if (settingsLoading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center" dir="rtl">
+      <div className="flex flex-col items-center gap-3 text-gray-400">
+        <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm">טוען הגדרות...</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
