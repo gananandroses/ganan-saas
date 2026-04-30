@@ -294,8 +294,9 @@ function AddCategoryModal({ onClose, onCreate }: {
 }
 
 // ── Add custom item modal ───────────────────────────────────────────────────
-function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom", extraCategories = [] }: {
+function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom", extraCategories = [] }: {
   onClose: () => void;
+  onSave: (item: PriceItem, vat: "before" | "after") => void;
   onAdd: (item: PriceItem, qty: number, vat: "before" | "after") => void;
   defaultCategory?: string;
   extraCategories?: CustomCategory[];
@@ -313,22 +314,31 @@ function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom", extraC
     ...extraCategories,
   ];
   const finalUnit = unit === "אחר" ? customUnit : unit;
-  const { Icon: CatIconComp, color: catColor } = CAT_ICONS[category] ?? CAT_ICONS.custom;
+  const { Icon: CatIconComp } = CAT_ICONS[category] ?? CAT_ICONS.custom;
 
-  function handleAdd() {
-    if (!name.trim() || !finalUnit.trim()) return;
-    const p = parseFloat(price) || 0;
-    const q = parseInt(qty) || 1;
-    const newItem: PriceItem = {
+  function buildItem(): PriceItem {
+    return {
       id: `custom_${Date.now()}`,
       name: name.trim(),
       unit: finalUnit.trim(),
-      price: p,
+      price: parseFloat(price) || 0,
       category,
     };
-    onAdd(newItem, q, vat);
+  }
+
+  function handleSaveOnly() {
+    if (!name.trim() || !finalUnit.trim()) return;
+    onSave(buildItem(), vat);
     onClose();
   }
+
+  function handleAddToQuote() {
+    if (!name.trim() || !finalUnit.trim()) return;
+    onAdd(buildItem(), parseInt(qty) || 1, vat);
+    onClose();
+  }
+
+  const valid = !!name.trim() && !!finalUnit.trim();
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
@@ -336,11 +346,11 @@ function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom", extraC
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
-            <PenLine size={16} className="text-purple-500" /> הוסף פריט מותאם
+            <PenLine size={16} className="text-purple-500" /> פריט חדש
           </h3>
           <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
-        <div className="px-5 py-4 space-y-3">
+        <div className="px-5 py-4 space-y-3 max-h-[80vh] overflow-y-auto">
           <input
             autoFocus
             placeholder="שם הפריט *"
@@ -380,24 +390,20 @@ function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom", extraC
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">כמות</label>
-              <input type="number" min={1} placeholder="1"
-                value={qty} onChange={e => setQty(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+              <label className="block text-xs text-gray-500 mb-1">יחידת מידה</label>
+              <select value={unit} onChange={e => setUnit(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
             </div>
           </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">יחידת מידה</label>
-            <select value={unit} onChange={e => setUnit(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
-              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-            </select>
-            {unit === "אחר" && (
-              <input placeholder="הקלד יחידה..."
-                value={customUnit} onChange={e => setCustomUnit(e.target.value)}
-                className="w-full mt-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
-            )}
-          </div>
+
+          {unit === "אחר" && (
+            <input placeholder="הקלד יחידת מידה..."
+              value={customUnit} onChange={e => setCustomUnit(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+          )}
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">מע"מ</label>
             <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
@@ -413,13 +419,33 @@ function AddCustomItemModal({ onClose, onAdd, defaultCategory = "custom", extraC
               ))}
             </div>
           </div>
-          <button
-            onClick={handleAdd}
-            disabled={!name.trim()}
-            className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-sm transition-colors mt-1">
-            <CatIconComp size={15} className="opacity-80" />
-            הוסף להצעה
-          </button>
+
+          {/* ── Action buttons ── */}
+          <div className="pt-1 space-y-2">
+            {/* Primary: save to category only */}
+            <button
+              onClick={handleSaveOnly}
+              disabled={!valid}
+              className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-sm transition-colors">
+              <CatIconComp size={15} className="opacity-80" />
+              שמור בקטגוריה
+            </button>
+
+            {/* Secondary: save + add to quote */}
+            <div className="flex items-center gap-2">
+              <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)}
+                className="w-16 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-400"
+                title="כמות" />
+              <button
+                onClick={handleAddToQuote}
+                disabled={!valid}
+                className="flex-1 flex items-center justify-center gap-2 border-2 border-green-500 text-green-700 hover:bg-green-50 disabled:opacity-40 font-bold rounded-xl py-2.5 text-sm transition-colors">
+                <ShoppingCart size={14} />
+                הוסף להצעה
+              </button>
+            </div>
+            <p className="text-center text-xs text-gray-400">כמות רלוונטית רק להוספה להצעה</p>
+          </div>
         </div>
       </div>
     </div>
@@ -752,6 +778,17 @@ export default function PricerPage() {
     setVatItems(prev => { const { [id]: _, ...rest } = prev; return rest; });
   }
 
+  function saveCustomItemOnly(item: PriceItem, vatMode: "before" | "after") {
+    setCustomItems(prev => {
+      const next = [...prev, item];
+      try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setVatItems(prev => ({ ...prev, [item.id]: vatMode }));
+    // Switch to the item's category so the user sees it immediately
+    setActiveCategory(item.category);
+  }
+
   function addCustomItemToQuote(item: PriceItem, qty: number, vatMode: "before" | "after") {
     setCustomItems(prev => {
       const next = [...prev, item];
@@ -858,6 +895,7 @@ export default function PricerPage() {
       {showAddModal && (
         <AddCustomItemModal
           onClose={() => setShowAddModal(false)}
+          onSave={saveCustomItemOnly}
           onAdd={addCustomItemToQuote}
           extraCategories={customCategories}
         />
