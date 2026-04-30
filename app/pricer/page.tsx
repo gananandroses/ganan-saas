@@ -862,6 +862,18 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  const [deletedCategories, setDeletedCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("pricer_deleted_categories");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [deletedItems, setDeletedItems] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("pricer_deleted_items");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -944,9 +956,9 @@ export default function PricerPage() {
   }
 
   const allCategories = useMemo(() => [
-    ...PRICE_CATEGORIES,
+    ...PRICE_CATEGORIES.filter(c => !deletedCategories.includes(c.key)),
     ...customCategories,
-  ], [customCategories]);
+  ], [customCategories, deletedCategories]);
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
@@ -995,6 +1007,34 @@ export default function PricerPage() {
     setVatItems(prev => { const { [id]: _, ...rest } = prev; return rest; });
   }
 
+  function deleteBuiltinItem(id: string) {
+    setDeletedItems(prev => {
+      const next = [...prev, id];
+      try { localStorage.setItem("pricer_deleted_items", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setQuote(prev => prev.filter(qi => qi.item.id !== id));
+  }
+
+  function deleteItem(id: string) {
+    if (id.startsWith("custom_")) deleteCustomItem(id);
+    else deleteBuiltinItem(id);
+  }
+
+  function deleteBuiltinCategory(key: string) {
+    setDeletedCategories(prev => {
+      const next = [...prev, key];
+      try { localStorage.setItem("pricer_deleted_categories", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    if (activeCategory === key) setActiveCategory("all");
+  }
+
+  function deleteCategory(key: string) {
+    if (key.startsWith("user_")) deleteCustomCategory(key);
+    else deleteBuiltinCategory(key);
+  }
+
 
   function saveCustomItemOnly(item: PriceItem, vatMode: "before" | "after") {
     setCustomItems(prev => {
@@ -1020,8 +1060,8 @@ export default function PricerPage() {
   }
 
   const allItems = useMemo(() =>
-    [...PRICE_LIST, ...customItems],
-  [customItems]);
+    [...PRICE_LIST, ...customItems].filter(i => !deletedItems.includes(i.id)),
+  [customItems, deletedItems]);
 
   const filtered = useMemo(() => allItems.filter(item => {
     const matchCat = activeCategory === "all" || item.category === activeCategory;
@@ -1264,14 +1304,12 @@ export default function PricerPage() {
                       <Pencil size={7} strokeWidth={3} />
                     </button>
                   )}
-                  {isUserCat && (
-                    <button
-                      onClick={e => { e.stopPropagation(); deleteCustomCategory(cat.key); }}
-                      title="מחק קטגוריה"
-                      className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
-                      <X size={8} strokeWidth={3} />
-                    </button>
-                  )}
+                  <button
+                    onClick={e => { e.stopPropagation(); deleteCategory(cat.key); }}
+                    title="מחק קטגוריה"
+                    className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
+                    <X size={8} strokeWidth={3} />
+                  </button>
                 </div>
               );
             })}
@@ -1313,7 +1351,7 @@ export default function PricerPage() {
                     onUnitChange={s => setUnitOverride(item.id, s)}
                     onNameChange={s => setNameOverride(item.id, s)}
                     onVatChange={v => setVatOverride(item.id, v)}
-                    onDelete={item.id.startsWith("custom_") ? () => deleteCustomItem(item.id) : undefined}
+                    onDelete={() => deleteItem(item.id)}
                   />
                 ))}
               </div>
