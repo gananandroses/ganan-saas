@@ -864,14 +864,20 @@ export default function PricerPage() {
   });
   const [deletedCategories, setDeletedCategories] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("pricer_hidden_categories");
-      return saved ? JSON.parse(saved) : [];
+      const a = JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]");
+      const b = JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]");
+      const merged = [...new Set([...a, ...b])];
+      localStorage.setItem("pricer_hidden_categories", JSON.stringify(merged));
+      return merged;
     } catch { return []; }
   });
   const [deletedItems, setDeletedItems] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("pricer_hidden_items");
-      return saved ? JSON.parse(saved) : [];
+      const a = JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]");
+      const b = JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]");
+      const merged = [...new Set([...a, ...b])];
+      localStorage.setItem("pricer_hidden_items", JSON.stringify(merged));
+      return merged;
     } catch { return []; }
   });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
