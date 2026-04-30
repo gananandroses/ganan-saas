@@ -862,18 +862,6 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
-  const [hiddenCategories, setHiddenCategories] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("pricer_hidden_categories");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-  const [hiddenItems, setHiddenItems] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("pricer_hidden_items");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -955,29 +943,10 @@ export default function PricerPage() {
     if (activeCategory === key) setActiveCategory("all");
   }
 
-  function hideBuiltinCategory(key: string) {
-    setHiddenCategories(prev => {
-      const next = [...prev, key];
-      try { localStorage.setItem("pricer_hidden_categories", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    if (activeCategory === key) setActiveCategory("all");
-  }
-
-  function restoreAllCategories() {
-    setHiddenCategories([]);
-    try { localStorage.removeItem("pricer_hidden_categories"); } catch {}
-  }
-
-  function removeCategory(key: string) {
-    if (key.startsWith("user_")) deleteCustomCategory(key);
-    else hideBuiltinCategory(key);
-  }
-
   const allCategories = useMemo(() => [
-    ...PRICE_CATEGORIES.filter(c => !hiddenCategories.includes(c.key)),
+    ...PRICE_CATEGORIES,
     ...customCategories,
-  ], [customCategories, hiddenCategories]);
+  ], [customCategories]);
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
@@ -1026,24 +995,6 @@ export default function PricerPage() {
     setVatItems(prev => { const { [id]: _, ...rest } = prev; return rest; });
   }
 
-  function hideItem(id: string) {
-    setHiddenItems(prev => {
-      const next = [...prev, id];
-      try { localStorage.setItem("pricer_hidden_items", JSON.stringify(next)); } catch {}
-      return next;
-    });
-    setQuote(prev => prev.filter(qi => qi.item.id !== id));
-  }
-
-  function restoreAllItems() {
-    setHiddenItems([]);
-    try { localStorage.removeItem("pricer_hidden_items"); } catch {}
-  }
-
-  function removeItem(id: string) {
-    if (id.startsWith("custom_")) deleteCustomItem(id);
-    else hideItem(id);
-  }
 
   function saveCustomItemOnly(item: PriceItem, vatMode: "before" | "after") {
     setCustomItems(prev => {
@@ -1069,8 +1020,8 @@ export default function PricerPage() {
   }
 
   const allItems = useMemo(() =>
-    [...PRICE_LIST, ...customItems].filter(i => !hiddenItems.includes(i.id)),
-  [customItems, hiddenItems]);
+    [...PRICE_LIST, ...customItems],
+  [customItems]);
 
   const filtered = useMemo(() => allItems.filter(item => {
     const matchCat = activeCategory === "all" || item.category === activeCategory;
@@ -1287,7 +1238,6 @@ export default function PricerPage() {
             {allCategories.map(cat => {
               const active = activeCategory === cat.key;
               const isUserCat = cat.key.startsWith("user_");
-              const canRemove = cat.key !== "all";
               return (
                 <div key={cat.key} className="group relative">
                   <button onClick={() => setActiveCategory(cat.key)}
@@ -1314,10 +1264,10 @@ export default function PricerPage() {
                       <Pencil size={7} strokeWidth={3} />
                     </button>
                   )}
-                  {canRemove && (
+                  {isUserCat && (
                     <button
-                      onClick={e => { e.stopPropagation(); removeCategory(cat.key); }}
-                      title="הסר קטגוריה"
+                      onClick={e => { e.stopPropagation(); deleteCustomCategory(cat.key); }}
+                      title="מחק קטגוריה"
                       className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
                       <X size={8} strokeWidth={3} />
                     </button>
@@ -1334,14 +1284,6 @@ export default function PricerPage() {
               <span>קטגוריה חדשה</span>
             </button>
 
-            {/* Restore hidden built-in categories */}
-            {hiddenCategories.length > 0 && (
-              <button
-                onClick={restoreAllCategories}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all whitespace-nowrap">
-                שחזר קטגוריות ({hiddenCategories.length})
-              </button>
-            )}
           </div>
         </div>
 
@@ -1350,12 +1292,6 @@ export default function PricerPage() {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-3">
               <p className="text-xs text-gray-400">{filtered.length} פריטים מוצגים</p>
-              {hiddenItems.length > 0 && (
-                <button onClick={restoreAllItems}
-                  className="text-xs text-blue-500 hover:text-blue-700 underline underline-offset-2 transition-colors">
-                  שחזר {hiddenItems.length} פריטים מוסתרים
-                </button>
-              )}
             </div>
             {filtered.length === 0 ? (
               <div className="text-center py-16 text-gray-400">
@@ -1377,7 +1313,7 @@ export default function PricerPage() {
                     onUnitChange={s => setUnitOverride(item.id, s)}
                     onNameChange={s => setNameOverride(item.id, s)}
                     onVatChange={v => setVatOverride(item.id, v)}
-                    onDelete={() => removeItem(item.id)}
+                    onDelete={item.id.startsWith("custom_") ? () => deleteCustomItem(item.id) : undefined}
                   />
                 ))}
               </div>
