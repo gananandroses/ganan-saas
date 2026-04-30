@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, Pencil, Check, FolderKanban, ChevronRight,
   ArrowRight, Mountain, Leaf, Flower2, Package, Droplets, Layers,
   LayoutGrid, Lock, Lightbulb, Wrench, HardHat, PenLine, Tag,
+  Save, RotateCcw, Clock,
 } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
@@ -584,7 +585,8 @@ function SaveToProjectModal({
 // ── Quote panel ─────────────────────────────────────────────────────────────
 function QuotePanel({
   quote, overridePrices, overrideUnits, vatItems,
-  onQtyChange, onQtySet, onRemove, onClear, onPrint, onSaveToProject, collapsed, onToggle,
+  onQtyChange, onQtySet, onRemove, onClear, onPrint, onSaveToProject, onSaveDraft,
+  draftSaved, collapsed, onToggle,
 }: {
   quote: QuoteItem[];
   overridePrices: Record<string, number>;
@@ -596,6 +598,8 @@ function QuotePanel({
   onClear: () => void;
   onPrint: () => void;
   onSaveToProject: () => void;
+  onSaveDraft: () => void;
+  draftSaved: boolean;
   collapsed: boolean;
   onToggle: () => void;
 }) {
@@ -686,6 +690,18 @@ function QuotePanel({
                   <Trash2 size={15} />
                 </button>
               </div>
+              {/* Save draft button */}
+              <button onClick={onSaveDraft}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border-2 transition-all ${
+                  draftSaved
+                    ? "border-green-400 bg-green-50 text-green-700"
+                    : "border-dashed border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400"
+                }`}>
+                {draftSaved
+                  ? <><Check size={14} /> נשמר כטיוטה!</>
+                  : <><Save size={14} /> שמור טיוטה (המשך מאוחר יותר)</>
+                }
+              </button>
             </div>
           )}
         </>
@@ -740,6 +756,15 @@ export default function PricerPage() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [draftInfo, setDraftInfo] = useState<{ savedAt: string } | null>(() => {
+    try {
+      const raw = localStorage.getItem("pricer_draft");
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      return { savedAt: d.savedAt };
+    } catch { return null; }
+  });
   const printStyleRef = useRef(false);
 
   function addCustomCategory(cat: CustomCategory) {
@@ -749,6 +774,14 @@ export default function PricerPage() {
       return next;
     });
     setActiveCategory(cat.key);
+  }
+
+  function renameCustomCategory(key: string, newLabel: string) {
+    setCustomCategories(prev => {
+      const next = prev.map(c => c.key === key ? { ...c, label: newLabel } : c);
+      try { localStorage.setItem("pricer_custom_categories", JSON.stringify(next)); } catch {}
+      return next;
+    });
   }
 
   function deleteCustomCategory(key: string) {
@@ -892,6 +925,34 @@ export default function PricerPage() {
     else setQuote(prev => prev.map(qi => qi.item.id === id ? { ...qi, qty } : qi));
   }
 
+  function saveDraft() {
+    const draft = { savedAt: new Date().toISOString(), quote, overridePrices, overrideUnits, vatItems };
+    try { localStorage.setItem("pricer_draft", JSON.stringify(draft)); } catch {}
+    setDraftInfo({ savedAt: draft.savedAt });
+    setDraftSaved(true);
+    setTimeout(() => setDraftSaved(false), 2500);
+  }
+
+  function loadDraft() {
+    try {
+      const raw = localStorage.getItem("pricer_draft");
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      setQuote(d.quote ?? []);
+      setOverridePrices(d.overridePrices ?? {});
+      setOverrideUnits(d.overrideUnits ?? {});
+      setVatItems(d.vatItems ?? {});
+      setPanelCollapsed(false);
+      setDraftInfo(null);
+      localStorage.removeItem("pricer_draft");
+    } catch {}
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem("pricer_draft"); } catch {}
+    setDraftInfo(null);
+  }
+
   function handlePrint() {
     if (!printStyleRef.current) {
       const s = document.createElement("style"); s.innerHTML = PRINT_STYLE;
@@ -975,6 +1036,27 @@ export default function PricerPage() {
 
       {/* ── Screen view ── */}
       <div className="print:hidden">
+
+        {/* Draft restore banner */}
+        {draftInfo && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-3 flex items-center gap-3" dir="rtl">
+            <Clock size={16} className="text-amber-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800">יש לך טיוטה שמורה</p>
+              <p className="text-xs text-amber-600">
+                נשמרה ב־{new Date(draftInfo.savedAt).toLocaleString("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+            <button onClick={loadDraft}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-3 py-1.5 rounded-xl transition-colors flex-shrink-0">
+              <RotateCcw size={13} /> טען טיוטה
+            </button>
+            <button onClick={clearDraft} className="text-amber-400 hover:text-amber-600 flex-shrink-0">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-5">
           <div className="flex items-center gap-3 mb-3">
@@ -1009,16 +1091,34 @@ export default function PricerPage() {
           <div className="flex flex-wrap gap-2">
             {allCategories.map(cat => {
               const active = activeCategory === cat.key;
+              const isUserCat = cat.key.startsWith("user_");
               const canRemove = cat.key !== "all";
               return (
                 <div key={cat.key} className="group relative">
                   <button onClick={() => setActiveCategory(cat.key)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
                       active ? "bg-green-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
-                    } ${canRemove ? "pr-2" : ""}`}>
+                    }`}>
                     <span>{cat.emoji}</span>
                     <span>{cat.label}</span>
+                    {/* Inline edit icon for user categories */}
+                    {isUserCat && (
+                      <Pencil size={10} className={`opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0 ${active ? "text-white" : "text-gray-400"}`} />
+                    )}
                   </button>
+                  {/* Edit name button (user categories only) */}
+                  {isUserCat && (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        const newName = window.prompt("שם חדש לקטגוריה:", cat.label);
+                        if (newName && newName.trim()) renameCustomCategory(cat.key, newName.trim());
+                      }}
+                      title="ערוך שם"
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-blue-500 hover:bg-blue-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
+                      <Pencil size={7} strokeWidth={3} />
+                    </button>
+                  )}
                   {canRemove && (
                     <button
                       onClick={e => { e.stopPropagation(); removeCategory(cat.key); }}
@@ -1096,6 +1196,7 @@ export default function PricerPage() {
               onClear={() => setQuote([])}
               onPrint={handlePrint}
               onSaveToProject={() => setShowSaveModal(true)}
+              onSaveDraft={saveDraft} draftSaved={draftSaved}
               collapsed={panelCollapsed} onToggle={() => setPanelCollapsed(p => !p)}
             />
           </div>
@@ -1113,6 +1214,7 @@ export default function PricerPage() {
                   onClear={() => setQuote([])}
                   onPrint={handlePrint}
                   onSaveToProject={() => setShowSaveModal(true)}
+                  onSaveDraft={saveDraft} draftSaved={draftSaved}
                   collapsed={panelCollapsed} onToggle={() => setPanelCollapsed(p => !p)}
                 />
               </div>
