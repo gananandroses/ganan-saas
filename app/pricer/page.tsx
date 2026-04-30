@@ -90,8 +90,8 @@ function InlineEdit({
   );
   return (
     <button onClick={start} className={`group/ie flex items-center gap-1 ${displayClass}`} title="לחץ לעריכה">
-      {prefix && !isCustom && <span>{prefix}</span>}
-      <span className={isCustom ? "text-orange-600" : ""}>{value}</span>
+      {prefix && <span>{prefix}</span>}
+      <span>{value}</span>
       <Pencil size={11} className="text-gray-300 group-hover/ie:text-green-500 transition-colors flex-shrink-0" />
       {isCustom && (
         <button onClick={e => { e.stopPropagation(); onReset(); }}
