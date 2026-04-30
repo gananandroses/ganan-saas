@@ -719,6 +719,12 @@ export default function PricerPage() {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("pricer_hidden_categories");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -734,10 +740,38 @@ export default function PricerPage() {
     setActiveCategory(cat.key);
   }
 
+  function deleteCustomCategory(key: string) {
+    setCustomCategories(prev => {
+      const next = prev.filter(c => c.key !== key);
+      try { localStorage.setItem("pricer_custom_categories", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    if (activeCategory === key) setActiveCategory("all");
+  }
+
+  function hideBuiltinCategory(key: string) {
+    setHiddenCategories(prev => {
+      const next = [...prev, key];
+      try { localStorage.setItem("pricer_hidden_categories", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    if (activeCategory === key) setActiveCategory("all");
+  }
+
+  function restoreAllCategories() {
+    setHiddenCategories([]);
+    try { localStorage.removeItem("pricer_hidden_categories"); } catch {}
+  }
+
+  function removeCategory(key: string) {
+    if (key.startsWith("user_")) deleteCustomCategory(key);
+    else hideBuiltinCategory(key);
+  }
+
   const allCategories = useMemo(() => [
-    ...PRICE_CATEGORIES,
+    ...PRICE_CATEGORIES.filter(c => !hiddenCategories.includes(c.key)),
     ...customCategories,
-  ], [customCategories]);
+  ], [customCategories, hiddenCategories]);
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
@@ -944,15 +978,28 @@ export default function PricerPage() {
           <div className="flex flex-wrap gap-2">
             {allCategories.map(cat => {
               const active = activeCategory === cat.key;
+              const canRemove = cat.key !== "all";
               return (
-                <button key={cat.key} onClick={() => setActiveCategory(cat.key)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
-                    active ? "bg-green-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
-                  }`}>
-                  <span>{cat.emoji}</span><span>{cat.label}</span>
-                </button>
+                <div key={cat.key} className="group relative">
+                  <button onClick={() => setActiveCategory(cat.key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-150 whitespace-nowrap ${
+                      active ? "bg-green-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600 hover:border-green-300 hover:text-green-700"
+                    } ${canRemove ? "pr-2" : ""}`}>
+                    <span>{cat.emoji}</span>
+                    <span>{cat.label}</span>
+                  </button>
+                  {canRemove && (
+                    <button
+                      onClick={e => { e.stopPropagation(); removeCategory(cat.key); }}
+                      title="הסר קטגוריה"
+                      className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-red-500 hover:bg-red-600 text-white hidden group-hover:flex items-center justify-center shadow z-10 transition-colors">
+                      <X size={8} strokeWidth={3} />
+                    </button>
+                  )}
+                </div>
               );
             })}
+
             {/* Add category button */}
             <button
               onClick={() => setShowAddCategoryModal(true)}
@@ -960,6 +1007,15 @@ export default function PricerPage() {
               <Plus size={13} />
               <span>קטגוריה חדשה</span>
             </button>
+
+            {/* Restore hidden built-in categories */}
+            {hiddenCategories.length > 0 && (
+              <button
+                onClick={restoreAllCategories}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all whitespace-nowrap">
+                שחזר קטגוריות ({hiddenCategories.length})
+              </button>
+            )}
           </div>
         </div>
 
