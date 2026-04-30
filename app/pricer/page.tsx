@@ -513,15 +513,7 @@ function SaveToProjectModal({
 
   async function saveToProject(projectId: string) {
     setSaving(true);
-    const { data } = await supabase.from("projects").select("materials").eq("id", projectId).single();
-    const existing: typeof materials = data?.materials ?? [];
-    const merged = [...existing];
-    materials.forEach(nm => {
-      const idx = merged.findIndex(m => m.name === nm.name && m.unit === nm.unit);
-      if (idx >= 0) merged[idx] = { ...merged[idx], qty: merged[idx].qty + nm.qty };
-      else merged.push(nm);
-    });
-    await supabase.from("projects").update({ materials: merged }).eq("id", projectId);
+    await supabase.from("projects").update({ materials }).eq("id", projectId);
     setSaving(false);
     setSaved(true);
     setTimeout(onClose, 1200);
