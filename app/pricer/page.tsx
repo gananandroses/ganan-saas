@@ -753,6 +753,11 @@ function QuotePanel({
                             <span className="text-[10px] bg-blue-100 text-blue-600 px-1 rounded font-medium">+מע"מ</span>
                           )}
                         </div>
+                        {isVat && (
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            לפני מע"מ: <span className="font-medium">{formatPrice(ep(item))}</span>
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button onClick={() => onQtyChange(item.id, -1)}
