@@ -120,13 +120,14 @@ function VatToggle({ value, onChange }: { value: "before" | "after"; onChange: (
 // ── Item row ────────────────────────────────────────────────────────────────
 function ItemRow({
   item, price, unit, vat,
-  onAdd, onPriceChange, onUnitChange, onVatChange,
+  onAdd, onPriceChange, onUnitChange, onVatChange, onDelete,
 }: {
   item: PriceItem; price: number; unit: string; vat: "before" | "after";
   onAdd: () => void;
   onPriceChange: (n: number) => void;
   onUnitChange: (s: string) => void;
   onVatChange: (v: "before" | "after") => void;
+  onDelete?: () => void;
 }) {
   const vatMul = vat === "after" ? 1 + VAT : 1;
   const displayPrice = price * vatMul;
@@ -168,11 +169,20 @@ function ItemRow({
         </div>
       </div>
 
-      <button onClick={onAdd}
-        className="flex-shrink-0 w-8 h-8 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-colors shadow-sm"
-        title="הוסף להצעה">
-        <Plus size={16} />
-      </button>
+      <div className="flex flex-col items-center gap-1 flex-shrink-0">
+        <button onClick={onAdd}
+          className="w-8 h-8 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-colors shadow-sm"
+          title="הוסף להצעה">
+          <Plus size={16} />
+        </button>
+        {onDelete && (
+          <button onClick={onDelete}
+            className="w-6 h-6 rounded-full bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors"
+            title="מחק פריט">
+            <Trash2 size={11} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -614,6 +624,20 @@ export default function PricerPage() {
     setVatItems(prev => ({ ...prev, [id]: v }));
   }
 
+  function deleteCustomItem(id: string) {
+    setCustomItems(prev => {
+      const next = prev.filter(i => i.id !== id);
+      try { localStorage.setItem("pricer_custom_items", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    // Also remove from quote if present
+    setQuote(prev => prev.filter(qi => qi.item.id !== id));
+    // Clean up overrides
+    setOverridePrices(prev => { const { [id]: _, ...rest } = prev; return rest; });
+    setOverrideUnits(prev => { const { [id]: _, ...rest } = prev; return rest; });
+    setVatItems(prev => { const { [id]: _, ...rest } = prev; return rest; });
+  }
+
   function addCustomItemToQuote(item: PriceItem, qty: number, vatMode: "before" | "after") {
     setCustomItems(prev => {
       const next = [...prev, item];
@@ -794,6 +818,7 @@ export default function PricerPage() {
                     onPriceChange={n => setPriceOverride(item.id, n)}
                     onUnitChange={s => setUnitOverride(item.id, s)}
                     onVatChange={v => setVatOverride(item.id, v)}
+                    onDelete={item.id.startsWith("custom_") ? () => deleteCustomItem(item.id) : undefined}
                   />
                 ))}
               </div>
