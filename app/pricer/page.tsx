@@ -864,18 +864,14 @@ export default function PricerPage() {
   });
   const [deletedCategories, setDeletedCategories] = useState<string[]>(() => {
     try {
-      // Merge old key (pricer_hidden_categories) + new key for migration
-      const old = JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]");
-      const nw  = JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]");
-      return [...new Set([...old, ...nw])];
+      const saved = localStorage.getItem("pricer_hidden_categories");
+      return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
   const [deletedItems, setDeletedItems] = useState<string[]>(() => {
     try {
-      // Merge old key (pricer_hidden_items) + new key for migration
-      const old = JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]");
-      const nw  = JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]");
-      return [...new Set([...old, ...nw])];
+      const saved = localStorage.getItem("pricer_hidden_items");
+      return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
   const [panelCollapsed, setPanelCollapsed] = useState(false);
@@ -1014,7 +1010,7 @@ export default function PricerPage() {
   function deleteBuiltinItem(id: string) {
     setDeletedItems(prev => {
       const next = [...prev, id];
-      try { localStorage.setItem("pricer_deleted_items", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("pricer_hidden_items", JSON.stringify(next)); } catch {}
       return next;
     });
     setQuote(prev => prev.filter(qi => qi.item.id !== id));
@@ -1028,7 +1024,7 @@ export default function PricerPage() {
   function deleteBuiltinCategory(key: string) {
     setDeletedCategories(prev => {
       const next = [...prev, key];
-      try { localStorage.setItem("pricer_deleted_categories", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("pricer_hidden_categories", JSON.stringify(next)); } catch {}
       return next;
     });
     if (activeCategory === key) setActiveCategory("all");
