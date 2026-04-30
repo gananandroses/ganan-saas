@@ -1,9 +1,40 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Search, X, Plus, Minus, Trash2, Printer, ShoppingCart, ChevronDown, ChevronUp, Pencil, Check, FolderKanban, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Search, X, Plus, Minus, Trash2, Printer, ShoppingCart,
+  ChevronDown, ChevronUp, Pencil, Check, FolderKanban, ChevronRight,
+  ArrowRight, Mountain, Leaf, Flower2, Package, Droplets, Layers,
+  LayoutGrid, Lock, Lightbulb, Wrench, HardHat, PenLine,
+} from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 import { supabase } from "@/lib/supabase/client";
+
+// ── Category → icon + color map ──────────────────────────────────────────────
+const CAT_ICONS: Record<string, { Icon: React.ElementType; color: string; bg: string }> = {
+  stones:     { Icon: Mountain,   color: "text-gray-500",    bg: "bg-gray-100" },
+  grass:      { Icon: Leaf,       color: "text-green-600",   bg: "bg-green-100" },
+  plants:     { Icon: Flower2,    color: "text-emerald-600", bg: "bg-emerald-100" },
+  planters:   { Icon: Package,    color: "text-amber-600",   bg: "bg-amber-100" },
+  irrigation: { Icon: Droplets,   color: "text-blue-600",    bg: "bg-blue-100" },
+  soil:       { Icon: Layers,     color: "text-orange-600",  bg: "bg-orange-100" },
+  pavers:     { Icon: LayoutGrid, color: "text-stone-500",   bg: "bg-stone-100" },
+  fencing:    { Icon: Lock,       color: "text-violet-600",  bg: "bg-violet-100" },
+  lighting:   { Icon: Lightbulb,  color: "text-yellow-600",  bg: "bg-yellow-100" },
+  tools:      { Icon: Wrench,     color: "text-red-500",     bg: "bg-red-100" },
+  labor:      { Icon: HardHat,    color: "text-indigo-600",  bg: "bg-indigo-100" },
+  custom:     { Icon: PenLine,    color: "text-purple-600",  bg: "bg-purple-100" },
+};
+
+function CatIcon({ category, size = 16 }: { category: string; size?: number }) {
+  const { Icon, color, bg } = CAT_ICONS[category] ?? CAT_ICONS.custom;
+  return (
+    <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
+      <Icon size={size} className={color} />
+    </div>
+  );
+}
 
 const VAT = 0.17;
 
@@ -13,7 +44,12 @@ interface QuoteItem {
 }
 
 function formatPrice(n: number) {
-  return "₪" + n.toLocaleString("he-IL", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  // Show up to 2 decimal places only when there are meaningful cents
+  const hasDecimals = n % 1 !== 0;
+  return "₪" + n.toLocaleString("he-IL", {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
 }
 
 // ── Inline text / number edit ──────────────────────────────────────────────
@@ -35,7 +71,7 @@ function InlineEdit({
   if (editing) return (
     <div className="flex items-center gap-1">
       {prefix && <span className="text-sm text-gray-500">{prefix}</span>}
-      <input ref={ref} type={numeric ? "number" : "text"} min={numeric ? 0 : undefined}
+      <input ref={ref} type={numeric ? "number" : "text"} min={numeric ? 0 : undefined} step={numeric ? "0.01" : undefined}
         value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit}
         onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
         className={inputClass} />
@@ -92,13 +128,12 @@ function ItemRow({
   onUnitChange: (s: string) => void;
   onVatChange: (v: "before" | "after") => void;
 }) {
-  const catEmoji = PRICE_CATEGORIES.find(c => c.key === item.category)?.emoji ?? "📦";
   const vatMul = vat === "after" ? 1 + VAT : 1;
   const displayPrice = price * vatMul;
 
   return (
     <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow">
-      <span className="text-xl flex-shrink-0">{catEmoji}</span>
+      <CatIcon category={item.category} />
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-800 leading-snug">{item.name}</p>
@@ -159,6 +194,106 @@ function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => voi
     <button onClick={start} className="w-7 text-center text-sm font-bold text-gray-800 hover:text-green-700 hover:underline" title="ערוך כמות">
       {qty}
     </button>
+  );
+}
+
+// ── Add custom item modal ───────────────────────────────────────────────────
+function AddCustomItemModal({ onClose, onAdd }: {
+  onClose: () => void;
+  onAdd: (item: PriceItem, qty: number, vat: "before" | "after") => void;
+}) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [unit, setUnit] = useState("יח'");
+  const [customUnit, setCustomUnit] = useState("");
+  const [qty, setQty] = useState("1");
+  const [vat, setVat] = useState<"before" | "after">("before");
+  const UNITS = ["יח'", "מ\"ר", "מ'", "טון", "ק\"ג", "שק", "עץ", "צמח", "אחר"];
+  const finalUnit = unit === "אחר" ? customUnit : unit;
+
+  function handleAdd() {
+    if (!name.trim() || !finalUnit.trim()) return;
+    const p = parseFloat(price) || 0;
+    const q = parseInt(qty) || 1;
+    const newItem: PriceItem = {
+      id: `custom_${Date.now()}`,
+      name: name.trim(),
+      unit: finalUnit.trim(),
+      price: p,
+      category: "custom",
+    };
+    onAdd(newItem, q, vat);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            <PenLine size={16} className="text-purple-500" /> הוסף פריט מותאם
+          </h3>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <input
+            autoFocus
+            placeholder="שם הפריט *"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">מחיר ליחידה (₪)</label>
+              <input type="number" min={0} step="0.01" placeholder="0.00"
+                value={price} onChange={e => setPrice(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">כמות</label>
+              <input type="number" min={1} placeholder="1"
+                value={qty} onChange={e => setQty(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">יחידת מידה</label>
+            <select value={unit} onChange={e => setUnit(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-400">
+              {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+            </select>
+            {unit === "אחר" && (
+              <input placeholder="הקלד יחידה..."
+                value={customUnit} onChange={e => setCustomUnit(e.target.value)}
+                className="w-full mt-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            )}
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">מע"מ</label>
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+              {(["before", "after"] as const).map(v => (
+                <button key={v} onClick={() => setVat(v)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    vat === v
+                      ? v === "after" ? "bg-blue-600 text-white shadow" : "bg-white shadow text-gray-800"
+                      : "text-gray-400"
+                  }`}>
+                  {v === "before" ? "ללא מע\"מ" : "+מע\"מ"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={handleAdd}
+            disabled={!name.trim()}
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-sm transition-colors mt-1">
+            הוסף להצעה
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -356,14 +491,17 @@ const PRINT_STYLE = `
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function PricerPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [quote, setQuote] = useState<QuoteItem[]>([]);
+  const [customItems, setCustomItems] = useState<PriceItem[]>([]);
   const [overridePrices, setOverridePrices] = useState<Record<string, number>>({});
   const [overrideUnits, setOverrideUnits] = useState<Record<string, string>>({});
   const [vatItems, setVatItems] = useState<Record<string, "before" | "after">>({});
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const printStyleRef = useRef(false);
 
   function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
@@ -373,7 +511,7 @@ export default function PricerPage() {
 
   function setPriceOverride(id: string, newPrice: number) {
     setOverridePrices(prev => {
-      const item = PRICE_LIST.find(i => i.id === id);
+      const item = [...PRICE_LIST, ...customItems].find(i => i.id === id);
       if (item && newPrice === item.price) { const { [id]: _, ...rest } = prev; return rest; }
       return { ...prev, [id]: newPrice };
     });
@@ -381,7 +519,7 @@ export default function PricerPage() {
 
   function setUnitOverride(id: string, newUnit: string) {
     setOverrideUnits(prev => {
-      const item = PRICE_LIST.find(i => i.id === id);
+      const item = [...PRICE_LIST, ...customItems].find(i => i.id === id);
       if (item && newUnit === item.unit) { const { [id]: _, ...rest } = prev; return rest; }
       return { ...prev, [id]: newUnit };
     });
@@ -391,12 +529,22 @@ export default function PricerPage() {
     setVatItems(prev => ({ ...prev, [id]: v }));
   }
 
-  const filtered = useMemo(() => PRICE_LIST.filter(item => {
+  function addCustomItemToQuote(item: PriceItem, qty: number, vatMode: "before" | "after") {
+    setCustomItems(prev => [...prev, item]);
+    setOverridePrices(prev => ({ ...prev, [item.id]: item.price }));
+    setVatItems(prev => ({ ...prev, [item.id]: vatMode }));
+    setQuote(prev => [...prev, { item, qty }]);
+    setPanelCollapsed(false);
+  }
+
+  const allItems = useMemo(() => [...PRICE_LIST, ...customItems], [customItems]);
+
+  const filtered = useMemo(() => allItems.filter(item => {
     const matchCat = activeCategory === "all" || item.category === activeCategory;
     const q = search.trim().toLowerCase();
     if (!q) return matchCat;
     return matchCat && (item.name.toLowerCase().includes(q) || (item.notes ?? "").toLowerCase().includes(q));
-  }), [search, activeCategory]);
+  }), [allItems, search, activeCategory]);
 
   function addToQuote(item: PriceItem) {
     setQuote(prev => {
@@ -480,12 +628,31 @@ export default function PricerPage() {
         <p className="text-xs text-gray-400 mt-6">* מחירים שכוללים מע"מ מסומנים בעמודת מע"מ</p>
       </div>
 
+      {showAddModal && (
+        <AddCustomItemModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={addCustomItemToQuote}
+        />
+      )}
+
       {/* ── Screen view ── */}
       <div className="print:hidden">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-5">
-          <h1 className="text-2xl font-bold text-gray-900 mb-0.5">💰 מחירון גינון</h1>
-          <p className="text-gray-500 text-sm">{PRICE_LIST.length} פריטים · לחץ על מחיר/יחידה לעריכה · בחר מע"מ לכל פריט בנפרד</p>
+          <div className="flex items-center gap-3 mb-3">
+            <button onClick={() => router.back()}
+              className="flex items-center gap-1 text-gray-400 hover:text-gray-700 transition-colors text-sm font-medium">
+              <ArrowRight size={18} />
+              <span className="hidden sm:inline">חזור</span>
+            </button>
+            <h1 className="text-2xl font-bold text-gray-900 flex-1">💰 מחירון גינון</h1>
+            <button onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold px-3 py-2 rounded-xl shadow-sm transition-colors flex-shrink-0">
+              <PenLine size={15} />
+              <span>פריט חדש</span>
+            </button>
+          </div>
+          <p className="text-gray-500 text-sm">{allItems.length} פריטים · לחץ על מחיר/יחידה לעריכה · בחר מע"מ לכל פריט בנפרד</p>
           <div className="mt-4 relative">
             <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
