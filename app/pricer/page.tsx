@@ -75,7 +75,9 @@ function InlineEdit({
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLInputElement>(null);
 
-  function start() { setDraft(value); setEditing(true); setTimeout(() => ref.current?.select(), 0); }
+  useEffect(() => { if (editing) ref.current?.select(); }, [editing]);
+
+  function start() { setDraft(value); setEditing(true); }
   function commit() { const v = draft.trim(); if (v) onCommit(v); setEditing(false); }
 
   if (editing) return (
@@ -508,15 +510,21 @@ function SaveToProjectModal({
 
   useEffect(() => {
     supabase.from("projects").select("id, name, customer_name").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setProjects(data); setLoading(false); });
+      .then(({ data, error }) => {
+        if (!error && data) setProjects(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   async function saveToProject(projectId: string) {
     setSaving(true);
-    await supabase.from("projects").update({ materials }).eq("id", projectId);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(onClose, 1200);
+    try {
+      const { error } = await supabase.from("projects").update({ materials }).eq("id", projectId);
+      if (error) { setSaving(false); return; }
+      setSaved(true);
+      setTimeout(onClose, 1200);
+    } catch { setSaving(false); }
   }
 
   async function createAndSave() {
