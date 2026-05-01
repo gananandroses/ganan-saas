@@ -1439,23 +1439,29 @@ export default function PricerPage() {
               <ArrowRight size={18} />
               <span className="hidden sm:inline">חזור</span>
             </button>
-            <div className="flex-1 flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900">💰 מחירון גינון</h1>
-              {syncStatus === "saving" && (
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
-                  שומר...
-                </span>
-              )}
-              {syncStatus === "saved" && (
-                <span className="text-xs text-green-500 flex items-center gap-1">
-                  <Check size={12} /> נשמר
-                </span>
-              )}
-              {syncStatus === "error" && (
-                <span className="text-xs text-red-400">⚠ שגיאת שמירה</span>
-              )}
-            </div>
+            <h1 className="text-2xl font-bold text-gray-900 flex-1">💰 מחירון גינון</h1>
+            {/* Sync status badge — always visible */}
+            {syncStatus === "saving" && (
+              <div className="flex items-center gap-1.5 bg-gray-100 text-gray-500 text-xs font-medium px-3 py-1.5 rounded-full">
+                <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                שומר...
+              </div>
+            )}
+            {syncStatus === "saved" && (
+              <div className="flex items-center gap-1.5 bg-green-100 text-green-700 text-xs font-bold px-3 py-1.5 rounded-full">
+                <Check size={12} /> נשמר בענן
+              </div>
+            )}
+            {syncStatus === "idle" && loadedFromCloud.current && (
+              <div className="flex items-center gap-1.5 bg-green-50 text-green-600 text-xs font-medium px-3 py-1.5 rounded-full">
+                <Check size={12} /> מסונכרן
+              </div>
+            )}
+            {syncStatus === "error" && (
+              <div className="flex items-center gap-1.5 bg-red-100 text-red-600 text-xs font-bold px-3 py-1.5 rounded-full">
+                ⚠ שגיאת שמירה
+              </div>
+            )}
             {/* Drafts button */}
             <button onClick={() => setShowDraftsModal(true)}
               className="flex items-center gap-1.5 border border-amber-300 text-amber-700 hover:bg-amber-50 text-sm font-semibold px-3 py-2 rounded-xl transition-colors flex-shrink-0 relative">
