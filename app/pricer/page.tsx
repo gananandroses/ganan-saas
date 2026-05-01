@@ -891,6 +891,7 @@ export default function PricerPage() {
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [showRecovery, setShowRecovery] = useState(false);
   const printStyleRef = useRef(false);
 
   // ── Load settings from Supabase (with localStorage fallback) ────────────────
@@ -989,11 +990,75 @@ export default function PricerPage() {
           }
         } catch {}
       } catch {}
+      // Check if localStorage has data worth recovering (show recovery banner)
+      try {
+        const hasLocal =
+          !!localStorage.getItem("pricer_custom_items") ||
+          !!localStorage.getItem("pricer_override_prices") ||
+          !!localStorage.getItem("pricer_custom_categories");
+        if (hasLocal) setShowRecovery(true);
+      } catch {}
       settingsLoaded.current = true;
       setSettingsLoading(false);
     }
     loadSettings();
   }, []);
+
+  // ── Force recovery from localStorage ────────────────────────────────────────
+  async function forceRecoverFromLocalStorage() {
+    setShowRecovery(false);
+    try {
+      const ci = localStorage.getItem("pricer_custom_items");
+      const cc = localStorage.getItem("pricer_custom_categories");
+      const p  = localStorage.getItem("pricer_override_prices");
+      const u  = localStorage.getItem("pricer_override_units");
+      const nn = localStorage.getItem("pricer_override_names");
+      const cn = localStorage.getItem("pricer_override_cat_names");
+      const ic = localStorage.getItem("pricer_override_item_cats");
+      const v  = localStorage.getItem("pricer_vat_items");
+      const dr = localStorage.getItem("pricer_drafts");
+      const di = [...new Set([
+        ...JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]"),
+        ...JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]"),
+      ])];
+      const dc = [...new Set([
+        ...JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]"),
+        ...JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]"),
+      ])];
+      if (ci)  setCustomItems(JSON.parse(ci));
+      if (cc)  setCustomCategories(JSON.parse(cc));
+      if (p)   setOverridePrices(JSON.parse(p));
+      if (u)   setOverrideUnits(JSON.parse(u));
+      if (nn)  setOverrideNames(JSON.parse(nn));
+      if (cn)  setOverrideCatNames(JSON.parse(cn));
+      if (ic)  setOverrideItemCats(JSON.parse(ic));
+      if (v)   setVatItems(JSON.parse(v));
+      if (dr)  setDrafts(JSON.parse(dr));
+      if (di.length) setDeletedItems(di);
+      if (dc.length) setDeletedCategories(dc);
+      // Save immediately to Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("pricer_settings").upsert({
+          user_id: user.id,
+          custom_items: ci ? JSON.parse(ci) : [],
+          custom_categories: cc ? JSON.parse(cc) : [],
+          override_prices: p ? JSON.parse(p) : {},
+          override_units: u ? JSON.parse(u) : {},
+          override_names: nn ? JSON.parse(nn) : {},
+          override_cat_names: cn ? JSON.parse(cn) : {},
+          override_item_cats: ic ? JSON.parse(ic) : {},
+          vat_items: v ? JSON.parse(v) : {},
+          hidden_items: di,
+          hidden_categories: dc,
+          drafts: dr ? JSON.parse(dr) : [],
+        }, { onConflict: "user_id" });
+        loadedFromCloud.current = true;
+        setSyncStatus("saved");
+        setTimeout(() => setSyncStatus("idle"), 2500);
+      }
+    } catch {}
+  }
 
   // ── Save all settings to Supabase (debounced 1.5s) ───────────────────────
   useEffect(() => {
@@ -1364,6 +1429,19 @@ export default function PricerPage() {
               <span>פריט חדש</span>
             </button>
           </div>
+          {showRecovery && (
+            <div className="mt-2 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <span className="text-amber-700 text-sm font-medium flex-1">⚠️ נמצאו נתונים מקומיים שלא סונכרנו — פריטים, קטגוריות ומחירים ששמרת</span>
+              <button
+                onClick={forceRecoverFromLocalStorage}
+                className="bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition-colors flex-shrink-0">
+                שחזר עכשיו
+              </button>
+              <button onClick={() => setShowRecovery(false)} className="text-amber-400 hover:text-amber-600">
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <p className="text-gray-500 text-sm">{allItems.length} פריטים · לחץ על מחיר/יחידה לעריכה · בחר מע"מ לכל פריט בנפרד</p>
           <div className="mt-4 relative">
             <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
