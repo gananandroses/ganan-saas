@@ -513,8 +513,7 @@ function SaveToProjectModal({
       .then(({ data, error }) => {
         if (!error && data) setProjects(data);
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }, () => setLoading(false));
   }, []);
 
   async function saveToProject(projectId: string) {
