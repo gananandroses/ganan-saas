@@ -59,6 +59,24 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "s023", category: "stones", name: "אבן גזית טבעית לבנייה",         unit: "מ\"ר", price: 220 },
   { id: "s024", category: "stones", name: "חצץ גרניט מעורב",               unit: "טון",  price: 135 },
   { id: "s025", category: "stones", name: "אריחי קוורץ לבן 20×20",         unit: "מ\"ר", price: 155 },
+  // חלוקי נחל
+  { id: "st_peb_white",  category: "stones", name: "חלוקי נחל לבן",              unit: "מ\"ק", price: 0 },
+  { id: "st_peb_gray",   category: "stones", name: "חלוקי נחל אפור",             unit: "מ\"ק", price: 0 },
+  { id: "st_peb_black",  category: "stones", name: "חלוקי נחל שחור",             unit: "מ\"ק", price: 0 },
+  { id: "st_peb_mix",    category: "stones", name: "חלוקי נחל צבעוני מעורב",     unit: "מ\"ק", price: 0 },
+  { id: "st_peb_japan",  category: "stones", name: "חלוקי נחל יפני",             unit: "מ\"ק", price: 0 },
+  // אבני מדרך
+  { id: "st_step_rect",  category: "stones", name: "אבן מדרך בטון מלבנית",       unit: "יח'",  price: 0 },
+  { id: "st_step_round", category: "stones", name: "אבן מדרך בטון עגולה",        unit: "יח'",  price: 0 },
+  { id: "st_step_nat",   category: "stones", name: "אבן מדרך טבעית (אבן שדה)",   unit: "יח'",  price: 0 },
+  { id: "st_step_strip", category: "stones", name: "אבן מדרך סלעית (פסים)",      unit: "יח'",  price: 0 },
+  // אדני רכבת
+  { id: "st_rail_wood",  category: "stones", name: "אדן רכבת מעץ ממוחזר",        unit: "יח'",  price: 0 },
+  { id: "st_rail_conc",  category: "stones", name: "אדן רכבת מבטון",             unit: "יח'",  price: 0 },
+  // סלעים ואבני שדה
+  { id: "st_rock_field", category: "stones", name: "אבן שדה טבעית גדולה",        unit: "יח'",  price: 0 },
+  { id: "st_rock_baz",   category: "stones", name: "סלע בזלת",                   unit: "יח'",  price: 0 },
+  { id: "st_rock_lime",  category: "stones", name: "סלע גיר לבן",                unit: "יח'",  price: 0 },
 
   // ══════════════════════════════════════════
   // 🌿 דשא
