@@ -217,6 +217,16 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "so015", category: "soil", name: "דשן NPK כללי (שק 25 ק\"ג)",          unit: "שק",  price: 85 },
   { id: "so016", category: "soil", name: "כלאט ברזל (סקווסטרין)",              unit: "ק\"ג", price: 45 },
   { id: "so017", category: "soil", name: "גפרית גרנולרית להחמצת קרקע",        unit: "ק\"ג", price: 12 },
+  // פריטי המשתמש
+  { id: "soil_garden50",   category: "soil", name: "אדמת גינה מוכנה (תערובת גן) — שק 50 ליטר", unit: "שק",   price: 0 },
+  { id: "soil_perl100",    category: "soil", name: "פרלייט — שק 100 ליטר",                      unit: "שק",   price: 0 },
+  { id: "soil_verm100",    category: "soil", name: "ורמיקוליט — שק 100 ליטר",                   unit: "שק",   price: 0 },
+  { id: "soil_comp25",     category: "soil", name: "קומפוסט — שק 25 ליטר",                      unit: "שק",   price: 0 },
+  { id: "soil_humus25",    category: "soil", name: "הומוס — שק 25 ליטר",                        unit: "שק",   price: 0 },
+  { id: "soil_tuff25g",    category: "soil", name: "טוף גס — שק 25 ליטר",                       unit: "שק",   price: 0 },
+  { id: "soil_tuff25gr",   category: "soil", name: "טוף גרוס — שק 25 ליטר",                     unit: "שק",   price: 0 },
+  { id: "soil_osmo1",      category: "soil", name: "אוסמוקוט (דשן בפירוק איטי) — ק\"ג",         unit: "ק\"ג", price: 0 },
+  { id: "soil_osmo3",      category: "soil", name: "אוסמוקוט (דשן בפירוק איטי) — 3 ק\"ג",       unit: "יח'",  price: 0 },
 
   // ══════════════════════════════════════════
   // 🏗️ ריצוף ושבילים
