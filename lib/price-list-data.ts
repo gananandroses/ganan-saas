@@ -154,52 +154,52 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "adn_100_20_30", category: "planters", name: 'אדנית 100×20×30 ס"מ',  unit: "יח'", price: 950,  notes: "גם באפוקסי" },
 
   // — ג'ארה ישר (HP 1083) — קוטר × גובה (ס"מ) —
-  { id: "jari_70_62",  category: "planters", name: 'כד ג\'ארה ישר φ70×62 ס"מ',  unit: "יח'", price: 1700, notes: "גם באפוקסי" },
-  { id: "jari_55_52",  category: "planters", name: 'כד ג\'ארה ישר φ55×52 ס"מ',  unit: "יח'", price: 1050, notes: "גם באפוקסי" },
-  { id: "jari_45_41",  category: "planters", name: 'כד ג\'ארה ישר φ45×41 ס"מ',  unit: "יח'", price: 800,  notes: "גם באפוקסי" },
-  { id: "jari_37_30",  category: "planters", name: 'כד ג\'ארה ישר φ37×30 ס"מ',  unit: "יח'", price: 550,  notes: "גם באפוקסי" },
-  { id: "jari_28_22",  category: "planters", name: 'כד ג\'ארה ישר φ28×22 ס"מ',  unit: "יח'", price: 300,  notes: "גם באפוקסי" },
+  { id: "jari_70_62",  category: "planters", name: 'כד ג\'ארה ישר 70×62 ס"מ',  unit: "יח'", price: 1700, notes: "גם באפוקסי" },
+  { id: "jari_55_52",  category: "planters", name: 'כד ג\'ארה ישר 55×52 ס"מ',  unit: "יח'", price: 1050, notes: "גם באפוקסי" },
+  { id: "jari_45_41",  category: "planters", name: 'כד ג\'ארה ישר 45×41 ס"מ',  unit: "יח'", price: 800,  notes: "גם באפוקסי" },
+  { id: "jari_37_30",  category: "planters", name: 'כד ג\'ארה ישר 37×30 ס"מ',  unit: "יח'", price: 550,  notes: "גם באפוקסי" },
+  { id: "jari_28_22",  category: "planters", name: 'כד ג\'ארה ישר 28×22 ס"מ',  unit: "יח'", price: 300,  notes: "גם באפוקסי" },
 
   // — ג'ארה קערה (HP 1177) —
-  { id: "jarq_106_76", category: "planters", name: 'כד ג\'ארה קערה φ106×76 ס"מ', unit: "יח'", price: 3900, notes: "גם באפוקסי" },
-  { id: "jarq_90_66",  category: "planters", name: 'כד ג\'ארה קערה φ90×66 ס"מ',  unit: "יח'", price: 3200, notes: "גם באפוקסי" },
-  { id: "jarq_76_56",  category: "planters", name: 'כד ג\'ארה קערה φ76×56 ס"מ',  unit: "יח'", price: 1750, notes: "גם באפוקסי" },
-  { id: "jarq_65_49",  category: "planters", name: 'כד ג\'ארה קערה φ65×49 ס"מ',  unit: "יח'", price: 1450, notes: "גם באפוקסי" },
-  { id: "jarq_50_42",  category: "planters", name: 'כד ג\'ארה קערה φ50×42 ס"מ',  unit: "יח'", price: 900,  notes: "גם באפוקסי" },
-  { id: "jarq_40_33",  category: "planters", name: 'כד ג\'ארה קערה φ40×33 ס"מ',  unit: "יח'", price: 700,  notes: "גם באפוקסי" },
+  { id: "jarq_106_76", category: "planters", name: 'כד ג\'ארה קערה 106×76 ס"מ', unit: "יח'", price: 3900, notes: "גם באפוקסי" },
+  { id: "jarq_90_66",  category: "planters", name: 'כד ג\'ארה קערה 90×66 ס"מ',  unit: "יח'", price: 3200, notes: "גם באפוקסי" },
+  { id: "jarq_76_56",  category: "planters", name: 'כד ג\'ארה קערה 76×56 ס"מ',  unit: "יח'", price: 1750, notes: "גם באפוקסי" },
+  { id: "jarq_65_49",  category: "planters", name: 'כד ג\'ארה קערה 65×49 ס"מ',  unit: "יח'", price: 1450, notes: "גם באפוקסי" },
+  { id: "jarq_50_42",  category: "planters", name: 'כד ג\'ארה קערה 50×42 ס"מ',  unit: "יח'", price: 900,  notes: "גם באפוקסי" },
+  { id: "jarq_40_33",  category: "planters", name: 'כד ג\'ארה קערה 40×33 ס"מ',  unit: "יח'", price: 700,  notes: "גם באפוקסי" },
 
   // — צילינדר (HP 1118) —
-  { id: "cyl_100_75",  category: "planters", name: 'כד צילינדר φ100×75 ס"מ',     unit: "יח'", price: 3900, notes: "גם באפוקסי" },
-  { id: "cyl_80_75",   category: "planters", name: 'כד צילינדר φ80×75 ס"מ',      unit: "יח'", price: 2550, notes: "גם באפוקסי" },
-  { id: "cyl_70_70",   category: "planters", name: 'כד צילינדר φ70×70 ס"מ',      unit: "יח'", price: 2000, notes: "גם באפוקסי" },
-  { id: "cyl_60_60",   category: "planters", name: 'כד צילינדר φ60×60 ס"מ',      unit: "יח'", price: 1650, notes: "גם באפוקסי" },
-  { id: "cyl_50_50",   category: "planters", name: 'כד צילינדר φ50×50 ס"מ',      unit: "יח'", price: 1100, notes: "גם באפוקסי" },
-  { id: "cyl_40_40",   category: "planters", name: 'כד צילינדר φ40×40 ס"מ',      unit: "יח'", price: 750,  notes: "גם באפוקסי" },
-  { id: "cyl_30_30",   category: "planters", name: 'כד צילינדר φ30×30 ס"מ',      unit: "יח'", price: 500,  notes: "גם באפוקסי" },
-  { id: "cyl_60_75",   category: "planters", name: 'כד צילינדר גבוה φ60×75 ס"מ', unit: "יח'", price: 1800, notes: "גם באפוקסי" },
-  { id: "cyl_50_75",   category: "planters", name: 'כד צילינדר גבוה φ50×75 ס"מ', unit: "יח'", price: 1550, notes: "גם באפוקסי" },
-  { id: "cyl_40_75",   category: "planters", name: 'כד צילינדר גבוה φ40×75 ס"מ', unit: "יח'", price: 1400, notes: "גם באפוקסי" },
-  { id: "cyl_30_75",   category: "planters", name: 'כד צילינדר גבוה φ30×75 ס"מ', unit: "יח'", price: 1050, notes: "גם באפוקסי" },
+  { id: "cyl_100_75",  category: "planters", name: 'כד צילינדר 100×75 ס"מ',     unit: "יח'", price: 3900, notes: "גם באפוקסי" },
+  { id: "cyl_80_75",   category: "planters", name: 'כד צילינדר 80×75 ס"מ',      unit: "יח'", price: 2550, notes: "גם באפוקסי" },
+  { id: "cyl_70_70",   category: "planters", name: 'כד צילינדר 70×70 ס"מ',      unit: "יח'", price: 2000, notes: "גם באפוקסי" },
+  { id: "cyl_60_60",   category: "planters", name: 'כד צילינדר 60×60 ס"מ',      unit: "יח'", price: 1650, notes: "גם באפוקסי" },
+  { id: "cyl_50_50",   category: "planters", name: 'כד צילינדר 50×50 ס"מ',      unit: "יח'", price: 1100, notes: "גם באפוקסי" },
+  { id: "cyl_40_40",   category: "planters", name: 'כד צילינדר 40×40 ס"מ',      unit: "יח'", price: 750,  notes: "גם באפוקסי" },
+  { id: "cyl_30_30",   category: "planters", name: 'כד צילינדר 30×30 ס"מ',      unit: "יח'", price: 500,  notes: "גם באפוקסי" },
+  { id: "cyl_60_75",   category: "planters", name: 'כד צילינדר גבוה 60×75 ס"מ', unit: "יח'", price: 1800, notes: "גם באפוקסי" },
+  { id: "cyl_50_75",   category: "planters", name: 'כד צילינדר גבוה 50×75 ס"מ', unit: "יח'", price: 1550, notes: "גם באפוקסי" },
+  { id: "cyl_40_75",   category: "planters", name: 'כד צילינדר גבוה 40×75 ס"מ', unit: "יח'", price: 1400, notes: "גם באפוקסי" },
+  { id: "cyl_30_75",   category: "planters", name: 'כד צילינדר גבוה 30×75 ס"מ', unit: "יח'", price: 1050, notes: "גם באפוקסי" },
 
   // — פינס יבוא (HP 1151) —
-  { id: "fin_60_54",   category: "planters", name: 'כד פינס יבוא φ60×54 ס"מ',    unit: "יח'", price: 1400, notes: "גם באפוקסי" },
-  { id: "fin_50_45",   category: "planters", name: 'כד פינס יבוא φ50×45 ס"מ',    unit: "יח'", price: 1100, notes: "גם באפוקסי" },
-  { id: "fin_41_37",   category: "planters", name: 'כד פינס יבוא φ41×37 ס"מ',    unit: "יח'", price: 800,  notes: "גם באפוקסי" },
-  { id: "fin_33_31",   category: "planters", name: 'כד פינס יבוא φ33×31 ס"מ',    unit: "יח'", price: 550,  notes: "גם באפוקסי" },
-  { id: "fin_27_25",   category: "planters", name: 'כד פינס יבוא φ27×25 ס"מ',    unit: "יח'", price: 350,  notes: "גם באפוקסי" },
+  { id: "fin_60_54",   category: "planters", name: 'כד פינס יבוא 60×54 ס"מ',    unit: "יח'", price: 1400, notes: "גם באפוקסי" },
+  { id: "fin_50_45",   category: "planters", name: 'כד פינס יבוא 50×45 ס"מ',    unit: "יח'", price: 1100, notes: "גם באפוקסי" },
+  { id: "fin_41_37",   category: "planters", name: 'כד פינס יבוא 41×37 ס"מ',    unit: "יח'", price: 800,  notes: "גם באפוקסי" },
+  { id: "fin_33_31",   category: "planters", name: 'כד פינס יבוא 33×31 ס"מ',    unit: "יח'", price: 550,  notes: "גם באפוקסי" },
+  { id: "fin_27_25",   category: "planters", name: 'כד פינס יבוא 27×25 ס"מ',    unit: "יח'", price: 350,  notes: "גם באפוקסי" },
 
   // — קונוס עגול גבוה (HP 1161) —
-  { id: "konh_55_75",  category: "planters", name: 'כד קונוס עגול גבוה φ55×75 ס"מ', unit: "יח'", price: 1850, notes: "גם באפוקסי" },
-  { id: "konh_45_61",  category: "planters", name: 'כד קונוס עגול גבוה φ45×61 ס"מ', unit: "יח'", price: 1250, notes: "גם באפוקסי" },
-  { id: "konh_38_52",  category: "planters", name: 'כד קונוס עגול גבוה φ38×52 ס"מ', unit: "יח'", price: 850,  notes: "גם באפוקסי" },
-  { id: "konh_30_43",  category: "planters", name: 'כד קונוס עגול גבוה φ30×43 ס"מ', unit: "יח'", price: 500,  notes: "גם באפוקסי" },
+  { id: "konh_55_75",  category: "planters", name: 'כד קונוס עגול גבוה 55×75 ס"מ', unit: "יח'", price: 1850, notes: "גם באפוקסי" },
+  { id: "konh_45_61",  category: "planters", name: 'כד קונוס עגול גבוה 45×61 ס"מ', unit: "יח'", price: 1250, notes: "גם באפוקסי" },
+  { id: "konh_38_52",  category: "planters", name: 'כד קונוס עגול גבוה 38×52 ס"מ', unit: "יח'", price: 850,  notes: "גם באפוקסי" },
+  { id: "konh_30_43",  category: "planters", name: 'כד קונוס עגול גבוה 30×43 ס"מ', unit: "יח'", price: 500,  notes: "גם באפוקסי" },
 
   // — קערה שטוחה (HP 1074) —
-  { id: "qer_110_40",  category: "planters", name: 'כד קערה שטוחה φ110×40 ס"מ',  unit: "יח'", price: 1900, notes: "גם באפוקסי" },
-  { id: "qer_85_30",   category: "planters", name: 'כד קערה שטוחה φ85×30 ס"מ',   unit: "יח'", price: 950,  notes: "גם באפוקסי" },
-  { id: "qer_70_25",   category: "planters", name: 'כד קערה שטוחה φ70×25 ס"מ',   unit: "יח'", price: 800,  notes: "גם באפוקסי" },
-  { id: "qer_60_18",   category: "planters", name: 'כד קערה שטוחה φ60×18 ס"מ',   unit: "יח'", price: 550,  notes: "גם באפוקסי" },
-  { id: "qer_50_13",   category: "planters", name: 'כד קערה שטוחה φ50×13 ס"מ',   unit: "יח'", price: 400,  notes: "גם באפוקסי" },
+  { id: "qer_110_40",  category: "planters", name: 'כד קערה שטוחה 110×40 ס"מ',  unit: "יח'", price: 1900, notes: "גם באפוקסי" },
+  { id: "qer_85_30",   category: "planters", name: 'כד קערה שטוחה 85×30 ס"מ',   unit: "יח'", price: 950,  notes: "גם באפוקסי" },
+  { id: "qer_70_25",   category: "planters", name: 'כד קערה שטוחה 70×25 ס"מ',   unit: "יח'", price: 800,  notes: "גם באפוקסי" },
+  { id: "qer_60_18",   category: "planters", name: 'כד קערה שטוחה 60×18 ס"מ',   unit: "יח'", price: 550,  notes: "גם באפוקסי" },
+  { id: "qer_50_13",   category: "planters", name: 'כד קערה שטוחה 50×13 ס"מ',   unit: "יח'", price: 400,  notes: "גם באפוקסי" },
 
   // — ריבוע פינות מעוגלות (HP 1254) —
   { id: "riv_73_73",   category: "planters", name: 'כד ריבוע פינות מעוגלות 73×73 ס"מ', unit: "יח'", price: 2300, notes: "גם באפוקסי" },
@@ -209,24 +209,24 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "riv_33_33",   category: "planters", name: 'כד ריבוע פינות מעוגלות 33×33 ס"מ', unit: "יח'", price: 550,  notes: "גם באפוקסי" },
 
   // — בול עץ גבוה —
-  { id: "bulg_53_80",  category: "planters", name: 'כד בול עץ גבוה φ53×80 ס"מ',  unit: "יח'", price: 1850, notes: "גם באפוקסי" },
-  { id: "bulg_40_60",  category: "planters", name: 'כד בול עץ גבוה φ40×60 ס"מ',  unit: "יח'", price: 1050, notes: "גם באפוקסי" },
-  { id: "bulg_30_50",  category: "planters", name: 'כד בול עץ גבוה φ30×50 ס"מ',  unit: "יח'", price: 700,  notes: "גם באפוקסי" },
-  { id: "bulg_20_40",  category: "planters", name: 'כד בול עץ גבוה φ20×40 ס"מ',  unit: "יח'", price: 400,  notes: "גם באפוקסי" },
+  { id: "bulg_53_80",  category: "planters", name: 'כד בול עץ גבוה 53×80 ס"מ',  unit: "יח'", price: 1850, notes: "גם באפוקסי" },
+  { id: "bulg_40_60",  category: "planters", name: 'כד בול עץ גבוה 40×60 ס"מ',  unit: "יח'", price: 1050, notes: "גם באפוקסי" },
+  { id: "bulg_30_50",  category: "planters", name: 'כד בול עץ גבוה 30×50 ס"מ',  unit: "יח'", price: 700,  notes: "גם באפוקסי" },
+  { id: "bulg_20_40",  category: "planters", name: 'כד בול עץ גבוה 20×40 ס"מ',  unit: "יח'", price: 400,  notes: "גם באפוקסי" },
 
   // — בול עץ רגיל (HP 1087) —
-  { id: "bulr_68_64",  category: "planters", name: 'כד בול עץ רגיל φ68×64 ס"מ',  unit: "יח'", price: 2200, notes: "גם באפוקסי" },
-  { id: "bulr_55_53",  category: "planters", name: 'כד בול עץ רגיל φ55×53 ס"מ',  unit: "יח'", price: 1600, notes: "גם באפוקסי" },
-  { id: "bulr_44_42",  category: "planters", name: 'כד בול עץ רגיל φ44×42 ס"מ',  unit: "יח'", price: 900,  notes: "גם באפוקסי" },
-  { id: "bulr_34_33",  category: "planters", name: 'כד בול עץ רגיל φ34×33 ס"מ',  unit: "יח'", price: 700,  notes: "גם באפוקסי" },
-  { id: "bulr_26_26",  category: "planters", name: 'כד בול עץ רגיל φ26×26 ס"מ',  unit: "יח'", price: 350,  notes: "גם באפוקסי" },
+  { id: "bulr_68_64",  category: "planters", name: 'כד בול עץ רגיל 68×64 ס"מ',  unit: "יח'", price: 2200, notes: "גם באפוקסי" },
+  { id: "bulr_55_53",  category: "planters", name: 'כד בול עץ רגיל 55×53 ס"מ',  unit: "יח'", price: 1600, notes: "גם באפוקסי" },
+  { id: "bulr_44_42",  category: "planters", name: 'כד בול עץ רגיל 44×42 ס"מ',  unit: "יח'", price: 900,  notes: "גם באפוקסי" },
+  { id: "bulr_34_33",  category: "planters", name: 'כד בול עץ רגיל 34×33 ס"מ',  unit: "יח'", price: 700,  notes: "גם באפוקסי" },
+  { id: "bulr_26_26",  category: "planters", name: 'כד בול עץ רגיל 26×26 ס"מ',  unit: "יח'", price: 350,  notes: "גם באפוקסי" },
 
   // — קונוס רגיל (HP 1067) —
-  { id: "konr_71_62",  category: "planters", name: 'כד קונוס רגיל φ71×62 ס"מ',   unit: "יח'", price: 1750, notes: "גם באפוקסי" },
-  { id: "konr_61_52",  category: "planters", name: 'כד קונוס רגיל φ61×52 ס"מ',   unit: "יח'", price: 1350, notes: "גם באפוקסי" },
-  { id: "konr_51_42",  category: "planters", name: 'כד קונוס רגיל φ51×42 ס"מ',   unit: "יח'", price: 900,  notes: "גם באפוקסי" },
-  { id: "konr_41_37",  category: "planters", name: 'כד קונוס רגיל φ41×37 ס"מ',   unit: "יח'", price: 750,  notes: "גם באפוקסי" },
-  { id: "konr_31_26",  category: "planters", name: 'כד קונוס רגיל φ31×26 ס"מ',   unit: "יח'", price: 500,  notes: "גם באפוקסי" },
+  { id: "konr_71_62",  category: "planters", name: 'כד קונוס רגיל 71×62 ס"מ',   unit: "יח'", price: 1750, notes: "גם באפוקסי" },
+  { id: "konr_61_52",  category: "planters", name: 'כד קונוס רגיל 61×52 ס"מ',   unit: "יח'", price: 1350, notes: "גם באפוקסי" },
+  { id: "konr_51_42",  category: "planters", name: 'כד קונוס רגיל 51×42 ס"מ',   unit: "יח'", price: 900,  notes: "גם באפוקסי" },
+  { id: "konr_41_37",  category: "planters", name: 'כד קונוס רגיל 41×37 ס"מ',   unit: "יח'", price: 750,  notes: "גם באפוקסי" },
+  { id: "konr_31_26",  category: "planters", name: 'כד קונוס רגיל 31×26 ס"מ',   unit: "יח'", price: 500,  notes: "גם באפוקסי" },
 
   // — יהלום (HP 1400) —
   { id: "yah_55_55",   category: "planters", name: 'כד יהלום 55×55 ס"מ',          unit: "יח'", price: 1250, notes: "גם באפוקסי" },
@@ -234,14 +234,14 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "yah_36_36",   category: "planters", name: 'כד יהלום 36×36 ס"מ',          unit: "יח'", price: 700,  notes: "גם באפוקסי" },
 
   // — פו הדב (HP 1094) —
-  { id: "poo_66_61",   category: "planters", name: 'כד פו הדב φ66×61 ס"מ',        unit: "יח'", price: 1750, notes: "גם באפוקסי" },
-  { id: "poo_50_45",   category: "planters", name: 'כד פו הדב φ50×45 ס"מ',        unit: "יח'", price: 950,  notes: "גם באפוקסי" },
-  { id: "poo_35_31",   category: "planters", name: 'כד פו הדב φ35×31 ס"מ',        unit: "יח'", price: 560,  notes: "גם באפוקסי" },
+  { id: "poo_66_61",   category: "planters", name: 'כד פו הדב 66×61 ס"מ',        unit: "יח'", price: 1750, notes: "גם באפוקסי" },
+  { id: "poo_50_45",   category: "planters", name: 'כד פו הדב 50×45 ס"מ',        unit: "יח'", price: 950,  notes: "גם באפוקסי" },
+  { id: "poo_35_31",   category: "planters", name: 'כד פו הדב 35×31 ס"מ',        unit: "יח'", price: 560,  notes: "גם באפוקסי" },
 
   // — חצי כדור (HP 1146) —
-  { id: "hkd_83_58",   category: "planters", name: 'כד חצי כדור φ83×58 ס"מ',      unit: "יח'", price: 1850, notes: "גם באפוקסי" },
-  { id: "hkd_54_43",   category: "planters", name: 'כד חצי כדור φ54×43 ס"מ',      unit: "יח'", price: 1100, notes: "גם באפוקסי" },
-  { id: "hkd_32_25",   category: "planters", name: 'כד חצי כדור φ32×25 ס"מ',      unit: "יח'", price: 550,  notes: "גם באפוקסי" },
+  { id: "hkd_83_58",   category: "planters", name: 'כד חצי כדור 83×58 ס"מ',      unit: "יח'", price: 1850, notes: "גם באפוקסי" },
+  { id: "hkd_54_43",   category: "planters", name: 'כד חצי כדור 54×43 ס"מ',      unit: "יח'", price: 1100, notes: "גם באפוקסי" },
+  { id: "hkd_32_25",   category: "planters", name: 'כד חצי כדור 32×25 ס"מ',      unit: "יח'", price: 550,  notes: "גם באפוקסי" },
 
   // — אדנית חלון (HP 1312) — אורך × רוחב × גובה —
   { id: "achl_75",     category: "planters", name: 'אדנית חלון 75×25×27 ס"מ',     unit: "יח'", price: 700,  notes: "גם באפוקסי" },
@@ -249,28 +249,28 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "achl_50",     category: "planters", name: 'אדנית חלון 50×14×17 ס"מ',     unit: "יח'", price: 300,  notes: "גם באפוקסי" },
 
   // — קונוס מדרגה (HP 1085) —
-  { id: "konm_70_64",  category: "planters", name: 'כד קונוס מדרגה φ70×64 ס"מ',   unit: "יח'", price: 1750, notes: "גם באפוקסי" },
-  { id: "konm_50_49",  category: "planters", name: 'כד קונוס מדרגה φ50×49 ס"מ',   unit: "יח'", price: 950,  notes: "גם באפוקסי" },
-  { id: "konm_40_40",  category: "planters", name: 'כד קונוס מדרגה φ40×40 ס"מ',   unit: "יח'", price: 700,  notes: "גם באפוקסי" },
-  { id: "konm_31_30",  category: "planters", name: 'כד קונוס מדרגה φ31×30 ס"מ',   unit: "יח'", price: 450,  notes: "גם באפוקסי" },
+  { id: "konm_70_64",  category: "planters", name: 'כד קונוס מדרגה 70×64 ס"מ',   unit: "יח'", price: 1750, notes: "גם באפוקסי" },
+  { id: "konm_50_49",  category: "planters", name: 'כד קונוס מדרגה 50×49 ס"מ',   unit: "יח'", price: 950,  notes: "גם באפוקסי" },
+  { id: "konm_40_40",  category: "planters", name: 'כד קונוס מדרגה 40×40 ס"מ',   unit: "יח'", price: 700,  notes: "גם באפוקסי" },
+  { id: "konm_31_30",  category: "planters", name: 'כד קונוס מדרגה 31×30 ס"מ',   unit: "יח'", price: 450,  notes: "גם באפוקסי" },
 
   // — קראקס יבוא (HP 1241) —
-  { id: "krx_67_104",  category: "planters", name: 'כד קראקס יבוא φ67×104 ס"מ',   unit: "יח'", price: 3450, notes: "גם באפוקסי" },
-  { id: "krx_55_84",   category: "planters", name: 'כד קראקס יבוא φ55×84 ס"מ',    unit: "יח'", price: 1900, notes: "גם באפוקסי" },
-  { id: "krx_40_63",   category: "planters", name: 'כד קראקס יבוא φ40×63 ס"מ',    unit: "יח'", price: 1050, notes: "גם באפוקסי" },
+  { id: "krx_67_104",  category: "planters", name: 'כד קראקס יבוא 67×104 ס"מ',   unit: "יח'", price: 3450, notes: "גם באפוקסי" },
+  { id: "krx_55_84",   category: "planters", name: 'כד קראקס יבוא 55×84 ס"מ',    unit: "יח'", price: 1900, notes: "גם באפוקסי" },
+  { id: "krx_40_63",   category: "planters", name: 'כד קראקס יבוא 40×63 ס"מ',    unit: "יח'", price: 1050, notes: "גם באפוקסי" },
 
   // — כד פסים אופקיים (HP 1444) —
-  { id: "kps_110_75",  category: "planters", name: 'כד פסים אופקיים φ110×75 ס"מ', unit: "יח'", price: 4050, notes: "גם באפוקסי" },
-  { id: "kps_82_57",   category: "planters", name: 'כד פסים אופקיים φ82×57 ס"מ',  unit: "יח'", price: 2050, notes: "גם באפוקסי" },
-  { id: "kps_54_42",   category: "planters", name: 'כד פסים אופקיים φ54×42 ס"מ',  unit: "יח'", price: 1050, notes: "גם באפוקסי" },
-  { id: "kps_32_25",   category: "planters", name: 'כד פסים אופקיים φ32×25 ס"מ',  unit: "יח'", price: 600,  notes: "גם באפוקסי" },
+  { id: "kps_110_75",  category: "planters", name: 'כד פסים אופקיים 110×75 ס"מ', unit: "יח'", price: 4050, notes: "גם באפוקסי" },
+  { id: "kps_82_57",   category: "planters", name: 'כד פסים אופקיים 82×57 ס"מ',  unit: "יח'", price: 2050, notes: "גם באפוקסי" },
+  { id: "kps_54_42",   category: "planters", name: 'כד פסים אופקיים 54×42 ס"מ',  unit: "יח'", price: 1050, notes: "גם באפוקסי" },
+  { id: "kps_32_25",   category: "planters", name: 'כד פסים אופקיים 32×25 ס"מ',  unit: "יח'", price: 600,  notes: "גם באפוקסי" },
 
   // — קונוס פסים (HP 1403) —
-  { id: "konp_90_75",  category: "planters", name: 'כד קונוס פסים φ90×75 ס"מ',    unit: "יח'", price: 3300, notes: "גם באפוקסי" },
-  { id: "konp_75_63",  category: "planters", name: 'כד קונוס פסים φ75×63 ס"מ',    unit: "יח'", price: 2300, notes: "גם באפוקסי" },
-  { id: "konp_63_53",  category: "planters", name: 'כד קונוס פסים φ63×53 ס"מ',    unit: "יח'", price: 1450, notes: "גם באפוקסי" },
-  { id: "konp_50_42",  category: "planters", name: 'כד קונוס פסים φ50×42 ס"מ',    unit: "יח'", price: 1050, notes: "גם באפוקסי" },
-  { id: "konp_40_34",  category: "planters", name: 'כד קונוס פסים φ40×34 ס"מ',    unit: "יח'", price: 800,  notes: "גם באפוקסי" },
+  { id: "konp_90_75",  category: "planters", name: 'כד קונוס פסים 90×75 ס"מ',    unit: "יח'", price: 3300, notes: "גם באפוקסי" },
+  { id: "konp_75_63",  category: "planters", name: 'כד קונוס פסים 75×63 ס"מ',    unit: "יח'", price: 2300, notes: "גם באפוקסי" },
+  { id: "konp_63_53",  category: "planters", name: 'כד קונוס פסים 63×53 ס"מ',    unit: "יח'", price: 1450, notes: "גם באפוקסי" },
+  { id: "konp_50_42",  category: "planters", name: 'כד קונוס פסים 50×42 ס"מ',    unit: "יח'", price: 1050, notes: "גם באפוקסי" },
+  { id: "konp_40_34",  category: "planters", name: 'כד קונוס פסים 40×34 ס"מ',    unit: "יח'", price: 800,  notes: "גם באפוקסי" },
 
   // — ארגז שתילה — אורך × רוחב × גובה (ס"מ) —
   { id: "arz_100_75",  category: "planters", name: 'ארגז שתילה 100×100×75 ס"מ',   unit: "יח'", price: 4200, notes: "גם באפוקסי" },
