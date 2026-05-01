@@ -151,10 +151,41 @@ export const PRICE_LIST: PriceItem[] = [
   { id: "i032",  category: "irrigation", name: "קו טפטוף 16 מ\"מ — 30 ס\"מ מרווח", unit: "מ'",  price: 0 },
   { id: "i033",  category: "irrigation", name: "קו טפטוף 16 מ\"מ — 50 ס\"מ מרווח", unit: "מ'",  price: 0 },
   { id: "i034",  category: "irrigation", name: "קו טפטוף 16 מ\"מ — 100 ס\"מ מרווח",unit: "מ'",  price: 0 },
-  { id: "i014", category: "irrigation", name: "מחבר T 16 מ\"מ",                   unit: "יח'", price: 1.5 },
-  { id: "i015", category: "irrigation", name: "מחבר ישר 16 מ\"מ",                 unit: "יח'", price: 1.2 },
-  { id: "i016", category: "irrigation", name: "ברך 16 מ\"מ",                      unit: "יח'", price: 1.4 },
-  { id: "i017", category: "irrigation", name: "פקק קצה 16 מ\"מ",                  unit: "יח'", price: 0.8 },
+  // מחברים ישרים
+  { id: "i015a", category: "irrigation", name: "מחבר ישר 8 מ\"מ",                 unit: "יח'", price: 0 },
+  { id: "i015",  category: "irrigation", name: "מחבר ישר 16 מ\"מ",                unit: "יח'", price: 1.2 },
+  { id: "i015b", category: "irrigation", name: "מחבר ישר 20 מ\"מ",                unit: "יח'", price: 0 },
+  { id: "i015c", category: "irrigation", name: "מחבר ישר 25 מ\"מ",                unit: "יח'", price: 0 },
+  { id: "i015d", category: "irrigation", name: "מחבר ישר 32 מ\"מ",                unit: "יח'", price: 0 },
+  // מחברי T
+  { id: "i014a", category: "irrigation", name: "מחבר T 8 מ\"מ",                   unit: "יח'", price: 0 },
+  { id: "i014",  category: "irrigation", name: "מחבר T 16 מ\"מ",                  unit: "יח'", price: 1.5 },
+  { id: "i014b", category: "irrigation", name: "מחבר T 20 מ\"מ",                  unit: "יח'", price: 0 },
+  { id: "i014c", category: "irrigation", name: "מחבר T 25 מ\"מ",                  unit: "יח'", price: 0 },
+  // זווית
+  { id: "i016a", category: "irrigation", name: "זווית 8 מ\"מ",                    unit: "יח'", price: 0 },
+  { id: "i016",  category: "irrigation", name: "זווית 16 מ\"מ",                   unit: "יח'", price: 1.4 },
+  { id: "i016b", category: "irrigation", name: "זווית 20 מ\"מ",                   unit: "יח'", price: 0 },
+  // מעברים (רדוקציות)
+  { id: "i035",  category: "irrigation", name: "מעבר 20→16 מ\"מ",                 unit: "יח'", price: 0 },
+  { id: "i036",  category: "irrigation", name: "מעבר 25→20 מ\"מ",                 unit: "יח'", price: 0 },
+  { id: "i037",  category: "irrigation", name: "מעבר 32→25 מ\"מ",                 unit: "יח'", price: 0 },
+  // פקקי קצה
+  { id: "i017a", category: "irrigation", name: "פקק קצה 8 מ\"מ",                  unit: "יח'", price: 0 },
+  { id: "i017",  category: "irrigation", name: "פקק קצה 16 מ\"מ",                 unit: "יח'", price: 0.8 },
+  { id: "i017b", category: "irrigation", name: "פקק קצה 20 מ\"מ",                 unit: "יח'", price: 0 },
+  // מחברים לברז
+  { id: "i038",  category: "irrigation", name: "מחבר לברז ½\" ← 16 מ\"מ",         unit: "יח'", price: 0 },
+  { id: "i039",  category: "irrigation", name: "מחבר לברז ¾\" ← 20 מ\"מ",         unit: "יח'", price: 0 },
+  { id: "i040",  category: "irrigation", name: "מחבר לברז ¾\" ← 25 מ\"מ",         unit: "יח'", price: 0 },
+  { id: "i041",  category: "irrigation", name: "מחבר לברז 1\" ← 32 מ\"מ",         unit: "יח'", price: 0 },
+  // מצמדים
+  { id: "i042",  category: "irrigation", name: "מצמד 16 מ\"מ",                    unit: "יח'", price: 0 },
+  { id: "i043",  category: "irrigation", name: "מצמד 20 מ\"מ",                    unit: "יח'", price: 0 },
+  { id: "i044",  category: "irrigation", name: "מצמד 25 מ\"מ",                    unit: "יח'", price: 0 },
+  { id: "i045",  category: "irrigation", name: "מצמד 32 מ\"מ",                    unit: "יח'", price: 0 },
+  // כלים
+  { id: "i046",  category: "irrigation", name: "מנקב צנרת",                       unit: "יח'", price: 0 },
   { id: "i018", category: "irrigation", name: "מסנן רשת ¾\"",                    unit: "יח'", price: 35 },
   { id: "i019", category: "irrigation", name: "מקטין לחץ",                       unit: "יח'", price: 45 },
   { id: "i020", category: "irrigation", name: "חיישן גשם",                       unit: "יח'", price: 65 },
