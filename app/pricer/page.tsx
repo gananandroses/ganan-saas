@@ -886,6 +886,7 @@ export default function PricerPage() {
 
   // ── Load settings from Supabase (with localStorage fallback) ────────────────
   const settingsLoaded = useRef(false);
+  const loadedFromCloud = useRef(false); // true only when Supabase had real data
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -900,21 +901,38 @@ export default function PricerPage() {
             .eq("user_id", user.id)
             .single();
           if (data) {
-            // Load from Supabase — merge hidden keys for backwards compatibility
-            if (data.custom_items?.length)      setCustomItems(data.custom_items);
-            if (data.custom_categories?.length) setCustomCategories(data.custom_categories);
-            if (Object.keys(data.override_prices ?? {}).length)    setOverridePrices(data.override_prices);
-            if (Object.keys(data.override_units ?? {}).length)     setOverrideUnits(data.override_units);
-            if (Object.keys(data.override_names ?? {}).length)     setOverrideNames(data.override_names);
-            if (Object.keys(data.override_cat_names ?? {}).length) setOverrideCatNames(data.override_cat_names);
-            if (Object.keys(data.override_item_cats ?? {}).length) setOverrideItemCats(data.override_item_cats);
-            if (Object.keys(data.vat_items ?? {}).length)          setVatItems(data.vat_items);
-            if (data.hidden_items?.length)      setDeletedItems(data.hidden_items);
-            if (data.hidden_categories?.length) setDeletedCategories(data.hidden_categories);
-            if (data.drafts?.length)            setDrafts(data.drafts);
-            settingsLoaded.current = true;
-            setSettingsLoading(false);
-            return;
+            // Only trust Supabase if it actually contains meaningful data.
+            // An empty row means a device with no data saved first and wiped the cloud.
+            const hasCloudData =
+              (data.custom_items?.length ?? 0) > 0 ||
+              (data.custom_categories?.length ?? 0) > 0 ||
+              Object.keys(data.override_prices ?? {}).length > 0 ||
+              Object.keys(data.override_units ?? {}).length > 0 ||
+              Object.keys(data.override_names ?? {}).length > 0 ||
+              Object.keys(data.vat_items ?? {}).length > 0 ||
+              (data.hidden_items?.length ?? 0) > 0 ||
+              (data.hidden_categories?.length ?? 0) > 0 ||
+              (data.drafts?.length ?? 0) > 0;
+
+            if (hasCloudData) {
+              // Load from Supabase — it has real data
+              if (data.custom_items?.length)      setCustomItems(data.custom_items);
+              if (data.custom_categories?.length) setCustomCategories(data.custom_categories);
+              if (Object.keys(data.override_prices ?? {}).length)    setOverridePrices(data.override_prices);
+              if (Object.keys(data.override_units ?? {}).length)     setOverrideUnits(data.override_units);
+              if (Object.keys(data.override_names ?? {}).length)     setOverrideNames(data.override_names);
+              if (Object.keys(data.override_cat_names ?? {}).length) setOverrideCatNames(data.override_cat_names);
+              if (Object.keys(data.override_item_cats ?? {}).length) setOverrideItemCats(data.override_item_cats);
+              if (Object.keys(data.vat_items ?? {}).length)          setVatItems(data.vat_items);
+              if (data.hidden_items?.length)      setDeletedItems(data.hidden_items);
+              if (data.hidden_categories?.length) setDeletedCategories(data.hidden_categories);
+              if (data.drafts?.length)            setDrafts(data.drafts);
+              loadedFromCloud.current = true;
+              settingsLoaded.current = true;
+              setSettingsLoading(false);
+              return;
+            }
+            // Supabase row is empty — fall through to localStorage to recover local data
           }
         }
       } catch {}
@@ -949,6 +967,15 @@ export default function PricerPage() {
   // ── Save all settings to Supabase (debounced 1.5s) ───────────────────────
   useEffect(() => {
     if (!settingsLoaded.current) return;
+    // Guard: don't overwrite cloud data with an empty state from a fresh device.
+    // Only save if we loaded from Supabase, or if there's actual local data worth saving.
+    const hasAnyData =
+      customItems.length > 0 || customCategories.length > 0 ||
+      Object.keys(overridePrices).length > 0 || Object.keys(overrideUnits).length > 0 ||
+      Object.keys(overrideNames).length > 0 || Object.keys(vatItems).length > 0 ||
+      deletedItems.length > 0 || deletedCategories.length > 0 || drafts.length > 0;
+    if (!loadedFromCloud.current && !hasAnyData) return;
+
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
