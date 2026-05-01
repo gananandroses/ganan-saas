@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 const allItems = [
   { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
   { href: "/pricer", label: "מחירון", icon: Tag },
+  { href: "/plants", label: "עולם הצמחים", icon: Leaf },
   { href: "/customers", label: "לקוחות (CRM)", icon: Users },
   { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
   { href: "/schedule", label: "לוח זמנים", icon: Calendar },
