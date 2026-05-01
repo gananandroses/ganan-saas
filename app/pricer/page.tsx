@@ -896,8 +896,9 @@ export default function PricerPage() {
 
   // ── Load settings from Supabase (with localStorage fallback) ────────────────
   const settingsLoaded = useRef(false);
-  const loadedFromCloud = useRef(false); // true only when Supabase had real data
+  const loadedFromCloud = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaveTime = useRef(0); // to avoid re-loading our own saves from realtime
 
   useEffect(() => {
     async function loadSettings() {
@@ -1092,12 +1093,55 @@ export default function PricerPage() {
           hidden_categories: deletedCategories,
           drafts,
         }, { onConflict: "user_id" });
+        lastSaveTime.current = Date.now();
         setSyncStatus(error ? "error" : "saved");
         if (!error) setTimeout(() => setSyncStatus("idle"), 2500);
       } catch { setSyncStatus("error"); }
-    }, 1500);
+    }, 800);
   }, [customItems, customCategories, overridePrices, overrideUnits, overrideNames,
       overrideCatNames, overrideItemCats, vatItems, deletedItems, deletedCategories, drafts]);
+
+  // ── Real-time sync from other devices ────────────────────────────────────────
+  useEffect(() => {
+    if (settingsLoading) return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function setupRealtime() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      channel = supabase
+        .channel(`pricer_sync_${user.id}`)
+        .on("postgres_changes", {
+          event: "UPDATE",
+          schema: "public",
+          table: "pricer_settings",
+          filter: `user_id=eq.${user.id}`,
+        }, (payload) => {
+          // Skip if this is our own save (within last 3 seconds)
+          if (Date.now() - lastSaveTime.current < 3000) return;
+          // Another device updated — reload into state
+          const d = payload.new as Record<string, unknown>;
+          if (Array.isArray(d.custom_items) && d.custom_items.length)           setCustomItems(d.custom_items as PriceItem[]);
+          if (Array.isArray(d.custom_categories) && d.custom_categories.length) setCustomCategories(d.custom_categories as CustomCategory[]);
+          if (d.override_prices && Object.keys(d.override_prices as object).length)    setOverridePrices(d.override_prices as Record<string, number>);
+          if (d.override_units && Object.keys(d.override_units as object).length)      setOverrideUnits(d.override_units as Record<string, string>);
+          if (d.override_names && Object.keys(d.override_names as object).length)      setOverrideNames(d.override_names as Record<string, string>);
+          if (d.override_cat_names && Object.keys(d.override_cat_names as object).length) setOverrideCatNames(d.override_cat_names as Record<string, string>);
+          if (d.override_item_cats && Object.keys(d.override_item_cats as object).length) setOverrideItemCats(d.override_item_cats as Record<string, string>);
+          if (d.vat_items && Object.keys(d.vat_items as object).length)                setVatItems(d.vat_items as Record<string, "before" | "after">);
+          if (Array.isArray(d.hidden_items))       setDeletedItems(d.hidden_items as string[]);
+          if (Array.isArray(d.hidden_categories))  setDeletedCategories(d.hidden_categories as string[]);
+          if (Array.isArray(d.drafts))             setDrafts(d.drafts as Draft[]);
+          setSyncStatus("saved");
+          setTimeout(() => setSyncStatus("idle"), 2000);
+        })
+        .subscribe();
+    }
+
+    setupRealtime();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, [settingsLoading]);
 
   function addCustomCategory(cat: CustomCategory) {
     setCustomCategories(prev => [...prev, cat]);
