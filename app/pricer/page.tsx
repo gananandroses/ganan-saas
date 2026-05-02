@@ -510,17 +510,20 @@ function SaveToProjectModal({
   const [creatingNew, setCreatingNew] = useState(false);
 
   useEffect(() => {
-    supabase.from("projects").select("id, name, customer_name").order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!error && data) setProjects(data);
-        setLoading(false);
-      }, () => setLoading(false));
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      supabase.from("projects").select("id, name, customer_name").eq("user_id", user?.id).order("created_at", { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data) setProjects(data);
+          setLoading(false);
+        }, () => setLoading(false));
+    });
   }, []);
 
   async function saveToProject(projectId: string) {
     setSaving(true);
     try {
-      const { error } = await supabase.from("projects").update({ materials }).eq("id", projectId);
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("projects").update({ materials }).eq("id", projectId).eq("user_id", user?.id);
       if (error) { setSaving(false); return; }
       setSaved(true);
       setTimeout(onClose, 1200);

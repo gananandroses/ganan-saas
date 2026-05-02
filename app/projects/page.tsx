@@ -414,7 +414,7 @@ function ProjectFormModal({
     let data;
 
     if (isEdit) {
-      const res = await supabase.from("projects").update(payload).eq("id", initial!.id).select().single();
+      const res = await supabase.from("projects").update(payload).eq("id", initial!.id).eq("user_id", user?.id).select().single();
       dbError = res.error;
       data = res.data;
     } else {
@@ -652,7 +652,8 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
 
   async function handleSave() {
     setSaving(true);
-    await supabase.from("projects").update({ progress, status }).eq("id", project.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("projects").update({ progress, status }).eq("id", project.id).eq("user_id", user?.id);
     onUpdated(project.id, progress, status);
     setSaving(false);
     onClose();

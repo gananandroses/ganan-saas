@@ -464,6 +464,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
   const handleSave = async () => {
     if (!form.name || !form.unit) return;
     setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const finalCategory = form.category === "__other__" ? (customCategory || "אחר") : form.category;
     await supabase.from("inventory").update({
       name: form.name,
@@ -473,7 +474,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
       min_stock: parseFloat(form.min_stock) || 0,
       price_per_unit: parseFloat(form.price_per_unit) || 0,
       supplier: form.supplier,
-    }).eq("id", item.id);
+    }).eq("id", item.id).eq("user_id", user?.id);
     setSaving(false);
     onSaved();
     onClose();
@@ -635,7 +636,8 @@ export default function InventoryPage() {
   const handleUse = async (item: InventoryItem) => {
     if (item.quantity <= 0) return;
     const newQty = item.quantity - 1;
-    await supabase.from("inventory").update({ quantity: newQty }).eq("id", item.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("inventory").update({ quantity: newQty }).eq("id", item.id).eq("user_id", user?.id);
     setInventoryItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, quantity: newQty } : i))
     );
@@ -643,7 +645,8 @@ export default function InventoryPage() {
 
   const handleRestock = async (item: InventoryItem) => {
     const newQty = item.quantity + item.minStock;
-    await supabase.from("inventory").update({ quantity: newQty }).eq("id", item.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("inventory").update({ quantity: newQty }).eq("id", item.id).eq("user_id", user?.id);
     setInventoryItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, quantity: newQty } : i))
     );

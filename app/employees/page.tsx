@@ -832,6 +832,7 @@ function NewEmployeeModal({
       .join("")
       .slice(0, 2);
 
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error: dbError } = await supabase
       .from("employees")
       .insert({
@@ -845,6 +846,7 @@ function NewEmployeeModal({
         performance: 100,
         lat: 32.185,
         lng: 34.871,
+        user_id: user?.id,
       })
       .select()
       .single();
@@ -1018,9 +1020,11 @@ export default function EmployeesPage() {
 
   async function fetchEmployees() {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase
       .from("employees")
       .select("*")
+      .eq("user_id", user?.id)
       .order("name");
 
     if (data) {

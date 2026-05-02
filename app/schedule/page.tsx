@@ -89,7 +89,8 @@ function JobDetailModal({ job, onClose, onMarkCompleted }: {
 
   async function handleComplete() {
     setCompleting(true);
-    const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
     setCompleting(false);
     if (!error) { onMarkCompleted(job.id); onClose(); }
   }
