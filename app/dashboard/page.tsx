@@ -289,6 +289,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<Record<string, unknown>>({});
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -296,6 +297,13 @@ export default function DashboardPage() {
       const today = new Date().toISOString().split("T")[0];
 
       const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const savedSettings = localStorage.getItem(`garden_settings_${user.id}`);
+        if (savedSettings) {
+          try { setUserName(JSON.parse(savedSettings).ownerName || ""); } catch {}
+        }
+        if (!userName) setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "");
+      }
       const [custRes, txRes, jobsRes, txRes2] = await Promise.all([
         supabase.from("customers").select("id, status, monthly_price, balance, name, phone").eq("user_id", user?.id),
         supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income").eq("user_id", user?.id),
@@ -362,7 +370,7 @@ export default function DashboardPage() {
         {/* ── Greeting + Weather ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">שלום אריאל 👋</h1>
+            <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
             <p className="text-sm text-gray-500 mt-0.5">{hebrewDate()}</p>
           </div>
           <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
