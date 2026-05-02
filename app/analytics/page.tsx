@@ -599,6 +599,30 @@ export default function AnalyticsPage() {
         </div>
       ) : (
         <>
+          {/* ── No data notice ── */}
+          {a.kpis.totalCustomers === 0 && a.kpis.totalJobs === 0 && a.kpis.periodIncome === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-4">
+              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Info size={20} className="text-amber-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-amber-800 text-sm">לא נמצאו נתונים בחשבון שלך</p>
+                <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                  ייתכן שהנתונים הישנים לא מקושרים לחשבון שלך. כדי לתקן — הרץ ב-Supabase SQL Editor:
+                </p>
+                <div className="mt-2 bg-amber-100 rounded-lg px-3 py-2 text-xs font-mono text-amber-900 leading-relaxed" dir="ltr">
+                  SELECT id, email FROM auth.users;<br />
+                  -- copy your id, then:<br />
+                  UPDATE customers SET user_id = &apos;YOUR_ID&apos; WHERE user_id IS NULL;<br />
+                  UPDATE jobs SET user_id = &apos;YOUR_ID&apos; WHERE user_id IS NULL;<br />
+                  UPDATE transactions SET user_id = &apos;YOUR_ID&apos; WHERE user_id IS NULL;<br />
+                  UPDATE inventory SET user_id = &apos;YOUR_ID&apos; WHERE user_id IS NULL;<br />
+                  UPDATE employees SET user_id = &apos;YOUR_ID&apos; WHERE user_id IS NULL;
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Period indicator ── */}
           <div className="flex items-center gap-2 text-xs text-slate-400 -mt-2">
             <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
