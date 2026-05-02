@@ -67,7 +67,7 @@ interface StockMovement {
   type: "use" | "restock";
 }
 
-// ===== STATIC MOCK DATA (equipment & movements stay static) =====
+// ===== STATIC EQUIPMENT DATA =====
 
 const equipmentData: EquipmentItem[] = [
   {
@@ -105,49 +105,6 @@ const equipmentData: EquipmentItem[] = [
     nextService: "2026-04-20",
     status: "דורש תחזוקה",
     hoursUsed: 175,
-  },
-];
-
-const stockMovements: StockMovement[] = [
-  {
-    id: "sm1",
-    date: "2026-04-24",
-    item: "קוטל עשבים Roundup",
-    amount: "1 ליטר",
-    customer: "מלון פלאזה",
-    type: "use",
-  },
-  {
-    id: "sm2",
-    date: "2026-04-22",
-    item: "דשן NPK 20-20-20",
-    amount: "3 ק\"ג",
-    customer: "משפחת כהן",
-    type: "use",
-  },
-  {
-    id: "sm3",
-    date: "2026-04-20",
-    item: "שתילי ורדים",
-    amount: "8 יח'",
-    customer: "שרה אברהם",
-    type: "use",
-  },
-  {
-    id: "sm4",
-    date: "2026-04-18",
-    item: "אדמה מועשרת",
-    amount: "2 שקים",
-    customer: "נועה שפירא",
-    type: "use",
-  },
-  {
-    id: "sm5",
-    date: "2026-04-15",
-    item: "טפטפות Q2",
-    amount: "15 יח'",
-    customer: "מלון פלאזה",
-    type: "use",
   },
 ];
 
@@ -582,6 +539,8 @@ export default function InventoryPage() {
   const [maintenanceDate, setMaintenanceDate] = useState("");
   const [schedulingSaving, setSchedulingSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [showAllMovements, setShowAllMovements] = useState(false);
 
   async function handleScheduleMaintenance() {
     if (!schedulingEquipment || !maintenanceDate) return;
@@ -602,6 +561,29 @@ export default function InventoryPage() {
     setMaintenanceDate("");
     alert(`✅ תחזוקה נוספה ליומן בתאריך ${maintenanceDate}`);
   }
+
+  const fetchMovements = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    // Try to load from stock_movements table; if it doesn't exist yet, silently skip
+    const { data } = await supabase
+      .from("stock_movements")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (data) {
+      const mapped: StockMovement[] = data.map((row) => ({
+        id: String(row.id),
+        date: row.created_at ? row.created_at.split("T")[0] : "",
+        item: row.item_name ?? "",
+        amount: `${row.quantity_change} ${row.unit}`,
+        customer: row.customer_name ?? "",
+        type: row.movement_type === "restock" ? "restock" : "use",
+      }));
+      setStockMovements(mapped);
+    }
+  };
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -631,25 +613,51 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchInventory();
+    fetchMovements();
   }, []);
 
   const handleUse = async (item: InventoryItem) => {
     if (item.quantity <= 0) return;
     const newQty = item.quantity - 1;
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("inventory").update({ quantity: newQty }).eq("id", item.id).eq("user_id", user?.id);
+    await supabase.from("inventory")
+      .update({ quantity: newQty, last_used: new Date().toISOString().split("T")[0] })
+      .eq("id", item.id).eq("user_id", user?.id);
+    // Log movement (silent fail if table doesn't exist yet)
+    await supabase.from("stock_movements").insert({
+      user_id: user?.id,
+      item_id: item.id,
+      item_name: item.name,
+      quantity_change: 1,
+      unit: item.unit,
+      movement_type: "use",
+      customer_name: "",
+    }).then(() => {}, () => {});
     setInventoryItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, quantity: newQty } : i))
     );
+    fetchMovements();
   };
 
   const handleRestock = async (item: InventoryItem) => {
-    const newQty = item.quantity + item.minStock;
+    const addQty = item.minStock > 0 ? item.minStock : 1;
+    const newQty = item.quantity + addQty;
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("inventory").update({ quantity: newQty }).eq("id", item.id).eq("user_id", user?.id);
+    // Log movement (silent fail if table doesn't exist yet)
+    await supabase.from("stock_movements").insert({
+      user_id: user?.id,
+      item_id: item.id,
+      item_name: item.name,
+      quantity_change: addQty,
+      unit: item.unit,
+      movement_type: "restock",
+      customer_name: "",
+    }).then(() => {}, () => {});
     setInventoryItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, quantity: newQty } : i))
     );
+    fetchMovements();
   };
 
   // Filter items
@@ -758,7 +766,13 @@ export default function InventoryPage() {
               {lowStockItems.map((item) => item.name).join(" • ")}
             </p>
           </div>
-          <button className="text-xs text-red-600 hover:text-red-800 font-medium border border-red-300 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+          <button
+            onClick={() => {
+              const list = lowStockItems.map(i => `• ${i.name} (כמות נוכחית: ${i.quantity} ${i.unit}, מינימום: ${i.minStock} ${i.unit})`).join("\n");
+              alert(`פריטים לרכישה דחופה:\n\n${list}`);
+            }}
+            className="text-xs text-red-600 hover:text-red-800 font-medium border border-red-300 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
+          >
             <ShoppingCart className="w-3 h-3" />
             הזמן הכל
           </button>
@@ -1034,36 +1048,58 @@ export default function InventoryPage() {
           </div>
           <div>
             <h2 className="font-bold text-gray-900">היסטוריית תנועת מלאי</h2>
-            <p className="text-xs text-gray-500">5 פעולות אחרונות</p>
+            <p className="text-xs text-gray-500">
+              {stockMovements.length > 0
+                ? `${showAllMovements ? stockMovements.length : Math.min(5, stockMovements.length)} פעולות אחרונות`
+                : "טרם נרשמו תנועות"}
+            </p>
           </div>
         </div>
 
         <div className="divide-y divide-gray-50">
-          {stockMovements.map((movement) => (
-            <div
-              key={movement.id}
-              className="px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex-shrink-0 w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center">
-                <TrendingDown className="w-4 h-4 text-red-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{movement.item}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{movement.customer}</p>
-              </div>
-              <div className="text-left flex-shrink-0">
-                <p className="text-sm font-semibold text-red-600">-{movement.amount}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{formatDate(movement.date)}</p>
-              </div>
+          {stockMovements.length === 0 ? (
+            <div className="px-6 py-8 text-center text-gray-400 text-sm">
+              תנועות מלאי יופיעו כאן לאחר שימוש או הזמנה מחדש
             </div>
-          ))}
+          ) : (
+            (showAllMovements ? stockMovements : stockMovements.slice(0, 5)).map((movement) => (
+              <div
+                key={movement.id}
+                className="px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${movement.type === "restock" ? "bg-green-50" : "bg-red-50"}`}>
+                  {movement.type === "restock"
+                    ? <ShoppingCart className="w-4 h-4 text-green-600" />
+                    : <TrendingDown className="w-4 h-4 text-red-500" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{movement.item}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {movement.type === "restock" ? "הוספה למלאי" : "שימוש"}
+                    {movement.customer ? ` · ${movement.customer}` : ""}
+                  </p>
+                </div>
+                <div className="text-left flex-shrink-0">
+                  <p className={`text-sm font-semibold ${movement.type === "restock" ? "text-green-600" : "text-red-600"}`}>
+                    {movement.type === "restock" ? "+" : "-"}{movement.amount}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">{movement.date ? formatDate(movement.date) : ""}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
-        <div className="px-6 py-3 border-t border-gray-50">
-          <button className="text-sm text-green-600 hover:text-green-700 font-medium transition-colors">
-            הצג היסטוריה מלאה ←
-          </button>
-        </div>
+        {stockMovements.length > 5 && (
+          <div className="px-6 py-3 border-t border-gray-50">
+            <button
+              onClick={() => setShowAllMovements((prev) => !prev)}
+              className="text-sm text-green-600 hover:text-green-700 font-medium transition-colors"
+            >
+              {showAllMovements ? "הצג פחות ↑" : `הצג היסטוריה מלאה (${stockMovements.length}) ←`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ===== MAINTENANCE SCHEDULE MODAL ===== */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -33,56 +33,11 @@ import {
   MapPin,
   Award,
   Leaf,
+  Loader2,
 } from "lucide-react";
-import {
-  customers,
-  employees,
-  monthlyRevenue,
-  jobTypeDistribution,
-} from "@/lib/mock-data";
+import { supabase } from "@/lib/supabase/client";
 
-// ─── derived / extended data ────────────────────────────────────────────────
-
-const extendedMonthlyRevenue = [
-  { month: "מאי׳", income: 16800, expense: 2900, projected: null },
-  { month: "יונ׳", income: 18400, expense: 3300, projected: null },
-  { month: "יול׳", income: 21300, expense: 3700, projected: null },
-  { month: "אוג׳", income: 23600, expense: 4000, projected: null },
-  { month: "ספט׳", income: 22800, expense: 3500, projected: null },
-  { month: "אוק׳", income: 20100, expense: 3200, projected: null },
-  ...monthlyRevenue.map((m) => ({ ...m, projected: null })),
-  { month: "מאי׳ 26", income: null, expense: null, projected: 26500 },
-  { month: "יונ׳ 26", income: null, expense: null, projected: 28200 },
-  { month: "יול׳ 26", income: null, expense: null, projected: 30100 },
-];
-
-const employeePerformance = employees.map((e) => ({
-  name: e.name.split(" ")[0],
-  fullName: e.name,
-  revenue: Math.round(e.hoursThisMonth * e.hourlyRate * 1.6),
-  jobs: Math.round(e.hoursThisMonth / 2.8),
-  rating: +(e.performance / 20).toFixed(1),
-  efficiency: e.performance,
-  hours: e.hoursThisMonth,
-  role: e.role,
-}));
-
-const customerSegments = [
-  { name: "VIP", value: customers.filter((c) => c.status === "vip").length, color: "#f59e0b" },
-  { name: "פעיל", value: customers.filter((c) => c.status === "active").length, color: "#22c55e" },
-  { name: "חדש", value: customers.filter((c) => c.status === "new").length, color: "#3b82f6" },
-  { name: "רדום", value: customers.filter((c) => c.status === "inactive").length, color: "#94a3b8" },
-];
-
-const topCustomers = [...customers]
-  .sort((a, b) => b.totalPaid - a.totalPaid)
-  .slice(0, 5)
-  .map((c) => ({
-    name: c.name,
-    revenue: c.totalPaid,
-    status: c.status,
-    monthly: c.monthlyPrice,
-  }));
+// ─── static seasonal patterns (industry benchmarks, not user-specific) ────────
 
 const seasonalityData = [
   { month: "ינו׳", value: 65 },
@@ -106,29 +61,52 @@ const radarData = [
   { subject: "אוק׳-דצמ׳", A: 75 },
 ];
 
-const cityData = [
-  { city: "רעננה", customers: 1, revenue: 8100, avgMonthly: 450 },
-  { city: "הרצליה", customers: 1, revenue: 3900, avgMonthly: 300 },
-  { city: "כפר סבא", customers: 1, revenue: 18600, avgMonthly: 600 },
-  { city: "פתח תקווה", customers: 1, revenue: 1000, avgMonthly: 250 },
-  { city: "נתניה", customers: 1, revenue: 147000, avgMonthly: 3500 },
-  { city: "רמת גן", customers: 1, revenue: 700, avgMonthly: 350 },
-];
+// ─── types ────────────────────────────────────────────────────────────────────
 
-const serviceRevenue = jobTypeDistribution.map((jt, i) => ({
-  name: jt.name,
-  revenue: [42000, 28000, 19500, 15600, 7800][i] ?? 5000,
-  jobs: [185, 90, 62, 49, 24][i] ?? 20,
-  color: jt.color,
-}));
+interface RevenuePoint {
+  month: string;
+  income: number | null;
+  expense: number | null;
+  projected: null;
+}
 
-const aiInsights = [
-  "הכנסות מלקוח VIP גבוהות ב-340% מלקוח ממוצע — כדאי להגדיל את מספר לקוחות ה-VIP",
-  "יום שלישי ורביעי הם הימים הרווחיים ביותר — שקול תמחור פרמיום לביקושים גבוהים",
-  "לקוחות בתדירות שבועית שומרים 94% לעומת 67% בלבד בתדירות נמוכה — כדאי לעודד שדרוג",
-  "מלון פלאזה מייצר 78% מסך ההכנסות — גיוון בסיס הלקוחות יפחית סיכון עסקי",
-  "מיכל גרין מציגה ביצועים גבוהים ב-20% מהממוצע — שקול לקדם לתפקיד ניהולי",
-];
+interface EmpPerf {
+  name: string;
+  fullName: string;
+  revenue: number;
+  jobs: number;
+  rating: number;
+  efficiency: number;
+  hours: number;
+  role: string;
+}
+
+interface CustomerSegment {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface TopCustomer {
+  name: string;
+  revenue: number;
+  status: string;
+  monthly: number;
+}
+
+interface CityRow {
+  city: string;
+  customers: number;
+  revenue: number;
+  avgMonthly: number;
+}
+
+interface ServiceRow {
+  name: string;
+  revenue: number;
+  jobs: number;
+  color: string;
+}
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -234,7 +212,6 @@ function RevenueTooltip({
   label,
 }: {
   active?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload?: Array<{ name: string; value: number | string | null; color: string }>;
   label?: string;
 }) {
@@ -262,6 +239,243 @@ function RevenueTooltip({
 
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<30 | 90 | 365>(365);
+  const [loading, setLoading] = useState(true);
+
+  const [kpis, setKpis] = useState({
+    annualIncome: 0,
+    profitability: 0,
+    avgCustomersPerEmployee: 0,
+    incomePerHour: 0,
+    totalCustomers: 0,
+    totalJobs: 0,
+  });
+
+  const [revenueData, setRevenueData] = useState<RevenuePoint[]>([]);
+  const [chartTotals, setChartTotals] = useState({ totalIncome: 0, totalExpense: 0 });
+  const [employeePerformance, setEmployeePerformance] = useState<EmpPerf[]>([]);
+  const [customerSegments, setCustomerSegments] = useState<CustomerSegment[]>([]);
+  const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
+  const [cityData, setCityData] = useState<CityRow[]>([]);
+  const [serviceRevenue, setServiceRevenue] = useState<ServiceRow[]>([]);
+  const [aiInsights, setAiInsights] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
+      const [txRes, custRes, jobsRes, empRes] = await Promise.all([
+        supabase.from("transactions").select("*").eq("user_id", user.id),
+        supabase.from("customers").select("*").eq("user_id", user.id),
+        supabase.from("jobs").select("*").eq("user_id", user.id),
+        supabase.from("employees").select("*").eq("user_id", user.id),
+      ]);
+
+      const transactions = (txRes.data || []) as Record<string, unknown>[];
+      const customers = (custRes.data || []) as Record<string, unknown>[];
+      const jobs = (jobsRes.data || []) as Record<string, unknown>[];
+      const employees = (empRes.data || []) as Record<string, unknown>[];
+
+      // ── KPIs ──────────────────────────────────────────────────────────────
+
+      const incomeRows = transactions.filter((t) => t.type === "income");
+      const expenseRows = transactions.filter((t) => t.type === "expense");
+
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const annualIncome = incomeRows
+        .filter((t) => new Date((t.transaction_date as string) || "").getTime() >= oneYearAgo.getTime())
+        .reduce((s, t) => s + ((t.amount as number) || 0), 0);
+
+      const totalIncomeAll = incomeRows.reduce((s, t) => s + ((t.amount as number) || 0), 0);
+      const totalExpenseAll = expenseRows.reduce((s, t) => s + ((t.amount as number) || 0), 0);
+      const profitability =
+        totalIncomeAll > 0
+          ? Math.round(((totalIncomeAll - totalExpenseAll) / totalIncomeAll) * 1000) / 10
+          : 0;
+
+      const activeEmps = employees.filter((e) => e.status !== "offline").length;
+      const avgCustomersPerEmployee = activeEmps > 0 ? Math.round(customers.length / activeEmps) : customers.length;
+
+      const thisMonth = new Date().toISOString().slice(0, 7);
+      const monthlyIncome = incomeRows
+        .filter((t) => (t.transaction_date as string)?.startsWith(thisMonth))
+        .reduce((s, t) => s + ((t.amount as number) || 0), 0);
+      const totalHours = employees.reduce((s, e) => s + ((e.hours_this_month as number) || 0), 0);
+      const incomePerHour = totalHours > 0 ? Math.round(monthlyIncome / totalHours) : 0;
+
+      setKpis({
+        annualIncome,
+        profitability,
+        avgCustomersPerEmployee,
+        incomePerHour,
+        totalCustomers: customers.length,
+        totalJobs: jobs.length,
+      });
+      setChartTotals({ totalIncome: totalIncomeAll, totalExpense: totalExpenseAll });
+
+      // ── Revenue chart (12 months) ──────────────────────────────────────────
+
+      const months12 = Array.from({ length: 12 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 11 + i);
+        const key = d.toISOString().slice(0, 7);
+        const label = new Date(key + "-01").toLocaleDateString("he-IL", {
+          month: "short",
+          ...(i >= 10 ? { year: "2-digit" } : {}),
+        });
+        const inc = incomeRows
+          .filter((t) => (t.transaction_date as string)?.startsWith(key))
+          .reduce((s, t) => s + ((t.amount as number) || 0), 0);
+        const exp = expenseRows
+          .filter((t) => (t.transaction_date as string)?.startsWith(key))
+          .reduce((s, t) => s + ((t.amount as number) || 0), 0);
+        return { month: label, income: inc || null, expense: exp || null, projected: null };
+      });
+      setRevenueData(months12);
+
+      // ── Customer segments ──────────────────────────────────────────────────
+
+      const segments: CustomerSegment[] = [
+        { name: "VIP", value: customers.filter((c) => c.status === "vip").length, color: "#f59e0b" },
+        { name: "פעיל", value: customers.filter((c) => c.status === "active").length, color: "#22c55e" },
+        { name: "חדש", value: customers.filter((c) => c.status === "new").length, color: "#3b82f6" },
+        { name: "רדום", value: customers.filter((c) => c.status === "inactive").length, color: "#94a3b8" },
+      ].filter((s) => s.value > 0);
+      setCustomerSegments(segments.length > 0 ? segments : [{ name: "אין לקוחות", value: 1, color: "#e2e8f0" }]);
+
+      // ── Top customers (by monthly price) ──────────────────────────────────
+
+      const top5 = [...customers]
+        .sort((a, b) => ((b.monthly_price as number) || 0) - ((a.monthly_price as number) || 0))
+        .slice(0, 5)
+        .map((c) => ({
+          name: c.name as string,
+          revenue: ((c.monthly_price as number) || 0) * 12,
+          status: (c.status as string) || "active",
+          monthly: (c.monthly_price as number) || 0,
+        }));
+      setTopCustomers(top5);
+
+      // ── City aggregation ──────────────────────────────────────────────────
+
+      const cityMap = new Map<string, { count: number; totalMonthly: number }>();
+      customers.forEach((c) => {
+        const city = (c.city as string) || "אחר";
+        const prev = cityMap.get(city) || { count: 0, totalMonthly: 0 };
+        cityMap.set(city, {
+          count: prev.count + 1,
+          totalMonthly: prev.totalMonthly + ((c.monthly_price as number) || 0),
+        });
+      });
+      const cities: CityRow[] = Array.from(cityMap.entries())
+        .map(([city, d]) => ({
+          city,
+          customers: d.count,
+          revenue: d.totalMonthly * 12,
+          avgMonthly: Math.round(d.totalMonthly / d.count),
+        }))
+        .sort((a, b) => b.revenue - a.revenue);
+      setCityData(cities);
+
+      // ── Service revenue by job type ────────────────────────────────────────
+
+      const jobTypeMap = new Map<string, { count: number; revenue: number }>();
+      jobs.forEach((j) => {
+        const type = (j.type as string) || "אחר";
+        const prev = jobTypeMap.get(type) || { count: 0, revenue: 0 };
+        jobTypeMap.set(type, {
+          count: prev.count + 1,
+          revenue: prev.revenue + ((j.price as number) || 0),
+        });
+      });
+      const serviceColors = ["#22c55e", "#4ade80", "#16a34a", "#86efac", "#bbf7d0", "#6ee7b7"];
+      const services: ServiceRow[] = Array.from(jobTypeMap.entries())
+        .map(([name, d], i) => ({
+          name,
+          revenue: d.revenue,
+          jobs: d.count,
+          color: serviceColors[i % serviceColors.length],
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 6);
+      setServiceRevenue(services);
+
+      // ── Employee performance ───────────────────────────────────────────────
+
+      const empPerf: EmpPerf[] = employees.map((e) => ({
+        name: ((e.name as string) || "").split(" ")[0],
+        fullName: (e.name as string) || "",
+        revenue: ((e.hours_this_month as number) || 0) * ((e.hourly_rate as number) || 0) * 1.6,
+        jobs: Math.round(((e.hours_this_month as number) || 0) / 2.8),
+        rating: +((((e.performance as number) || 80) / 20).toFixed(1)),
+        efficiency: (e.performance as number) || 80,
+        hours: (e.hours_this_month as number) || 0,
+        role: (e.role as string) || "",
+      }));
+      setEmployeePerformance(empPerf);
+
+      // ── AI insights ────────────────────────────────────────────────────────
+
+      const insights: string[] = [];
+
+      const vipList = customers.filter((c) => c.status === "vip");
+      const activeList = customers.filter((c) => c.status === "active");
+      const vipAvg = vipList.length > 0 ? vipList.reduce((s, c) => s + ((c.monthly_price as number) || 0), 0) / vipList.length : 0;
+      const activeAvg = activeList.length > 0 ? activeList.reduce((s, c) => s + ((c.monthly_price as number) || 0), 0) / activeList.length : 0;
+      if (vipAvg > 0 && activeAvg > 0) {
+        const pct = Math.round(((vipAvg - activeAvg) / activeAvg) * 100);
+        if (pct > 0) insights.push(`הכנסות מלקוחות VIP גבוהות ב-${pct}% מלקוח פעיל ממוצע — כדאי להגדיל את מספר לקוחות ה-VIP`);
+      }
+
+      const debtors = customers.filter((c) => ((c.balance as number) || 0) > 0);
+      if (debtors.length > 0) {
+        const totalDebt = debtors.reduce((s, c) => s + ((c.balance as number) || 0), 0);
+        insights.push(`יש ${debtors.length} לקוחות עם חוב פתוח בסך ₪${totalDebt.toLocaleString()} — מומלץ לשלוח תזכורות`);
+      }
+
+      if (cities.length > 0) {
+        const totalCityRev = cities.reduce((s, c) => s + c.revenue, 0);
+        const topCity = cities[0];
+        const topPct = totalCityRev > 0 ? Math.round((topCity.revenue / totalCityRev) * 100) : 0;
+        if (topPct > 60 && cities.length > 1) {
+          insights.push(`${topCity.city} מייצרת ${topPct}% מסך ההכנסות — גיוון גיאוגרפי יפחית סיכון עסקי`);
+        }
+      }
+
+      if (services.length > 0) {
+        const totalSrvRev = services.reduce((s, sv) => s + sv.revenue, 0);
+        const topSrv = services[0];
+        if (totalSrvRev > 0) {
+          const topSrvPct = Math.round((topSrv.revenue / totalSrvRev) * 100);
+          if (topSrvPct > 40) insights.push(`"${topSrv.name}" הוא השירות הרווחי ביותר שלך (${topSrvPct}% מהכנסות) — שקול חבילות מיוחדות`);
+        }
+      }
+
+      if (profitability > 0) {
+        insights.push(`מרווח גולמי של ${profitability}% — ${profitability >= 70 ? "מצוין! המשך לשמור על רמה זו" : "יש מקום לשיפור בניהול הוצאות"}`);
+      }
+
+      const inactiveList = customers.filter((c) => c.status === "inactive");
+      if (inactiveList.length > 0) {
+        insights.push(`יש ${inactiveList.length} לקוחות רדומים — שקול לפנות אליהם עם הצעה מיוחדת להחזרה`);
+      }
+
+      const bestEmp = empPerf.sort((a, b) => b.efficiency - a.efficiency)[0];
+      if (bestEmp && bestEmp.fullName) {
+        insights.push(`${bestEmp.fullName} מציג/ה ביצועים של ${bestEmp.efficiency}% — שקול/י לקדם לתפקיד בכיר`);
+      }
+
+      if (insights.length === 0) {
+        insights.push("הוסף לקוחות, עבודות ועסקאות כדי לראות תובנות מותאמות אישית לעסק שלך");
+      }
+
+      setAiInsights(insights);
+      setLoading(false);
+    }
+
+    load();
+  }, []);
 
   const ranges: { label: string; value: 30 | 90 | 365 }[] = [
     { label: "30 יום", value: 30 },
@@ -299,408 +513,388 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* ── KPI Row ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <KpiCard
-          icon={DollarSign}
-          label="הכנסה שנתית"
-          value="₪298,200"
-          sub="בסיס על 12 חודשים אחרונים"
-          trend={{ pct: 18, label: "YoY" }}
-          color="green"
-        />
-        <KpiCard
-          icon={TrendingUp}
-          label="רווחיות"
-          value="84.7%"
-          sub="מרווח גולמי ממוצע"
-          trend={{ pct: 3.2, label: "vs. אשתקד" }}
-          color="teal"
-        />
-        <KpiCard
-          icon={Users}
-          label="לקוחות ממוצע לגנן"
-          value="18"
-          sub="לגנן במשרה מלאה"
-          trend={{ pct: 5, label: "vs. אשתקד" }}
-          color="blue"
-        />
-        <KpiCard
-          icon={Award}
-          label="שימור לקוחות"
-          value="91%"
-          sub="חידוש חוזים 12 חודשים"
-          trend={{ pct: 2, label: "vs. אשתקד" }}
-          color="purple"
-        />
-        <KpiCard
-          icon={Clock}
-          label="זמן ביקור ממוצע"
-          value="2.8 שעות"
-          sub="לביקור תחזוקה רגיל"
-          color="amber"
-        />
-        <KpiCard
-          icon={Leaf}
-          label="הכנסה לשעה"
-          value="₪115"
-          sub="ממוצע על כלל השירותים"
-          trend={{ pct: 8, label: "vs. אשתקד" }}
-          color="rose"
-        />
-      </div>
-
-      {/* ── Revenue Trend (full width) ── */}
-      <SectionCard title="מגמת הכנסות — 12 חודשים + תחזית">
-        <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={extendedMonthlyRevenue} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
-            <Tooltip content={<RevenueTooltip />} />
-            <Legend
-              formatter={(value) =>
-                value === "income" ? "הכנסות" : value === "expense" ? "הוצאות" : "תחזית"
-              }
-              wrapperStyle={{ fontSize: 12, direction: "rtl" }}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-32 gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-green-500" />
+          <p className="text-slate-500 text-sm">טוען נתונים...</p>
+        </div>
+      ) : (
+        <>
+          {/* ── KPI Row ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <KpiCard
+              icon={DollarSign}
+              label="הכנסה שנתית (12 חודשים)"
+              value={fmt(kpis.annualIncome)}
+              sub="מבוסס על עסקאות אמיתיות"
+              color="green"
             />
-            <Line
-              type="monotone"
-              dataKey="income"
-              stroke="#22c55e"
-              strokeWidth={2.5}
-              dot={{ r: 3, fill: "#22c55e" }}
-              activeDot={{ r: 5 }}
-              connectNulls={false}
+            <KpiCard
+              icon={TrendingUp}
+              label="רווחיות גולמית"
+              value={kpis.profitability > 0 ? `${kpis.profitability}%` : "—"}
+              sub="הכנסות פחות הוצאות"
+              color="teal"
             />
-            <Line
-              type="monotone"
-              dataKey="expense"
-              stroke="#f87171"
-              strokeWidth={1.5}
-              dot={{ r: 2, fill: "#f87171" }}
-              connectNulls={false}
+            <KpiCard
+              icon={Users}
+              label="לקוחות לעובד"
+              value={kpis.avgCustomersPerEmployee > 0 ? String(kpis.avgCustomersPerEmployee) : "—"}
+              sub={`סה"כ ${kpis.totalCustomers} לקוחות`}
+              color="blue"
             />
-            <Line
-              type="monotone"
-              dataKey="projected"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={{ r: 3, fill: "#3b82f6" }}
-              connectNulls={false}
+            <KpiCard
+              icon={Award}
+              label="סה&quot;כ לקוחות"
+              value={String(kpis.totalCustomers)}
+              sub="כולל כל הסטטוסים"
+              color="purple"
             />
-          </LineChart>
-        </ResponsiveContainer>
-      </SectionCard>
-
-      {/* ── Employee Comparison ── */}
-      <SectionCard title="השוואת עובדים — הכנסות ומשרות">
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={employeePerformance} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-            <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
-            <YAxis yAxisId="right" orientation="left" hide />
-            <Tooltip
-              formatter={(value, name) =>
-                name === "revenue"
-                  ? [fmt(value as number), "הכנסות"]
-                  : [value + " משרות", "משרות"]
-              }
-              contentStyle={CUSTOM_TOOLTIP_STYLE}
+            <KpiCard
+              icon={Clock}
+              label="סה&quot;כ עבודות"
+              value={String(kpis.totalJobs)}
+              sub="כל העבודות במערכת"
+              color="amber"
             />
-            <Legend
-              formatter={(v) => (v === "revenue" ? "הכנסות" : "משרות")}
-              wrapperStyle={{ fontSize: 12 }}
+            <KpiCard
+              icon={Leaf}
+              label="הכנסה לשעה"
+              value={kpis.incomePerHour > 0 ? fmt(kpis.incomePerHour) : "—"}
+              sub="מבוסס על שעות עובדים החודש"
+              color="rose"
             />
-            <Bar yAxisId="left" dataKey="revenue" fill="#22c55e" radius={[6, 6, 0, 0]} />
-            <Bar yAxisId="right" dataKey="jobs" fill="#bfdbfe" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </SectionCard>
-
-      {/* ── Middle Row ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Pie – customer segments */}
-        <SectionCard title="פילוח לקוחות לפי ערך">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={customerSegments}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={80}
-                paddingAngle={4}
-                dataKey="value"
-              >
-                {customerSegments.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(v, n) => [v + " לקוחות", n]}
-                contentStyle={CUSTOM_TOOLTIP_STYLE}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-2 justify-center mt-2">
-            {customerSegments.map((s) => (
-              <span
-                key={s.name}
-                className="flex items-center gap-1 text-xs text-slate-600"
-              >
-                <span
-                  className="inline-block w-2.5 h-2.5 rounded-full"
-                  style={{ background: s.color }}
-                />
-                {s.name} ({s.value})
-              </span>
-            ))}
           </div>
-        </SectionCard>
 
-        {/* Top 5 customers */}
-        <SectionCard title="לקוחות הכי רווחיים — Top 5">
-          <div className="space-y-2.5">
-            {topCustomers.map((c, i) => (
-              <div key={c.name} className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400 w-4">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-sm font-medium text-slate-700 truncate">{c.name}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGE[c.status]}`}
-                      >
-                        {STATUS_LABEL[c.status]}
-                      </span>
-                      <span className="text-xs font-semibold text-slate-600">
-                        {fmt(c.revenue)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${Math.min(100, (c.revenue / topCustomers[0].revenue) * 100)}%`,
-                        background:
-                          c.status === "vip"
-                            ? "#f59e0b"
-                            : c.status === "active"
-                            ? "#22c55e"
-                            : "#3b82f6",
-                      }}
-                    />
-                  </div>
-                </div>
+          {/* ── Revenue Trend ── */}
+          <SectionCard title="מגמת הכנסות — 12 חודשים אחרונים">
+            {revenueData.every((d) => !d.income && !d.expense) ? (
+              <div className="flex items-center justify-center h-[280px] text-slate-400 text-sm">
+                אין עסקאות להצגה — הוסף עסקאות בדף הפיננסים
               </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        {/* Seasonality */}
-        <SectionCard title="עונתיות — עומס חודשי">
-          <ResponsiveContainer width="100%" height={230}>
-            <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-              <PolarGrid stroke="#e2e8f0" />
-              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9, fill: "#cbd5e1" }} />
-              <Radar
-                name="עומס"
-                dataKey="A"
-                stroke="#22c55e"
-                fill="#22c55e"
-                fillOpacity={0.3}
-                strokeWidth={2}
-              />
-              <Tooltip
-                formatter={(v) => [v + "%", "עומס"]}
-                contentStyle={CUSTOM_TOOLTIP_STYLE}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
-        </SectionCard>
-      </div>
-
-      {/* Seasonality bar (monthly detail) */}
-      <SectionCard title="עומס חודשי מפורט — ינואר עד דצמבר">
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={seasonalityData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-            <YAxis domain={[0, 110]} tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => v + "%"} />
-            <Tooltip
-              formatter={(v) => [v + "%", "עומס יחסי"]}
-              contentStyle={CUSTOM_TOOLTIP_STYLE}
-            />
-            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-              {seasonalityData.map((entry, i) => (
-                <Cell
-                  key={i}
-                  fill={entry.value >= 90 ? "#16a34a" : entry.value >= 75 ? "#4ade80" : "#bbf7d0"}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </SectionCard>
-
-      {/* ── Bottom Section ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Geographic analysis */}
-        <SectionCard title="ניתוח גיאוגרפי — הכנסות לפי עיר">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-right pb-2 text-xs font-semibold text-slate-500 pr-1">
-                    <MapPin size={12} className="inline ml-1" />
-                    עיר
-                  </th>
-                  <th className="text-center pb-2 text-xs font-semibold text-slate-500">לקוחות</th>
-                  <th className="text-left pb-2 text-xs font-semibold text-slate-500">סה&quot;כ הכנסות</th>
-                  <th className="text-left pb-2 text-xs font-semibold text-slate-500">ממוצע חודשי</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {cityData
-                  .sort((a, b) => b.revenue - a.revenue)
-                  .map((row) => (
-                    <tr key={row.city} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 font-medium text-slate-700 pr-1">{row.city}</td>
-                      <td className="py-2 text-center text-slate-600">{row.customers}</td>
-                      <td className="py-2 text-slate-700 font-semibold">{fmt(row.revenue)}</td>
-                      <td className="py-2 text-slate-500">{fmt(row.avgMonthly)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
-
-        {/* Service revenue */}
-        <SectionCard title="שירותים רווחיים — הכנסות לפי סוג שירות">
-          <div className="space-y-3">
-            {serviceRevenue
-              .sort((a, b) => b.revenue - a.revenue)
-              .map((s) => (
-                <div key={s.name} className="flex items-center gap-3">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ background: s.color }}
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={revenueData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
+                  <Tooltip content={<RevenueTooltip />} />
+                  <Legend
+                    formatter={(value) => (value === "income" ? "הכנסות" : "הוצאות")}
+                    wrapperStyle={{ fontSize: 12, direction: "rtl" }}
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-0.5">
-                      <span className="text-sm text-slate-700">{s.name}</span>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>{s.jobs} משרות</span>
-                        <span className="font-semibold text-slate-700">{fmt(s.revenue)}</span>
-                      </div>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(100, (s.revenue / serviceRevenue[0].revenue) * 100)}%`,
-                          background: s.color,
-                        }}
-                      />
-                    </div>
+                  <Line type="monotone" dataKey="income" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 3 }} connectNulls={false} />
+                  <Line type="monotone" dataKey="expense" stroke="#f87171" strokeWidth={1.5} dot={{ r: 2 }} connectNulls={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+            {(chartTotals.totalIncome > 0 || chartTotals.totalExpense > 0) && (
+              <div className="mt-4 grid grid-cols-3 gap-3 border-t border-slate-50 pt-4">
+                {[
+                  { label: "סה״כ הכנסות", value: fmt(chartTotals.totalIncome), color: "text-green-600" },
+                  { label: "סה״כ הוצאות", value: fmt(chartTotals.totalExpense), color: "text-red-500" },
+                  { label: "רווח נקי", value: fmt(chartTotals.totalIncome - chartTotals.totalExpense), color: "text-blue-600" },
+                ].map((s) => (
+                  <div key={s.label} className="text-center">
+                    <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
                   </div>
-                </div>
-              ))}
-          </div>
-        </SectionCard>
-      </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
 
-      {/* ── Employee Performance Table ── */}
-      <SectionCard title="ביצועי עובדים — סיכום מלא">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-right pb-2 text-xs font-semibold text-slate-500 pr-1">שם</th>
-                <th className="text-right pb-2 text-xs font-semibold text-slate-500">תפקיד</th>
-                <th className="text-center pb-2 text-xs font-semibold text-slate-500">משרות</th>
-                <th className="text-center pb-2 text-xs font-semibold text-slate-500">דירוג</th>
-                <th className="text-left pb-2 text-xs font-semibold text-slate-500">הכנסות שנוצרו</th>
-                <th className="text-center pb-2 text-xs font-semibold text-slate-500">יעילות</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {employeePerformance
-                .sort((a, b) => b.revenue - a.revenue)
-                .map((emp) => (
-                  <tr key={emp.fullName} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 pr-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                          {emp.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2)}
-                        </div>
-                        <span className="font-medium text-slate-700">{emp.fullName}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-slate-500 text-xs">{emp.role}</td>
-                    <td className="py-2.5 text-center text-slate-600">{emp.jobs}</td>
-                    <td className="py-2.5 text-center">
-                      <span className="flex items-center justify-center gap-0.5 text-amber-500">
-                        <Star size={11} fill="currentColor" />
-                        <span className="text-slate-700 text-xs">{emp.rating}</span>
+          {/* ── Employee Comparison ── */}
+          {employeePerformance.length > 0 && (
+            <SectionCard title="השוואת עובדים — הכנסות ומשרות">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={employeePerformance} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}K`} />
+                  <YAxis yAxisId="right" orientation="left" hide />
+                  <Tooltip
+                    formatter={(value, name) =>
+                      name === "revenue" ? [fmt(value as number), "הכנסות"] : [value + " משרות", "משרות"]
+                    }
+                    contentStyle={CUSTOM_TOOLTIP_STYLE}
+                  />
+                  <Legend
+                    formatter={(v) => (v === "revenue" ? "הכנסות" : "משרות")}
+                    wrapperStyle={{ fontSize: 12 }}
+                  />
+                  <Bar yAxisId="left" dataKey="revenue" fill="#22c55e" radius={[6, 6, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="jobs" fill="#bfdbfe" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </SectionCard>
+          )}
+
+          {/* ── Middle Row ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Pie – customer segments */}
+            <SectionCard title="פילוח לקוחות לפי ערך">
+              {kpis.totalCustomers === 0 ? (
+                <div className="flex items-center justify-center h-[200px] text-slate-400 text-sm">אין לקוחות</div>
+              ) : (
+                <>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={customerSegments}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {customerSegments.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v, n) => [v + " לקוחות", n]}
+                        contentStyle={CUSTOM_TOOLTIP_STYLE}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap gap-2 justify-center mt-2">
+                    {customerSegments.map((s) => (
+                      <span key={s.name} className="flex items-center gap-1 text-xs text-slate-600">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: s.color }} />
+                        {s.name} ({s.value})
                       </span>
-                    </td>
-                    <td className="py-2.5 font-semibold text-slate-700">{fmt(emp.revenue)}</td>
-                    <td className="py-2.5 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
+                    ))}
+                  </div>
+                </>
+              )}
+            </SectionCard>
+
+            {/* Top 5 customers */}
+            <SectionCard title="לקוחות הכי רווחיים — Top 5">
+              {topCustomers.length === 0 ? (
+                <div className="flex items-center justify-center h-[150px] text-slate-400 text-sm">אין לקוחות</div>
+              ) : (
+                <div className="space-y-2.5">
+                  {topCustomers.map((c, i) => (
+                    <div key={c.name} className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-400 w-4">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-sm font-medium text-slate-700 truncate">{c.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGE[c.status] || "bg-gray-100 text-gray-600"}`}>
+                              {STATUS_LABEL[c.status] || c.status}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-600">{fmt(c.monthly)}<span className="text-slate-400 font-normal">/חודש</span></span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                           <div
                             className="h-full rounded-full"
                             style={{
-                              width: emp.efficiency + "%",
-                              background:
-                                emp.efficiency >= 90
-                                  ? "#22c55e"
-                                  : emp.efficiency >= 80
-                                  ? "#4ade80"
-                                  : "#fbbf24",
+                              width: `${topCustomers[0].monthly > 0 ? Math.min(100, (c.monthly / topCustomers[0].monthly) * 100) : 0}%`,
+                              background: c.status === "vip" ? "#f59e0b" : c.status === "active" ? "#22c55e" : "#3b82f6",
                             }}
                           />
                         </div>
-                        <span className="text-xs text-slate-500">{emp.efficiency}%</span>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
 
-      {/* ── AI Insights Panel ── */}
-      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-100 shadow-sm p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-2 bg-green-600 rounded-xl">
-            <Lightbulb size={16} className="text-white" />
+            {/* Seasonality radar */}
+            <SectionCard title="עונתיות — עומס חודשי (ענף)">
+              <ResponsiveContainer width="100%" height={230}>
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                  <PolarGrid stroke="#e2e8f0" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9, fill: "#cbd5e1" }} />
+                  <Radar name="עומס" dataKey="A" stroke="#22c55e" fill="#22c55e" fillOpacity={0.3} strokeWidth={2} />
+                  <Tooltip formatter={(v) => [v + "%", "עומס"]} contentStyle={CUSTOM_TOOLTIP_STYLE} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </SectionCard>
           </div>
-          <h3 className="text-base font-bold text-slate-800">תובנות AI</h3>
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium mr-auto">
-            מעודכן אוטומטית
-          </span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {aiInsights.map((insight, i) => (
-            <div
-              key={i}
-              className="bg-white/70 backdrop-blur-sm rounded-xl p-3.5 border border-green-100/60 flex gap-2.5"
-            >
-              <span className="text-green-600 mt-0.5 flex-shrink-0">💡</span>
-              <p className="text-sm text-slate-700 leading-relaxed">{insight}</p>
+
+          {/* Seasonality bar (monthly detail) */}
+          <SectionCard title="עומס חודשי מפורט — ינואר עד דצמבר (ענף)">
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={seasonalityData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                <YAxis domain={[0, 110]} tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => v + "%"} />
+                <Tooltip formatter={(v) => [v + "%", "עומס יחסי"]} contentStyle={CUSTOM_TOOLTIP_STYLE} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {seasonalityData.map((entry, i) => (
+                    <Cell key={i} fill={entry.value >= 90 ? "#16a34a" : entry.value >= 75 ? "#4ade80" : "#bbf7d0"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </SectionCard>
+
+          {/* ── Bottom Section ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Geographic analysis */}
+            <SectionCard title="ניתוח גיאוגרפי — הכנסות לפי עיר">
+              {cityData.length === 0 ? (
+                <div className="flex items-center justify-center h-[150px] text-slate-400 text-sm">
+                  הוסף עיר ללקוחות כדי לראות ניתוח גיאוגרפי
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="text-right pb-2 text-xs font-semibold text-slate-500 pr-1">
+                          <MapPin size={12} className="inline ml-1" />
+                          עיר
+                        </th>
+                        <th className="text-center pb-2 text-xs font-semibold text-slate-500">לקוחות</th>
+                        <th className="text-left pb-2 text-xs font-semibold text-slate-500">הכנסה שנתית</th>
+                        <th className="text-left pb-2 text-xs font-semibold text-slate-500">ממוצע חודשי</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {cityData.map((row) => (
+                        <tr key={row.city} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 font-medium text-slate-700 pr-1">{row.city}</td>
+                          <td className="py-2 text-center text-slate-600">{row.customers}</td>
+                          <td className="py-2 text-slate-700 font-semibold">{fmt(row.revenue)}</td>
+                          <td className="py-2 text-slate-500">{fmt(row.avgMonthly)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+
+            {/* Service revenue */}
+            <SectionCard title="שירותים רווחיים — הכנסות לפי סוג שירות">
+              {serviceRevenue.length === 0 ? (
+                <div className="flex items-center justify-center h-[150px] text-slate-400 text-sm">
+                  הוסף עבודות עם מחיר כדי לראות ניתוח שירותים
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {serviceRevenue.map((s) => (
+                    <div key={s.name} className="flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="text-sm text-slate-700">{s.name}</span>
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <span>{s.jobs} עבודות</span>
+                            <span className="font-semibold text-slate-700">{fmt(s.revenue)}</span>
+                          </div>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${serviceRevenue[0].revenue > 0 ? Math.min(100, (s.revenue / serviceRevenue[0].revenue) * 100) : 0}%`,
+                              background: s.color,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
+          </div>
+
+          {/* ── Employee Performance Table ── */}
+          {employeePerformance.length > 0 && (
+            <SectionCard title="ביצועי עובדים — סיכום מלא">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="text-right pb-2 text-xs font-semibold text-slate-500 pr-1">שם</th>
+                      <th className="text-right pb-2 text-xs font-semibold text-slate-500">תפקיד</th>
+                      <th className="text-center pb-2 text-xs font-semibold text-slate-500">משרות</th>
+                      <th className="text-center pb-2 text-xs font-semibold text-slate-500">דירוג</th>
+                      <th className="text-left pb-2 text-xs font-semibold text-slate-500">הכנסות שנוצרו</th>
+                      <th className="text-center pb-2 text-xs font-semibold text-slate-500">יעילות</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {[...employeePerformance]
+                      .sort((a, b) => b.revenue - a.revenue)
+                      .map((emp) => (
+                        <tr key={emp.fullName} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2.5 pr-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                {emp.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2)}
+                              </div>
+                              <span className="font-medium text-slate-700">{emp.fullName}</span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-slate-500 text-xs">{emp.role}</td>
+                          <td className="py-2.5 text-center text-slate-600">{emp.jobs}</td>
+                          <td className="py-2.5 text-center">
+                            <span className="flex items-center justify-center gap-0.5 text-amber-500">
+                              <Star size={11} fill="currentColor" />
+                              <span className="text-slate-700 text-xs">{emp.rating}</span>
+                            </span>
+                          </td>
+                          <td className="py-2.5 font-semibold text-slate-700">{emp.revenue > 0 ? fmt(emp.revenue) : "—"}</td>
+                          <td className="py-2.5 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: emp.efficiency + "%",
+                                    background:
+                                      emp.efficiency >= 90 ? "#22c55e" : emp.efficiency >= 80 ? "#4ade80" : "#fbbf24",
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs text-slate-500">{emp.efficiency}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
+
+          {/* ── AI Insights Panel ── */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border border-green-100 shadow-sm p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-green-600 rounded-xl">
+                <Lightbulb size={16} className="text-white" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">תובנות AI</h3>
+              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium mr-auto">
+                מבוסס על הנתונים שלך
+              </span>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {aiInsights.map((insight, i) => (
+                <div
+                  key={i}
+                  className="bg-white/70 backdrop-blur-sm rounded-xl p-3.5 border border-green-100/60 flex gap-2.5"
+                >
+                  <span className="text-green-600 mt-0.5 flex-shrink-0">💡</span>
+                  <p className="text-sm text-slate-700 leading-relaxed">{insight}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

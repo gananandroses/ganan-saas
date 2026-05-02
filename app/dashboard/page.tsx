@@ -280,6 +280,35 @@ function CustomBarTooltip({ active, payload, label }: { active?: boolean; payloa
 // Main Dashboard Page
 // ───────────────────────────────────────────────
 
+// ── City coords for weather ──────────────────────────────────────────────────
+const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
+  "תל אביב": { lat: 32.07, lon: 34.79 },
+  "רעננה": { lat: 32.18, lon: 34.87 },
+  "הרצליה": { lat: 32.16, lon: 34.84 },
+  "כפר סבא": { lat: 32.18, lon: 34.91 },
+  "פתח תקווה": { lat: 32.09, lon: 34.89 },
+  "נתניה": { lat: 32.33, lon: 34.86 },
+  "רמת גן": { lat: 32.08, lon: 34.82 },
+  "ירושלים": { lat: 31.77, lon: 35.21 },
+  "חיפה": { lat: 32.79, lon: 34.99 },
+  "באר שבע": { lat: 31.25, lon: 34.79 },
+  "אשדוד": { lat: 31.81, lon: 34.65 },
+  "ראשון לציון": { lat: 31.97, lon: 34.80 },
+  "חולון": { lat: 32.01, lon: 34.78 },
+  "הוד השרון": { lat: 32.15, lon: 34.89 },
+  "מודיעין": { lat: 31.89, lon: 35.01 },
+  "גבעתיים": { lat: 32.07, lon: 34.81 },
+};
+
+function getWeatherEmoji(code: number): string {
+  if (code === 0) return "☀️";
+  if (code <= 2) return "⛅";
+  if (code <= 9) return "🌤️";
+  if (code <= 49) return "🌧️";
+  if (code <= 69) return "🌧️";
+  return "⛈️";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState({ monthlyIncome: 0, activeCustomers: 0, openBalance: 0, todayJobs: 0, debtorsSub: "טוען..." });
@@ -290,6 +319,8 @@ export default function DashboardPage() {
   const [modal, setModal] = useState<ModalType>(null);
   const [modalData, setModalData] = useState<Record<string, unknown>>({});
   const [userName, setUserName] = useState("");
+  const [weather, setWeather] = useState<{ temp: number; humidity: number; icon: string; city: string } | null>(null);
+  const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
 
   useEffect(() => {
     async function load() {
@@ -299,22 +330,56 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const savedSettings = localStorage.getItem(`garden_settings_${user.id}`);
+        let userCity = "תל אביב";
         if (savedSettings) {
-          try { setUserName(JSON.parse(savedSettings).ownerName || ""); } catch {}
+          try {
+            const parsed = JSON.parse(savedSettings);
+            setUserName(parsed.ownerName || "");
+            if (parsed.city) userCity = parsed.city;
+          } catch {}
         }
         if (!userName) setUserName(user.user_metadata?.full_name || user.email?.split("@")[0] || "");
+
+        // Load weather
+        try {
+          const coords = CITY_COORDS[userCity] || CITY_COORDS["תל אביב"];
+          const wRes = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`
+          );
+          if (wRes.ok) {
+            const wJson = await wRes.json();
+            const curr = wJson.current;
+            setWeather({
+              temp: Math.round(curr.temperature_2m),
+              humidity: curr.relative_humidity_2m,
+              icon: getWeatherEmoji(curr.weather_code),
+              city: userCity,
+            });
+          }
+        } catch {
+          // weather unavailable — keep null
+        }
       }
-      const [custRes, txRes, jobsRes, txRes2] = await Promise.all([
+      const [custRes, txRes, jobsRes, txRes2, empRes, projRes] = await Promise.all([
         supabase.from("customers").select("id, status, monthly_price, balance, name, phone").eq("user_id", user?.id),
         supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income").eq("user_id", user?.id),
         supabase.from("jobs").select("*").eq("user_id", user?.id).gte("job_date", today).order("job_date").limit(50),
         supabase.from("transactions").select("type, amount, transaction_date").eq("user_id", user?.id),
+        supabase.from("employees").select("id, status").eq("user_id", user?.id),
+        supabase.from("projects").select("id, status").eq("user_id", user?.id),
       ]);
 
       const customers = custRes.data || [];
       const transactions = txRes.data || [];
       const jobs = jobsRes.data || [];
       const allTx = txRes2.data || [];
+      const employees = empRes.data || [];
+      const projects = projRes.data || [];
+
+      // Mini stats
+      const activeEmps = employees.filter((e: Record<string,unknown>) => e.status !== "offline").length;
+      const activeProjs = projects.filter((p: Record<string,unknown>) => p.status === "active").length;
+      setMiniStats({ activeEmployees: activeEmps, activeProjects: activeProjs });
 
       const monthlyIncome = transactions
         .filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth))
@@ -373,18 +438,28 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
             <p className="text-sm text-gray-500 mt-0.5">{hebrewDate()}</p>
           </div>
-          <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
-            <Sun className="text-yellow-400" size={22} />
-            <div>
-              <p className="text-base font-bold text-gray-800">22°C</p>
-              <p className="text-xs text-gray-500">רעננה ☀️</p>
+          {weather ? (
+            <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
+              <span className="text-2xl">{weather.icon}</span>
+              <div>
+                <p className="text-base font-bold text-gray-800">{weather.temp}°C</p>
+                <p className="text-xs text-gray-500">{weather.city}</p>
+              </div>
+              <div className="w-px h-8 bg-gray-100 mx-1" />
+              <div className="text-right">
+                <p className="text-xs text-gray-400">לחות</p>
+                <p className="text-xs font-semibold text-gray-600">{weather.humidity}%</p>
+              </div>
             </div>
-            <div className="w-px h-8 bg-gray-100 mx-1" />
-            <div className="text-right">
-              <p className="text-xs text-gray-400">לחות</p>
-              <p className="text-xs font-semibold text-gray-600">52%</p>
+          ) : (
+            <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
+              <Sun className="text-yellow-400" size={22} />
+              <div>
+                <p className="text-xs text-gray-400">מזג האוויר</p>
+                <p className="text-xs text-gray-500">הגדר עיר בהגדרות</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── KPI Cards ── */}
@@ -627,11 +702,11 @@ export default function DashboardPage() {
             {/* Mini stat */}
             <div className="mt-5 pt-4 border-t border-gray-50 grid grid-cols-2 gap-3">
               <div className="text-center">
-                <p className="text-lg font-bold text-gray-900">4</p>
+                <p className="text-lg font-bold text-gray-900">{miniStats.activeEmployees}</p>
                 <p className="text-xs text-gray-400">עובדים פעילים</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-gray-900">6</p>
+                <p className="text-lg font-bold text-gray-900">{miniStats.activeProjects}</p>
                 <p className="text-xs text-gray-400">פרויקטים שוטפים</p>
               </div>
             </div>
