@@ -285,6 +285,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
   const handleSubmit = async () => {
     if (!form.name || !form.unit) return;
     setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const finalCategory = form.category === "__other__" ? (customCategory || "אחר") : form.category;
     await supabase.from("inventory").insert({
       name: form.name,
@@ -295,6 +296,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
       price_per_unit: parseFloat(form.price_per_unit) || 0,
       supplier: form.supplier,
       last_used: new Date().toISOString().split("T")[0],
+      user_id: user?.id,
     });
     setSaving(false);
     onSaved();
@@ -583,6 +585,7 @@ export default function InventoryPage() {
   async function handleScheduleMaintenance() {
     if (!schedulingEquipment || !maintenanceDate) return;
     setSchedulingSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("jobs").insert({
       customer_name: "תחזוקה פנימית",
       type: `תחזוקת ציוד — ${schedulingEquipment.name}`,
@@ -591,6 +594,7 @@ export default function InventoryPage() {
       status: "pending",
       priority: "high",
       notes: `תחזוקה מתוכננת: ${schedulingEquipment.name}`,
+      user_id: user?.id,
     });
     setSchedulingSaving(false);
     setSchedulingEquipment(null);
@@ -600,9 +604,11 @@ export default function InventoryPage() {
 
   const fetchInventory = async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase
       .from("inventory")
       .select("*")
+      .eq("user_id", user?.id)
       .order("category");
 
     if (data) {

@@ -179,6 +179,7 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
   const handleSubmit = async () => {
     if (!form.customer_name || !form.amount) return;
     setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("transactions").insert({
       customer_name: form.customer_name,
       type: "income",
@@ -187,6 +188,7 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
       method: form.method,
       status: "pending",
       transaction_date: new Date().toISOString().split("T")[0],
+      user_id: user?.id,
     });
     setSaving(false);
     onSaved();
@@ -563,9 +565,11 @@ export default function FinancePage() {
 
   const fetchTransactions = async () => {
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
     const { data } = await supabase
       .from("transactions")
       .select("*")
+      .eq("user_id", user?.id)
       .order("transaction_date", { ascending: false });
 
     if (data) {
@@ -587,8 +591,10 @@ export default function FinancePage() {
 
   useEffect(() => {
     fetchTransactions();
-    supabase.from("customers").select("id, name, city, phone").order("name").then(({data}) => {
-      if (data) setDbCustomers(data.map(c => ({id: String(c.id), name: String(c.name), city: String(c.city||''), phone: String(c.phone||'')})));
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      supabase.from("customers").select("id, name, city, phone").eq("user_id", user?.id).order("name").then(({data}) => {
+        if (data) setDbCustomers(data.map(c => ({id: String(c.id), name: String(c.name), city: String(c.city||''), phone: String(c.phone||'')})));
+      });
     });
   }, []);
 

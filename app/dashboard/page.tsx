@@ -295,11 +295,12 @@ export default function DashboardPage() {
       const thisMonth = new Date().toISOString().slice(0, 7);
       const today = new Date().toISOString().split("T")[0];
 
+      const { data: { user } } = await supabase.auth.getUser();
       const [custRes, txRes, jobsRes, txRes2] = await Promise.all([
-        supabase.from("customers").select("id, status, monthly_price, balance, name, phone"),
-        supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income"),
-        supabase.from("jobs").select("*").gte("job_date", today).order("job_date").limit(50),
-        supabase.from("transactions").select("type, amount, transaction_date"),
+        supabase.from("customers").select("id, status, monthly_price, balance, name, phone").eq("user_id", user?.id),
+        supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income").eq("user_id", user?.id),
+        supabase.from("jobs").select("*").eq("user_id", user?.id).gte("job_date", today).order("job_date").limit(50),
+        supabase.from("transactions").select("type, amount, transaction_date").eq("user_id", user?.id),
       ]);
 
       const customers = custRes.data || [];

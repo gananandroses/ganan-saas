@@ -831,7 +831,8 @@ export default function CustomersPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false });
       if (!error && data) {
         // Map snake_case DB fields to camelCase
         setCustomers(data.map((c: Record<string, unknown>) => ({
@@ -926,6 +927,7 @@ export default function CustomersPage() {
     setSaving(true);
     setSaveError("");
 
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("customers").insert([{
       name: newCustomer.name,
       city: newCustomer.city,
@@ -940,6 +942,7 @@ export default function CustomersPage() {
       balance: 0,
       total_paid: 0,
       join_date: new Date().toISOString().split("T")[0],
+      user_id: user?.id,
     }]);
 
     if (error) {
@@ -949,7 +952,7 @@ export default function CustomersPage() {
     }
 
     // reload full list
-    const { data: fresh } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+    const { data: fresh } = await supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false });
     if (fresh) {
       setCustomers(fresh.map((c: Record<string, unknown>) => ({
         id: c.id as string,
@@ -1024,9 +1027,10 @@ export default function CustomersPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
+              onClick={async () => {
                 setLoading(true);
-                supabase.from("customers").select("*").order("created_at", { ascending: false }).then(({ data }) => {
+                const { data: { user } } = await supabase.auth.getUser();
+                supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false }).then(({ data }) => {
                   if (data) setCustomers(data.map((c: Record<string, unknown>) => ({
                     id: c.id as string, name: c.name as string, city: c.city as string || "",
                     address: c.address as string || "", phone: c.phone as string || "",

@@ -212,6 +212,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
     if (!form.customer_name.trim()) { setError("שם לקוח חובה"); return; }
     setSaving(true);
     setError(null);
+    const { data: { user } } = await supabase.auth.getUser();
     const { error: dbError } = await supabase.from("jobs").insert({
       customer_name: form.customer_name.trim(),
       address: form.address.trim() || null,
@@ -224,11 +225,12 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       notes: form.notes.trim() || null,
       status: "pending",
       assigned_to: [],
+      user_id: user?.id,
     });
     if (dbError) { setError("שגיאה: " + dbError.message); setSaving(false); return; }
 
     // reload
-    const { data: fresh } = await supabase.from("jobs").select("*").order("job_date").order("job_time");
+    const { data: fresh } = await supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time");
     if (fresh && fresh.length > 0) {
       const last = fresh[fresh.length - 1];
       onCreated({
@@ -412,7 +414,8 @@ export default function SchedulePage() {
 
   async function fetchJobs() {
     setLoading(true);
-    const { data } = await supabase.from("jobs").select("*").order("job_date").order("job_time");
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time");
     if (data) {
       setJobs(data.map(row => ({
         id: row.id, customerId: row.customer_id ?? null,

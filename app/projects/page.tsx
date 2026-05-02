@@ -390,6 +390,7 @@ function ProjectFormModal({
     if (!form.name.trim()) { setError("שם הפרויקט חובה"); return; }
     setSaving(true);
     setError("");
+    const { data: { user } } = await supabase.auth.getUser();
 
     const payload = {
       name: form.name.trim(),
@@ -417,7 +418,7 @@ function ProjectFormModal({
       dbError = res.error;
       data = res.data;
     } else {
-      const res = await supabase.from("projects").insert(payload).select().single();
+      const res = await supabase.from("projects").insert({ ...payload, user_id: user?.id }).select().single();
       dbError = res.error;
       data = res.data;
     }
@@ -903,7 +904,8 @@ export default function ProjectsPage() {
 
   async function fetchProjects() {
     setLoading(true);
-    const { data } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase.from("projects").select("*").eq("user_id", user?.id).order("created_at", { ascending: false });
     if (data) setProjects(data.map(mapProject));
     setLoading(false);
   }
