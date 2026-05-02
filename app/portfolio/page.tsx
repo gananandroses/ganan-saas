@@ -39,22 +39,12 @@ export default function PortfolioPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  // Set user-scoped prefix once user is known
+  // Set user-scoped prefix once user is known — ALWAYS scoped, never shared
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) setPrefix(`portfolio/${data.user.id}`);
     });
   }, []);
-
-  // Resolve the actual storage prefix — user-scoped first, legacy "portfolio/" fallback
-  async function resolveActivePrefix(userPrefix: string): Promise<string> {
-    const { data } = await supabase.storage.from(BUCKET).list(userPrefix, { limit: 1 });
-    if (data && data.length > 0) return userPrefix;
-    // Check legacy root "portfolio/" path
-    const { data: legacy } = await supabase.storage.from(BUCKET).list("portfolio", { limit: 1 });
-    if (legacy && legacy.length > 0) return "portfolio";
-    return userPrefix; // default to scoped even if empty
-  }
 
   async function fetchContents() {
     if (!prefix) return;
@@ -62,21 +52,18 @@ export default function PortfolioPage() {
     setImages([]);
     setFolders([]);
 
-    // Use legacy path transparently if new scoped path is still empty
-    const activePrefix = await resolveActivePrefix(prefix);
-
     if (currentFolder === null) {
-      const { data } = await supabase.storage.from(BUCKET).list(activePrefix, { sortBy: { column: "name", order: "asc" } });
+      const { data } = await supabase.storage.from(BUCKET).list(prefix, { sortBy: { column: "name", order: "asc" } });
       if (data) {
         const folderItems = data.filter(f => f.id === null);
         const foldersWithMeta = await Promise.all(
           folderItems.map(async (folder) => {
-            const { data: files } = await supabase.storage.from(BUCKET).list(`${activePrefix}/${folder.name}`, { sortBy: { column: "created_at", order: "asc" } });
+            const { data: files } = await supabase.storage.from(BUCKET).list(`${prefix}/${folder.name}`, { sortBy: { column: "created_at", order: "asc" } });
             const realFiles = (files || []).filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
             const count = realFiles.length;
             const coverFile = realFiles.find(f => !isVideo(f.name)) || realFiles[0];
             const coverUrl = coverFile
-              ? supabase.storage.from(BUCKET).getPublicUrl(`${activePrefix}/${folder.name}/${coverFile.name}`).data.publicUrl
+              ? supabase.storage.from(BUCKET).getPublicUrl(`${prefix}/${folder.name}/${coverFile.name}`).data.publicUrl
               : null;
             return { name: folder.name, imageCount: count, coverUrl };
           })
@@ -84,12 +71,12 @@ export default function PortfolioPage() {
         setFolders(foldersWithMeta);
       }
     } else {
-      const { data } = await supabase.storage.from(BUCKET).list(`${activePrefix}/${currentFolder}`, { sortBy: { column: "created_at", order: "asc" } });
+      const { data } = await supabase.storage.from(BUCKET).list(`${prefix}/${currentFolder}`, { sortBy: { column: "created_at", order: "asc" } });
       if (data) {
         const files = data.filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
         setImages(files.map(f => ({
           name: f.name,
-          url: supabase.storage.from(BUCKET).getPublicUrl(`${activePrefix}/${currentFolder}/${f.name}`).data.publicUrl,
+          url: supabase.storage.from(BUCKET).getPublicUrl(`${prefix}/${currentFolder}/${f.name}`).data.publicUrl,
           isVideo: isVideo(f.name),
         })));
       }
