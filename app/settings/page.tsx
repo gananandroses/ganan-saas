@@ -10,9 +10,10 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
   const [form, setForm] = useState({
-    businessName: "גנן Pro",
-    ownerName: "אריאל חסין",
+    businessName: "",
+    ownerName: "",
     phone: "",
     email: "",
     city: "",
@@ -24,16 +25,26 @@ export default function SettingsPage() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
+        const uid = data.user.id;
+        setUserId(uid);
         setUserEmail(data.user.email ?? "");
-        setForm(f => ({ ...f, email: data.user!.email ?? "" }));
+        // Load settings scoped to this user
+        const saved = localStorage.getItem(`garden_settings_${uid}`);
+        if (saved) {
+          try {
+            setForm(f => ({ ...f, ...JSON.parse(saved), email: data.user!.email ?? "" }));
+          } catch {}
+        } else {
+          setForm(f => ({ ...f, email: data.user!.email ?? "" }));
+        }
       }
     });
   }, []);
 
   async function handleSave() {
     setSaving(true);
-    // Save to localStorage for now (can be expanded to a settings table)
-    localStorage.setItem("garden_settings", JSON.stringify(form));
+    // Save to localStorage scoped by user_id
+    localStorage.setItem(`garden_settings_${userId}`, JSON.stringify(form));
     await new Promise(r => setTimeout(r, 600));
     setSaving(false);
     setSaved(true);

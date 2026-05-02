@@ -13,7 +13,6 @@ function isVideo(name: string) {
 }
 
 const BUCKET = "project-images";
-const PREFIX = "portfolio";
 
 interface FolderItem {
   name: string;
@@ -36,26 +35,35 @@ export default function PortfolioPage() {
   const [search, setSearch] = useState("");
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [prefix, setPrefix] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // Set user-scoped prefix once user is known
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setPrefix(`portfolio/${data.user.id}`);
+    });
+  }, []);
+
   async function fetchContents() {
+    if (!prefix) return;
     setLoading(true);
     setImages([]);
     setFolders([]);
 
     if (currentFolder === null) {
-      const { data } = await supabase.storage.from(BUCKET).list(PREFIX, { sortBy: { column: "name", order: "asc" } });
+      const { data } = await supabase.storage.from(BUCKET).list(prefix, { sortBy: { column: "name", order: "asc" } });
       if (data) {
         const folderItems = data.filter(f => f.id === null);
         const foldersWithMeta = await Promise.all(
           folderItems.map(async (folder) => {
-            const { data: files } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${folder.name}`, { sortBy: { column: "created_at", order: "asc" } });
+            const { data: files } = await supabase.storage.from(BUCKET).list(`${prefix}/${folder.name}`, { sortBy: { column: "created_at", order: "asc" } });
             const realFiles = (files || []).filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
             const count = realFiles.length;
             const coverFile = realFiles.find(f => !isVideo(f.name)) || realFiles[0];
             const coverUrl = coverFile
-              ? supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${folder.name}/${coverFile.name}`).data.publicUrl
+              ? supabase.storage.from(BUCKET).getPublicUrl(`${prefix}/${folder.name}/${coverFile.name}`).data.publicUrl
               : null;
             return { name: folder.name, imageCount: count, coverUrl };
           })
@@ -63,12 +71,12 @@ export default function PortfolioPage() {
         setFolders(foldersWithMeta);
       }
     } else {
-      const { data } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${currentFolder}`, { sortBy: { column: "created_at", order: "asc" } });
+      const { data } = await supabase.storage.from(BUCKET).list(`${prefix}/${currentFolder}`, { sortBy: { column: "created_at", order: "asc" } });
       if (data) {
         const files = data.filter(f => f.id !== null && f.name !== ".emptyFolderPlaceholder");
         setImages(files.map(f => ({
           name: f.name,
-          url: supabase.storage.from(BUCKET).getPublicUrl(`${PREFIX}/${currentFolder}/${f.name}`).data.publicUrl,
+          url: supabase.storage.from(BUCKET).getPublicUrl(`${prefix}/${currentFolder}/${f.name}`).data.publicUrl,
           isVideo: isVideo(f.name),
         })));
       }
@@ -76,14 +84,14 @@ export default function PortfolioPage() {
     setLoading(false);
   }
 
-  useEffect(() => { fetchContents(); }, [currentFolder]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchContents(); }, [currentFolder, prefix]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function createFolder() {
     if (!newFolderName.trim()) return;
     setCreatingFolder(true);
     const placeholder = new Blob([""], { type: "text/plain" });
     await supabase.storage.from(BUCKET).upload(
-      `${PREFIX}/${newFolderName.trim()}/.emptyFolderPlaceholder`,
+      `${prefix}/${newFolderName.trim()}/.emptyFolderPlaceholder`,
       placeholder,
       { upsert: true }
     );
@@ -102,7 +110,7 @@ export default function PortfolioPage() {
     for (const file of files) {
       const ext = file.name.split(".").pop() || "jpg";
       const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(`${PREFIX}/${currentFolder}/${filename}`, file, { upsert: false });
+      const { error } = await supabase.storage.from(BUCKET).upload(`${prefix}/${currentFolder}/${filename}`, file, { upsert: false });
       if (error) {
         setUploadError("❌ שגיאה: " + error.message);
         setUploading(false);
@@ -117,7 +125,7 @@ export default function PortfolioPage() {
 
   async function handleDelete(img: { name: string }) {
     setDeleting(img.name);
-    await supabase.storage.from(BUCKET).remove([`${PREFIX}/${currentFolder}/${img.name}`]);
+    await supabase.storage.from(BUCKET).remove([`${prefix}/${currentFolder}/${img.name}`]);
     setImages(prev => prev.filter(i => i.name !== img.name));
     if (lightbox !== null) setLightbox(null);
     setDeleting(null);
@@ -125,9 +133,9 @@ export default function PortfolioPage() {
 
   async function deleteFolder(folderName: string) {
     // List and delete all files in folder
-    const { data: files } = await supabase.storage.from(BUCKET).list(`${PREFIX}/${folderName}`);
+    const { data: files } = await supabase.storage.from(BUCKET).list(`${prefix}/${folderName}`);
     if (files && files.length > 0) {
-      await supabase.storage.from(BUCKET).remove(files.map(f => `${PREFIX}/${folderName}/${f.name}`));
+      await supabase.storage.from(BUCKET).remove(files.map(f => `${prefix}/${folderName}/${f.name}`));
     }
     await fetchContents();
   }

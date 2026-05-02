@@ -947,25 +947,27 @@ export default function PricerPage() {
           }
         }
       } catch {}
-      // Fallback: load from localStorage (migration path)
+      // Fallback: load from localStorage (migration path, scoped to user)
       try {
-        const ci = localStorage.getItem("pricer_custom_items");    if (ci)  setCustomItems(JSON.parse(ci));
-        const cc = localStorage.getItem("pricer_custom_categories");if (cc) setCustomCategories(JSON.parse(cc));
-        const p  = localStorage.getItem("pricer_override_prices"); if (p)  setOverridePrices(JSON.parse(p));
-        const u  = localStorage.getItem("pricer_override_units");  if (u)  setOverrideUnits(JSON.parse(u));
-        const nn = localStorage.getItem("pricer_override_names");  if (nn) setOverrideNames(JSON.parse(nn));
-        const cn = localStorage.getItem("pricer_override_cat_names"); if (cn) setOverrideCatNames(JSON.parse(cn));
-        const ic = localStorage.getItem("pricer_override_item_cats"); if (ic) setOverrideItemCats(JSON.parse(ic));
-        const v  = localStorage.getItem("pricer_vat_items");       if (v)  setVatItems(JSON.parse(v));
-        const dr = localStorage.getItem("pricer_drafts");          if (dr) setDrafts(JSON.parse(dr));
+        const uid = (await supabase.auth.getUser()).data.user?.id ?? "guest";
+        const lsKey = (k: string) => `${uid}_${k}`;
+        const ci = localStorage.getItem(lsKey("pricer_custom_items"));    if (ci)  setCustomItems(JSON.parse(ci));
+        const cc = localStorage.getItem(lsKey("pricer_custom_categories"));if (cc) setCustomCategories(JSON.parse(cc));
+        const p  = localStorage.getItem(lsKey("pricer_override_prices")); if (p)  setOverridePrices(JSON.parse(p));
+        const u  = localStorage.getItem(lsKey("pricer_override_units"));  if (u)  setOverrideUnits(JSON.parse(u));
+        const nn = localStorage.getItem(lsKey("pricer_override_names"));  if (nn) setOverrideNames(JSON.parse(nn));
+        const cn = localStorage.getItem(lsKey("pricer_override_cat_names")); if (cn) setOverrideCatNames(JSON.parse(cn));
+        const ic = localStorage.getItem(lsKey("pricer_override_item_cats")); if (ic) setOverrideItemCats(JSON.parse(ic));
+        const v  = localStorage.getItem(lsKey("pricer_vat_items"));       if (v)  setVatItems(JSON.parse(v));
+        const dr = localStorage.getItem(lsKey("pricer_drafts"));          if (dr) setDrafts(JSON.parse(dr));
         const di = [...new Set([
-          ...JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]"),
-          ...JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]"),
+          ...JSON.parse(localStorage.getItem(lsKey("pricer_hidden_items")) ?? "[]"),
+          ...JSON.parse(localStorage.getItem(lsKey("pricer_deleted_items")) ?? "[]"),
         ])];
         if (di.length) setDeletedItems(di);
         const dc = [...new Set([
-          ...JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]"),
-          ...JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]"),
+          ...JSON.parse(localStorage.getItem(lsKey("pricer_hidden_categories")) ?? "[]"),
+          ...JSON.parse(localStorage.getItem(lsKey("pricer_deleted_categories")) ?? "[]"),
         ])];
         if (dc.length) setDeletedCategories(dc);
 
@@ -993,10 +995,12 @@ export default function PricerPage() {
       } catch {}
       // Check if localStorage has data worth recovering (show recovery banner)
       try {
+        const uid2 = (await supabase.auth.getUser()).data.user?.id ?? "guest";
+        const lsKey2 = (k: string) => `${uid2}_${k}`;
         const hasLocal =
-          !!localStorage.getItem("pricer_custom_items") ||
-          !!localStorage.getItem("pricer_override_prices") ||
-          !!localStorage.getItem("pricer_custom_categories");
+          !!localStorage.getItem(lsKey2("pricer_custom_items")) ||
+          !!localStorage.getItem(lsKey2("pricer_override_prices")) ||
+          !!localStorage.getItem(lsKey2("pricer_custom_categories"));
         if (hasLocal) setShowRecovery(true);
       } catch {}
       settingsLoaded.current = true;
@@ -1009,22 +1013,25 @@ export default function PricerPage() {
   async function forceRecoverFromLocalStorage() {
     setShowRecovery(false);
     try {
-      const ci = localStorage.getItem("pricer_custom_items");
-      const cc = localStorage.getItem("pricer_custom_categories");
-      const p  = localStorage.getItem("pricer_override_prices");
-      const u  = localStorage.getItem("pricer_override_units");
-      const nn = localStorage.getItem("pricer_override_names");
-      const cn = localStorage.getItem("pricer_override_cat_names");
-      const ic = localStorage.getItem("pricer_override_item_cats");
-      const v  = localStorage.getItem("pricer_vat_items");
-      const dr = localStorage.getItem("pricer_drafts");
+      const { data: { user: recUser } } = await supabase.auth.getUser();
+      const uid = recUser?.id ?? "guest";
+      const lsKey = (k: string) => `${uid}_${k}`;
+      const ci = localStorage.getItem(lsKey("pricer_custom_items"));
+      const cc = localStorage.getItem(lsKey("pricer_custom_categories"));
+      const p  = localStorage.getItem(lsKey("pricer_override_prices"));
+      const u  = localStorage.getItem(lsKey("pricer_override_units"));
+      const nn = localStorage.getItem(lsKey("pricer_override_names"));
+      const cn = localStorage.getItem(lsKey("pricer_override_cat_names"));
+      const ic = localStorage.getItem(lsKey("pricer_override_item_cats"));
+      const v  = localStorage.getItem(lsKey("pricer_vat_items"));
+      const dr = localStorage.getItem(lsKey("pricer_drafts"));
       const di = [...new Set([
-        ...JSON.parse(localStorage.getItem("pricer_hidden_items") ?? "[]"),
-        ...JSON.parse(localStorage.getItem("pricer_deleted_items") ?? "[]"),
+        ...JSON.parse(localStorage.getItem(lsKey("pricer_hidden_items")) ?? "[]"),
+        ...JSON.parse(localStorage.getItem(lsKey("pricer_deleted_items")) ?? "[]"),
       ])];
       const dc = [...new Set([
-        ...JSON.parse(localStorage.getItem("pricer_hidden_categories") ?? "[]"),
-        ...JSON.parse(localStorage.getItem("pricer_deleted_categories") ?? "[]"),
+        ...JSON.parse(localStorage.getItem(lsKey("pricer_hidden_categories")) ?? "[]"),
+        ...JSON.parse(localStorage.getItem(lsKey("pricer_deleted_categories")) ?? "[]"),
       ])];
       if (ci)  setCustomItems(JSON.parse(ci));
       if (cc)  setCustomCategories(JSON.parse(cc));
