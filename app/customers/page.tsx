@@ -133,14 +133,15 @@ function StatCard({ title, value, icon, accent, sub, onClick }: StatCardProps) {
 
 // ===== STAT DETAIL MODAL =====
 
-type StatModal = "total" | "vip" | "revenue" | "vat" | null;
+type StatModal = "total" | "vip" | "revenue" | "gross" | "vat" | null;
 
 function StatDetailModal({
-  type, customers, monthlyRevenue, monthlyVat, onClose,
+  type, customers, monthlyRevenueNet, monthlyRevenueGross, monthlyVat, onClose,
 }: {
   type: StatModal;
   customers: Customer[];
-  monthlyRevenue: number;
+  monthlyRevenueNet: number;
+  monthlyRevenueGross: number;
   monthlyVat: number;
   onClose: () => void;
 }) {
@@ -152,7 +153,8 @@ function StatDetailModal({
   const titles: Record<NonNullable<StatModal>, string> = {
     total:   `כל הלקוחות (${customers.length})`,
     vip:     `לקוחות VIP (${vipCustomers.length})`,
-    revenue: "הכנסה חודשית מפורטת",
+    revenue: 'הכנסה חודשית לפני מע"מ',
+    gross:   'הכנסה חודשית כולל מע"מ',
     vat:     'החזרי מע"מ חודשיים',
   };
 
@@ -160,17 +162,18 @@ function StatDetailModal({
     total:   customers,
     vip:     vipCustomers,
     revenue: activeCustomers,
+    gross:   activeCustomers,
     vat:     activeCustomers,
   }[type];
+
+  const summaryValue = type === "revenue" ? monthlyRevenueNet : type === "gross" ? monthlyRevenueGross : monthlyVat;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "85dvh" }} dir="rtl">
-        {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-base font-bold text-gray-900">{titles[type]}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
@@ -178,24 +181,22 @@ function StatDetailModal({
           </button>
         </div>
 
-        {/* Summary row */}
-        {(type === "revenue" || type === "vat") && (
+        {(type === "revenue" || type === "gross" || type === "vat") && (
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex justify-between text-sm">
-            <span className="text-gray-500">{type === "revenue" ? "סה״כ חודשי" : 'סה״כ מע"מ'}</span>
-            <span className="font-bold text-green-700">
-              ₪{(type === "revenue" ? monthlyRevenue : monthlyVat).toLocaleString()}
-            </span>
+            <span className="text-gray-500">סה״כ חודשי</span>
+            <span className="font-bold text-green-700">₪{summaryValue.toLocaleString()}</span>
           </div>
         )}
 
-        {/* List */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {listForType.length === 0 && (
             <p className="text-center text-gray-400 py-10 text-sm">אין לקוחות להציג</p>
           )}
           {listForType.map(c => {
-            const perMonth = c.monthlyPrice * frequencyMultiplier(c.frequency);
-            const vatPerMonth = Math.round(perMonth / 1.18 * 0.18);
+            const perMonthGross = c.monthlyPrice * frequencyMultiplier(c.frequency);
+            const perMonthNet   = Math.round(perMonthGross / 1.18);
+            const vatPerMonth   = Math.round(perMonthGross / 1.18 * 0.18);
+            const priceNet      = Math.round(c.monthlyPrice / 1.18);
             return (
               <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
                 <div>
@@ -203,14 +204,11 @@ function StatDetailModal({
                   <p className="text-xs text-gray-400">{c.city} · {c.frequency}</p>
                 </div>
                 <div className="text-right">
-                  {type === "vat" && (
-                    <p className="text-sm font-bold text-purple-600">₪{vatPerMonth.toLocaleString()}</p>
-                  )}
-                  {type === "revenue" && (
-                    <p className="text-sm font-bold text-green-700">₪{perMonth.toLocaleString()}</p>
-                  )}
+                  {type === "vat" && <p className="text-sm font-bold text-purple-600">₪{vatPerMonth.toLocaleString()}</p>}
+                  {type === "revenue" && <p className="text-sm font-bold text-blue-700">₪{perMonthNet.toLocaleString()}</p>}
+                  {type === "gross" && <p className="text-sm font-bold text-green-700">₪{perMonthGross.toLocaleString()}</p>}
                   {(type === "total" || type === "vip") && (
-                    <p className="text-sm font-bold text-gray-700">₪{c.monthlyPrice.toLocaleString()}/ביקור</p>
+                    <p className="text-sm font-bold text-gray-700">₪{priceNet.toLocaleString()} + מע״מ</p>
                   )}
                   {c.status === "vip" && <p className="text-xs text-yellow-500 font-semibold">★ VIP</p>}
                 </div>
@@ -279,9 +277,11 @@ function CustomerCard({ customer, onClick }: CustomerCardProps) {
 
       {/* Price & Frequency */}
       <div className="flex items-center justify-between mb-3">
-        <div className="text-green-700 font-bold text-lg">
-          {formatCurrency(customer.monthlyPrice)}
-          <span className="text-xs text-gray-400 font-normal mr-1">/חודש</span>
+        <div>
+          <span className="text-green-700 font-bold text-lg">
+            {formatCurrency(Math.round(customer.monthlyPrice / 1.18))}
+          </span>
+          <span className="text-xs text-gray-400 font-normal mr-1">+ מע״מ</span>
         </div>
         <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
           {customer.frequency}
@@ -636,9 +636,9 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
               </span>
             </div>
             <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-bold">{formatCurrency(customer.monthlyPrice)}</p>
-              <p className="text-green-100 text-xs">לחודש</p>
-              <p className="text-green-100 text-xs mt-1">{customer.frequency}</p>
+              <p className="text-2xl font-bold">{formatCurrency(Math.round(customer.monthlyPrice / 1.18))}</p>
+              <p className="text-green-100 text-xs">+ מע״מ · {customer.frequency}</p>
+              <p className="text-green-200 text-xs mt-0.5">כולל מע״מ: {formatCurrency(customer.monthlyPrice)}</p>
             </div>
           </div>
           <div className="flex gap-2 mt-4">
@@ -1095,11 +1095,11 @@ export default function CustomersPage() {
   // Stats
   const totalCustomers = customers.length;
   const vipCount = customers.filter((c) => c.status === "vip").length;
-  const monthlyRevenue = customers
+  const monthlyRevenueGross = Math.round(customers
     .filter((c) => c.status !== "inactive")
-    .reduce((sum, c) => sum + c.monthlyPrice * frequencyMultiplier(c.frequency), 0);
-  // VAT = 18% of the net price (price / 1.18 * 0.18 extracts VAT from a VAT-inclusive price)
-  const monthlyVat = Math.round(monthlyRevenue / 1.18 * 0.18);
+    .reduce((sum, c) => sum + c.monthlyPrice * frequencyMultiplier(c.frequency), 0));
+  const monthlyRevenueNet = Math.round(monthlyRevenueGross / 1.18);
+  const monthlyVat = monthlyRevenueGross - monthlyRevenueNet;
   const [statModal, setStatModal] = useState<StatModal>(null);
   const avgClose = customers.length ? Math.round(
     customers.reduce((sum, c) => {
@@ -1263,7 +1263,7 @@ export default function CustomersPage() {
         </div>
 
         {/* ===== STATS ROW ===== */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <StatCard
             title='סה"כ לקוחות'
             value={String(totalCustomers)}
@@ -1281,12 +1281,20 @@ export default function CustomersPage() {
             onClick={() => setStatModal("vip")}
           />
           <StatCard
-            title="הכנסה חודשית"
-            value={formatCurrency(monthlyRevenue)}
+            title='הכנסה לפני מע"מ'
+            value={formatCurrency(monthlyRevenueNet)}
             icon={<TrendingUp size={22} className="text-blue-600" />}
             accent="bg-blue-100"
-            sub="לחץ לפירוט לקוח"
+            sub="לחץ לפירוט"
             onClick={() => setStatModal("revenue")}
+          />
+          <StatCard
+            title='הכנסה כולל מע"מ'
+            value={formatCurrency(monthlyRevenueGross)}
+            icon={<DollarSign size={22} className="text-green-600" />}
+            accent="bg-green-50"
+            sub="לחץ לפירוט"
+            onClick={() => setStatModal("gross")}
           />
           <StatCard
             title='החזרי מע"מ'
@@ -1301,7 +1309,8 @@ export default function CustomersPage() {
         <StatDetailModal
           type={statModal}
           customers={customers}
-          monthlyRevenue={monthlyRevenue}
+          monthlyRevenueNet={monthlyRevenueNet}
+          monthlyRevenueGross={monthlyRevenueGross}
           monthlyVat={monthlyVat}
           onClose={() => setStatModal(null)}
         />
