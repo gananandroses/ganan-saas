@@ -562,6 +562,11 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                     <p className="text-sm font-semibold text-green-700 mt-0.5">
                       {formatCurrency(customer.monthlyPrice)}
                     </p>
+                    {customer.monthlyPrice > 0 && (
+                      <p className="text-xs text-purple-500 mt-0.5">
+                        מע״מ: ₪{Math.round(customer.monthlyPrice / 1.18 * 0.18).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3">
                     <p className="text-xs text-gray-400">ביקור אחרון</p>

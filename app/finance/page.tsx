@@ -48,6 +48,7 @@ interface Transaction {
   customerName: string;
   type: "income" | "expense";
   amount: number;
+  vatAmount: number;
   description: string;
   status: PaymentStatus;
   method: "cash" | "credit" | "bit" | "transfer";
@@ -170,12 +171,17 @@ interface NewTransactionModalProps {
 
 function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
   const [saving, setSaving] = useState(false);
+  const [vatType, setVatType] = useState<"include" | "before">("include");
   const [form, setForm] = useState({
     customer_name: "",
     amount: "",
     description: "",
     method: "cash" as "cash" | "credit" | "bit" | "transfer",
   });
+
+  const rawAmount = parseFloat(form.amount) || 0;
+  const vatAmount  = vatType === "before" ? Math.round(rawAmount * 0.18) : Math.round(rawAmount / 1.18 * 0.18);
+  const totalAmount = vatType === "before" ? Math.round(rawAmount * 1.18) : rawAmount;
 
   const handleSubmit = async () => {
     if (!form.customer_name || !form.amount) return;
@@ -184,7 +190,8 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
     await supabase.from("transactions").insert({
       customer_name: form.customer_name,
       type: "income",
-      amount: parseFloat(form.amount),
+      amount: totalAmount,
+      vat_amount: vatAmount,
       description: form.description,
       method: form.method,
       status: "pending",
@@ -235,6 +242,23 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
             />
+            {/* VAT toggle */}
+            <div className="flex gap-1 mt-2">
+              <button type="button" onClick={() => setVatType("include")}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${vatType === "include" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                כולל מע״מ
+              </button>
+              <button type="button" onClick={() => setVatType("before")}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${vatType === "before" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                לפני מע״מ
+              </button>
+            </div>
+            {rawAmount > 0 && (
+              <div className="mt-2 bg-blue-50 rounded-xl px-3 py-2 flex justify-between text-xs">
+                <span className="text-blue-600 font-medium">מע״מ (18%): ₪{vatAmount.toLocaleString()}</span>
+                <span className="text-blue-700 font-bold">סה״כ: ₪{totalAmount.toLocaleString()}</span>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">תיאור</label>
@@ -589,6 +613,7 @@ export default function FinancePage() {
         customerName: row.customer_name ?? "",
         type: row.type as "income" | "expense",
         amount: Number(row.amount),
+        vatAmount: Number(row.vat_amount ?? 0),
         description: row.description ?? "",
         status: (row.status as PaymentStatus) ?? "pending",
         method: (row.method as "cash" | "credit" | "bit" | "transfer") ?? "cash",
@@ -651,6 +676,7 @@ export default function FinancePage() {
   const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const netProfit = totalIncome - totalExpense;
+  const totalVat = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.vatAmount, 0);
   const openDebt = transactions
     .filter((t) => t.type === "income" && (t.status === "pending" || t.status === "overdue"))
     .reduce((s, t) => s + t.amount, 0);
@@ -873,6 +899,25 @@ export default function FinancePage() {
             onClick={alerts.length > 0 ? () => setShowDebtModal(true) : undefined}
           />
         </div>
+
+        {/* ── VAT Summary ── */}
+        {totalVat > 0 && (
+          <div className="bg-gradient-to-l from-purple-50 to-indigo-50 border border-purple-100 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                <FileText size={18} className="text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-purple-800">מע״מ שנגבה — לתשלום לרשות המיסים</p>
+                <p className="text-xs text-purple-500 mt-0.5">מחושב על בסיס עסקאות הכנסה עם מע״מ</p>
+              </div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-2xl font-black text-purple-700">₪{totalVat.toLocaleString()}</p>
+              <p className="text-xs text-purple-400">18% מע״מ</p>
+            </div>
+          </div>
+        )}
 
         {/* ── Charts row ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
