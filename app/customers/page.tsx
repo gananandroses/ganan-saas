@@ -384,6 +384,26 @@ interface CustomerModalProps {
   onUpdate: (id: string, data: Partial<Customer>) => Promise<void>;
 }
 
+function frequencyToDays(frequency: string): number {
+  if (frequency === "פעם בשבוע")       return 7;
+  if (frequency === "פעמיים בשבוע")    return 4;
+  if (frequency === "פעמיים בחודש")    return 14;
+  if (frequency === "פעם בחודש")       return 30;
+  if (frequency === "פעם בחודשיים")    return 60;
+  if (frequency === "פעם ב-3 חודשים") return 90;
+  return 30;
+}
+
+function getSuggestedDates(customer: Customer): string[] {
+  const days = frequencyToDays(customer.frequency);
+  const base = customer.lastVisit ? new Date(customer.lastVisit + "T00:00:00") : new Date();
+  function addD(d: Date, n: number) {
+    const r = new Date(d); r.setDate(r.getDate() + n);
+    return `${r.getFullYear()}-${String(r.getMonth()+1).padStart(2,"0")}-${String(r.getDate()).padStart(2,"0")}`;
+  }
+  return [addD(base, days), addD(base, days + 3), addD(base, days + 7)];
+}
+
 function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("details");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -391,6 +411,43 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editVatType, setEditVatType] = useState<"before" | "include">("include");
+  const [nextJob, setNextJob] = useState<{ date: string; time: string } | null | undefined>(undefined);
+  const [bookingSaving, setBookingSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadNextJob() {
+      const { data: { user } } = await supabase.auth.getUser();
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+      const { data } = await supabase
+        .from("jobs").select("job_date, job_time")
+        .eq("user_id", user?.id).eq("customer_name", customer.name)
+        .gte("job_date", todayStr).order("job_date").limit(1);
+      setNextJob(data && data.length > 0 ? { date: data[0].job_date, time: (data[0].job_time ?? "").slice(0,5) } : null);
+    }
+    loadNextJob();
+  }, [customer.name]);
+
+  async function handleBookDate(date: string) {
+    setBookingSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("jobs").insert({
+      customer_name: customer.name,
+      address: customer.address || null,
+      job_date: date,
+      job_time: "09:00",
+      duration: 2,
+      type: "תחזוקת גינה",
+      priority: "medium",
+      price: customer.monthlyPrice,
+      status: "pending",
+      assigned_to: [],
+      user_id: user?.id,
+    });
+    await supabase.from("customers").update({ next_visit: date }).eq("id", customer.id).eq("user_id", user?.id);
+    setNextJob({ date, time: "09:00" });
+    setBookingSaving(false);
+  }
   const [editForm, setEditForm] = useState({
     name: customer.name,
     phone: customer.phone,
@@ -672,11 +729,39 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                   </div>
                   <div className="bg-green-50 rounded-xl p-3">
                     <p className="text-xs text-gray-400">ביקור הבא</p>
-                    <p className="text-sm font-semibold text-green-700 mt-0.5">
-                      {formatDate(customer.nextVisit)}
-                    </p>
+                    {nextJob === undefined ? (
+                      <Loader2 size={14} className="animate-spin text-gray-400 mt-0.5" />
+                    ) : nextJob ? (
+                      <p className="text-sm font-semibold text-green-700 mt-0.5">{formatDate(nextJob.date)}</p>
+                    ) : (
+                      <p className="text-xs text-red-400 font-semibold mt-0.5">לא שובץ</p>
+                    )}
                   </div>
                 </div>
+
+                {/* Suggested dates */}
+                {nextJob === null && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                    <p className="text-xs font-bold text-blue-700 mb-3 flex items-center gap-1.5">
+                      <Calendar size={13} /> שריין ביקור הבא ({customer.frequency})
+                    </p>
+                    <div className="space-y-2">
+                      {getSuggestedDates(customer).map((date, i) => (
+                        <div key={date} className="flex items-center justify-between bg-white rounded-xl px-3 py-2.5 border border-blue-50">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{formatDate(date)}</p>
+                            <p className="text-xs text-gray-400">{i === 0 ? "⭐ מומלץ" : i === 1 ? "+3 ימים" : "+שבוע"}</p>
+                          </div>
+                          <button onClick={() => handleBookDate(date)} disabled={bookingSaving}
+                            className="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg font-semibold transition-colors flex items-center gap-1">
+                            {bookingSaving ? <Loader2 size={11} className="animate-spin" /> : null}
+                            שריין
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Dates */}
