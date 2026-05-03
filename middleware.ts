@@ -40,31 +40,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Check subscription status
-  const { data: sub } = await supabase
-    .from('subscriptions')
-    .select('status, trial_ends_at, current_period_end, is_exempt')
-    .eq('user_id', user.id)
-    .single()
-
-  const now = new Date()
-
-  const hasAccess =
-    sub &&
-    (
-      // Developer / friends & family — bypass all checks
-      sub.is_exempt === true ||
-      // Active trial
-      (sub.status === 'trial' && new Date(sub.trial_ends_at) > now) ||
-      // Paid subscription within period
-      (sub.status === 'active' && sub.current_period_end && new Date(sub.current_period_end) > now)
-    )
-
-  if (!hasAccess) {
-    return NextResponse.redirect(new URL('/subscribe', request.url))
-  }
-
+  // 🚧 PILOT MODE — subscription check disabled
+  // כשמוכן לגבות תשלום, הסר את השורה הבאה
   return response
+
+  // Check subscription status
+  // const { data: sub } = await supabase
+  //   .from('subscriptions')
+  //   .select('status, trial_ends_at, current_period_end, is_exempt')
+  //   .eq('user_id', user.id)
+  //   .single()
+  //
+  // const now = new Date()
+  // const hasAccess = sub && (
+  //   sub.is_exempt === true ||
+  //   (sub.status === 'trial' && new Date(sub.trial_ends_at) > now) ||
+  //   (sub.status === 'active' && sub.current_period_end && new Date(sub.current_period_end) > now)
+  // )
+  // if (!hasAccess) return NextResponse.redirect(new URL('/subscribe', request.url))
+  // return response
 }
 
 export const config = {
