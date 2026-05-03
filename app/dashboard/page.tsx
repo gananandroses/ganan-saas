@@ -323,33 +323,35 @@ export default function DashboardPage() {
   const [weather, setWeather] = useState<{ temp: number; humidity: number; icon: string; city: string } | null>(null);
   const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied"|"unsupported">("idle");
+  const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied">("idle");
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-    if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
-      setPushStatus("unsupported"); return;
-    }
+    if (!("Notification" in window)) return;
     if (Notification.permission === "granted") setPushStatus("enabled");
     else if (Notification.permission === "denied") setPushStatus("denied");
-    else setPushStatus("idle");
   }, []);
 
   async function enablePush() {
     setPushStatus("loading");
     try {
+      if (!("Notification" in window)) {
+        alert("הדפדפן לא תומך בהתראות — תזכורות ישלחו במייל אוטומטית ✅");
+        setPushStatus("idle"); return;
+      }
       const p = await Notification.requestPermission();
       if (p !== "granted") { setPushStatus("denied"); return; }
+      if (!("PushManager" in window) || !("serviceWorker" in navigator)) {
+        alert("✅ ההרשמה נרשמה! תזכורות ישלחו במייל.");
+        setPushStatus("enabled"); return;
+      }
       const reg = await navigator.serviceWorker.ready;
       const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
-      const padding = "=".repeat((4 - key.length % 4) % 4);
-      const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
-      const raw = window.atob(base64);
-      const appKey = Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+      const pad = "=".repeat((4 - key.length % 4) % 4);
+      const appKey = Uint8Array.from([...atob((key + pad).replace(/-/g,"+").replace(/_/g,"/"))].map(c => c.charCodeAt(0)));
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
       const { data: { user } } = await supabase.auth.getUser();
-      await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON(), userId: user?.id }) });
+      await fetch("/api/push/subscribe", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ subscription: sub.toJSON(), userId: user?.id }) });
       setPushStatus("enabled");
     } catch { setPushStatus("idle"); }
   }
@@ -499,9 +501,7 @@ export default function DashboardPage() {
               {pushStatus === "denied" && (
                 <span className="inline-flex items-center gap-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-3 py-1.5">🔕 אפשר התראות בהגדרות הדפדפן</span>
               )}
-              {pushStatus === "unsupported" && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">📧 תזכורות במייל פעילות ✓</span>
-              )}
+
               {(pushStatus === "idle" || pushStatus === "loading") && (
                 <button onClick={enablePush} disabled={pushStatus === "loading"}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-full px-4 py-2 transition-colors disabled:opacity-60">
