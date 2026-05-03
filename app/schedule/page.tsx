@@ -86,12 +86,138 @@ function priorityLabel(p: string) {
 
 // ── Job Detail Modal ──────────────────────────────────────────────────────────
 
-function JobDetailModal({ job, onClose, onMarkCompleted }: {
-  job: Job; onClose: () => void; onMarkCompleted: (id: string) => void;
+function EditJobModal({ job, onClose, onSaved }: {
+  job: Job; onClose: () => void; onSaved: (updated: Job) => void;
+}) {
+  const [form, setForm] = useState({
+    customer_name: job.customerName,
+    address: job.address,
+    job_date: job.date,
+    job_time: job.time,
+    duration: String(job.duration),
+    type: job.type,
+    priority: job.priority,
+    price: String(job.price),
+    notes: job.notes ?? "",
+    status: job.status,
+  });
+  const [priceBeforeVat, setPriceBeforeVat] = useState(job.priceBeforeVat);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const payload = {
+      customer_name: form.customer_name.trim(),
+      address: form.address.trim() || null,
+      job_date: form.job_date,
+      job_time: form.job_time || null,
+      duration: parseFloat(form.duration) || 1,
+      type: form.type.trim() || null,
+      priority: form.priority,
+      price: parseFloat(form.price) || 0,
+      price_before_vat: priceBeforeVat,
+      notes: form.notes.trim() || null,
+      status: form.status,
+    };
+    await supabase.from("jobs").update(payload).eq("id", job.id).eq("user_id", user?.id);
+    onSaved({ ...job, ...payload, customerName: payload.customer_name, address: payload.address ?? "", priceBeforeVat, time: (payload.job_time ?? "00:00").slice(0,5), date: payload.job_date, duration: payload.duration, type: payload.type ?? "", notes: payload.notes ?? undefined, status: payload.status as TaskStatus, priority: payload.priority as Priority });
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-white overflow-y-auto" dir="rtl">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
+        <button onClick={onClose} className="text-gray-500 font-medium text-sm px-2 py-1">ביטול</button>
+        <h2 className="text-base font-bold text-gray-900">עריכת עבודה</h2>
+        <div className="w-16" />
+      </div>
+      <div className="px-5 py-5 space-y-4 pb-32">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">שם לקוח</label>
+          <input value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">כתובת</label>
+          <input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">תאריך</label>
+            <input type="date" dir="ltr" value={form.job_date} onChange={e => setForm(p => ({ ...p, job_date: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">שעה</label>
+            <input type="time" value={form.job_time} onChange={e => setForm(p => ({ ...p, job_time: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">משך (שעות)</label>
+            <input type="number" min="0.5" step="0.5" value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">מחיר (₪)</label>
+            <input type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+            <div className="flex gap-1 mt-1.5">
+              <button type="button" onClick={() => setPriceBeforeVat(false)}
+                className={`flex-1 text-xs py-1 rounded-lg font-medium transition-colors ${!priceBeforeVat ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                כולל מע״מ
+              </button>
+              <button type="button" onClick={() => setPriceBeforeVat(true)}
+                className={`flex-1 text-xs py-1 rounded-lg font-medium transition-colors ${priceBeforeVat ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                + מע״מ
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">סוג עבודה</label>
+            <input value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">סטטוס</label>
+            <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value as TaskStatus }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-400">
+              <option value="pending">ממתין</option>
+              <option value="in_progress">בביצוע</option>
+              <option value="completed">הושלם</option>
+              <option value="cancelled">בוטל</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
+          <textarea rows={3} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="w-full flex items-center justify-center gap-2 bg-green-600 disabled:opacity-60 text-white font-bold rounded-2xl py-4 text-base">
+          {saving ? <Loader2 size={18} className="animate-spin" /> : null}
+          {saving ? "שומר..." : "שמור שינויים"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: {
+  job: Job; onClose: () => void; onMarkCompleted: (id: string) => void; onDeleted: (id: string) => void; onEdited: (updated: Job) => void;
 }) {
   const colors = priorityColors(job.priority);
   const status = statusConfig(job.status);
   const [completing, setCompleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   async function handleComplete() {
     setCompleting(true);
@@ -99,6 +225,15 @@ function JobDetailModal({ job, onClose, onMarkCompleted }: {
     const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
     setCompleting(false);
     if (!error) { onMarkCompleted(job.id); onClose(); }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`למחוק את העבודה עם ${job.customerName}?`)) return;
+    setDeleting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("jobs").delete().eq("id", job.id).eq("user_id", user?.id);
+    onDeleted(job.id);
+    onClose();
   }
 
   return (
@@ -184,7 +319,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted }: {
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-1 pb-2">
+          <div className="flex gap-2 pt-1 pb-2">
             {job.status !== "completed" && job.status !== "cancelled" && (
               <button
                 onClick={handleComplete}
@@ -192,13 +327,24 @@ function JobDetailModal({ job, onClose, onMarkCompleted }: {
                 className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-2xl py-3 text-sm font-bold transition-colors"
               >
                 {completing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={15} />}
-                סמן הושלם
+                הושלם
               </button>
             )}
-            <button onClick={onClose} className="flex-1 border border-gray-200 text-gray-700 rounded-2xl py-3 text-sm font-semibold">
-              סגור
+            <button onClick={() => setShowEdit(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-2xl py-3 text-sm font-semibold transition-colors">
+              <AlertCircle size={14} /> עריכה
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-11 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-2xl py-3 transition-colors"
+            >
+              {deleting ? <Loader2 size={14} className="animate-spin" /> : <X size={16} />}
             </button>
           </div>
+          {showEdit && (
+            <EditJobModal job={job} onClose={() => setShowEdit(false)} onSaved={updated => { onEdited(updated); onClose(); }} />
+          )}
         </div>
       </div>
     </div>
@@ -563,6 +709,14 @@ export default function SchedulePage() {
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: "completed" as TaskStatus } : j));
   }
 
+  function handleJobDeleted(id: string) {
+    setJobs(prev => prev.filter(j => j.id !== id));
+  }
+
+  function handleJobEdited(updated: Job) {
+    setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+  }
+
   const selectedDate = useMemo(() => new Date(selectedISO + "T00:00:00"), [selectedISO]);
 
   const selectedDayJobs = useMemo(
@@ -725,7 +879,7 @@ export default function SchedulePage() {
 
       {/* Modals */}
       {selectedJob && (
-        <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} onMarkCompleted={handleMarkCompleted} />
+        <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} onMarkCompleted={handleMarkCompleted} onDeleted={handleJobDeleted} onEdited={handleJobEdited} />
       )}
       {showNewJobModal && (
         <NewJobModal onClose={() => setShowNewJobModal(false)} onCreated={handleJobCreated} defaultDate={selectedISO} />
