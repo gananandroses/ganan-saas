@@ -17,12 +17,9 @@ export default function AppleIcon() {
           justifyContent: "center",
         }}
       >
-        <svg width="110" height="110" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M12 3C7 3 3 7 3 12c0 3.5 2 6.5 5 8l1-4c-1.5-1-2.5-2.5-2.5-4 0-3 2.5-5.5 5.5-5.5S17.5 9 17.5 12c0 1.5-0.7 2.9-1.8 3.8L17 20c3.5-1.8 5.5-5.2 5.5-8.5C22.5 6.5 18 3 12 3z"
-            fill="white"
-          />
-          <line x1="12" y1="20" x2="12" y2="11" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+        <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+          <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
         </svg>
       </div>
     ),
