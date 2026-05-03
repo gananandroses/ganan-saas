@@ -149,10 +149,18 @@ export async function GET(req: NextRequest) {
 
   let sent = 0;
 
+  // Get all notification prefs
+  const { data: notifPrefs } = await supabase
+    .from("user_notifications")
+    .select("user_id, email_enabled");
+
   for (const user of users) {
     const userId = user.id;
     const email = user.email;
     const sub = subs?.find(s => s.user_id === userId);
+    const notifPref = notifPrefs?.find(n => n.user_id === userId);
+    // Default: email enabled unless explicitly set to false
+    const emailAllowed = notifPref ? notifPref.email_enabled !== false : true;
 
     // ── Day-before reminder (20:00 Israel time) ──────────────────────────────
     if (currentHour === 20 && currentMinute < 30) {
@@ -177,7 +185,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Email
-        if (email) {
+        if (email && emailAllowed) {
           await sendEmail(
             email,
             `🌿 תזכורת: ${count} עבודות מחר (יום ${hebrewDay(tomorrowISO)})`,
@@ -213,7 +221,7 @@ export async function GET(req: NextRequest) {
           }
 
           // Email
-          if (email) {
+          if (email && emailAllowed) {
             await sendEmail(
               email,
               `⏰ תזכורת: עבודה אצל ${job.customer_name} בעוד שעה`,

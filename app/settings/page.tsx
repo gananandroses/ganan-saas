@@ -1,9 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Bell, Lock, Palette, Phone, Mail, Building, Save, Loader2, CheckCircle, ChevronRight } from "lucide-react";
+import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+type PushStatus = "idle" | "loading" | "enabled" | "denied" | "unsupported";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -11,41 +20,164 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const [userId, setUserId] = useState("");
+
+  // Business / account form
   const [form, setForm] = useState({
     businessName: "",
     ownerName: "",
     phone: "",
     email: "",
     city: "",
-    notifications_email: true,
-    notifications_whatsapp: true,
-    notifications_reminders: true,
   });
 
+  // Notification prefs (saved to Supabase)
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  // Push notification state
+  const [pushStatus, setPushStatus] = useState<PushStatus>("idle");
+  const [pushLoading, setPushLoading] = useState(false);
+
+  // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        const uid = data.user.id;
-        setUserId(uid);
-        setUserEmail(data.user.email ?? "");
-        // Load settings scoped to this user
-        const saved = localStorage.getItem(`garden_settings_${uid}`);
-        if (saved) {
-          try {
-            setForm(f => ({ ...f, ...JSON.parse(saved), email: data.user!.email ?? "" }));
-          } catch {}
-        } else {
-          setForm(f => ({ ...f, email: data.user!.email ?? "" }));
-        }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    // Check push support
+    if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
+      setPushStatus("unsupported");
+    } else if (Notification.permission === "granted") {
+      setPushStatus("enabled");
+    } else if (Notification.permission === "denied") {
+      setPushStatus("denied");
+    }
+
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const uid = data.user.id;
+      setUserId(uid);
+      setUserEmail(data.user.email ?? "");
+
+      // Load business settings from localStorage
+      const stored = localStorage.getItem(`garden_settings_${uid}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setForm({
+            businessName: parsed.businessName ?? "",
+            ownerName: parsed.ownerName ?? "",
+            phone: parsed.phone ?? "",
+            city: parsed.city ?? "",
+            email: data.user.email ?? "",
+          });
+        } catch {}
+      } else {
+        setForm(f => ({ ...f, email: data.user!.email ?? "" }));
+      }
+
+      // Load notification prefs from Supabase
+      const { data: notifData } = await supabase
+        .from("user_notifications")
+        .select("email_enabled")
+        .eq("user_id", uid)
+        .single();
+      if (notifData) {
+        setEmailEnabled(notifData.email_enabled ?? true);
       }
     });
   }, []);
 
+  // ── Toggle email reminders ─────────────────────────────────────────────────
+  async function toggleEmail(val: boolean) {
+    setEmailEnabled(val);
+    setSavingEmail(true);
+    await supabase.from("user_notifications").upsert(
+      { user_id: userId, email_enabled: val, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+    setSavingEmail(false);
+  }
+
+  // ── Enable push ────────────────────────────────────────────────────────────
+  async function enablePush() {
+    if (pushStatus === "unsupported") return;
+    setPushLoading(true);
+    try {
+      let permission: NotificationPermission = Notification.permission;
+      if (permission === "default") {
+        permission = await new Promise<NotificationPermission>((resolve) => {
+          const result = Notification.requestPermission((p) => resolve(p));
+          if (result && typeof (result as Promise<NotificationPermission>).then === "function") {
+            (result as Promise<NotificationPermission>).then(resolve);
+          }
+        });
+      }
+
+      if (permission !== "granted") {
+        setPushStatus("denied");
+        setPushLoading(false);
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+      const appKey = urlBase64ToUint8Array(vapidKey);
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appKey,
+      });
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setPushLoading(false); return; }
+
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON(), userId: user.id }),
+      });
+
+      // Mark push_enabled in user_notifications
+      await supabase.from("user_notifications").upsert(
+        { user_id: user.id, push_enabled: true, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
+
+      setPushStatus("enabled");
+    } catch {
+      // keep as idle
+    }
+    setPushLoading(false);
+  }
+
+  // ── Disable push ───────────────────────────────────────────────────────────
+  async function disablePush() {
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await sub.unsubscribe();
+        // Remove from DB
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from("push_subscriptions").delete().eq("user_id", user.id);
+          await supabase.from("user_notifications").upsert(
+            { user_id: user.id, push_enabled: false, updated_at: new Date().toISOString() },
+            { onConflict: "user_id" }
+          );
+        }
+      }
+    } catch {}
+    setPushStatus("idle");
+    setPushLoading(false);
+  }
+
+  // ── Save business form ─────────────────────────────────────────────────────
   async function handleSave() {
     setSaving(true);
-    // Save to localStorage scoped by user_id
     localStorage.setItem(`garden_settings_${userId}`, JSON.stringify(form));
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 500));
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -55,7 +187,10 @@ export default function SettingsPage() {
     <div dir="rtl" className="p-6 max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-100 active:bg-gray-200 active:scale-95 transition-all duration-100">
+        <button
+          onClick={() => router.back()}
+          className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-100 active:bg-gray-200 active:scale-95 transition-all duration-100"
+        >
           <ChevronRight className="w-5 h-5 text-gray-500" />
         </button>
         <div>
@@ -160,31 +295,99 @@ export default function SettingsPage() {
           <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
             <Bell className="w-4 h-4 text-orange-600" />
           </div>
-          <h2 className="font-bold text-gray-900">התראות</h2>
+          <h2 className="font-bold text-gray-900">התראות ותזכורות</h2>
         </div>
-        <div className="p-6 space-y-4">
-          {[
-            { key: "notifications_email", label: "התראות באימייל", desc: "קבל עדכונים על לקוחות ועבודות" },
-            { key: "notifications_whatsapp", label: "תזכורות וואטסאפ", desc: "שלח תזכורות ללקוחות דרך וואטסאפ" },
-            { key: "notifications_reminders", label: "תזכורות עבודה", desc: "קבל תזכורת לפני כל עבודה" },
-          ].map(({ key, label, desc }) => (
-            <div key={key} className="flex items-center justify-between py-1">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{label}</p>
-                <p className="text-xs text-gray-500">{desc}</p>
-              </div>
-              <button
-                onClick={() => setForm(f => ({ ...f, [key]: !f[key as keyof typeof f] }))}
-                className={`relative w-11 h-6 rounded-full transition-colors ${
-                  form[key as keyof typeof form] ? "bg-green-500" : "bg-gray-200"
-                }`}
-              >
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                  form[key as keyof typeof form] ? "translate-x-0.5" : "translate-x-5"
-                }`} />
-              </button>
+        <div className="p-6 space-y-5">
+
+          {/* Email reminders toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">תזכורות במייל</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                יום לפני בשעה 20:00 + שעה לפני כל עבודה
+              </p>
             </div>
-          ))}
+            <button
+              onClick={() => toggleEmail(!emailEnabled)}
+              disabled={savingEmail || !userId}
+              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-60 ${
+                emailEnabled ? "bg-green-500" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                  emailEnabled ? "translate-x-0.5" : "translate-x-5"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="border-t border-gray-100" />
+
+          {/* Push notifications */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900">התראות דפדפן (Push)</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                התראה ישירה לדפדפן — גם כשהאפליקציה סגורה
+              </p>
+              {pushStatus === "denied" && (
+                <p className="text-xs text-orange-600 mt-1 font-medium">
+                  ⚠️ חסום בדפדפן — פתח הגדרות דפדפן ואפשר התראות עבור האתר
+                </p>
+              )}
+              {pushStatus === "unsupported" && (
+                <p className="text-xs text-gray-400 mt-1">
+                  הדפדפן שלך אינו תומך בהתראות — תזכורות המייל פעילות במקום
+                </p>
+              )}
+            </div>
+
+            {/* Push action button */}
+            <div className="flex-shrink-0">
+              {pushStatus === "enabled" && (
+                <div className="flex flex-col items-end gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1.5 font-medium">
+                    <Check size={12} /> פעיל
+                  </span>
+                  <button
+                    onClick={disablePush}
+                    disabled={pushLoading}
+                    className="text-xs text-gray-400 hover:text-red-500 transition-colors underline underline-offset-2"
+                  >
+                    {pushLoading ? "..." : "בטל"}
+                  </button>
+                </div>
+              )}
+
+              {(pushStatus === "idle") && (
+                <button
+                  onClick={enablePush}
+                  disabled={pushLoading}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl px-4 py-2 transition-all disabled:opacity-60"
+                >
+                  {pushLoading ? (
+                    <><Loader2 size={14} className="animate-spin" /> מאשר...</>
+                  ) : (
+                    <><Bell size={14} /> הפעל</>
+                  )}
+                </button>
+              )}
+
+              {pushStatus === "denied" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-3 py-1.5">
+                  <BellOff size={12} /> חסום
+                </span>
+              )}
+
+              {pushStatus === "unsupported" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+                  <BellOff size={12} /> לא נתמך
+                </span>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -195,7 +398,13 @@ export default function SettingsPage() {
           disabled={saving}
           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold px-6 py-3 rounded-xl transition-colors"
         >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : saved ? (
+            <CheckCircle className="w-4 h-4" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
           {saving ? "שומר..." : saved ? "נשמר!" : "שמור הגדרות"}
         </button>
       </div>
