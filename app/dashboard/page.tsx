@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import PushNotifications from "@/components/PushNotifications";
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -449,6 +450,9 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
             <p className="text-sm text-gray-500 mt-0.5">{hebrewDate()}</p>
+            <div className="mt-2">
+              <PushNotifications />
+            </div>
           </div>
           {weather ? (
             <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
