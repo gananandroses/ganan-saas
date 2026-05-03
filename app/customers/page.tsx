@@ -35,6 +35,16 @@ import type { Customer, CustomerStatus } from "@/lib/mock-data";
 
 // ===== HELPERS =====
 
+function frequencyMultiplier(frequency: string): number {
+  if (frequency === "פעם בשבוע")       return 4;
+  if (frequency === "פעמיים בשבוע")    return 8;
+  if (frequency === "פעמיים בחודש")    return 2;
+  if (frequency === "פעם בחודש")       return 1;
+  if (frequency === "פעם בחודשיים")    return 0.5;
+  if (frequency === "פעם ב-3 חודשים") return 1 / 3;
+  return 1;
+}
+
 const statusConfig: Record<
   CustomerStatus,
   { label: string; bg: string; text: string; dot: string }
@@ -886,7 +896,7 @@ export default function CustomersPage() {
   const vipCount = customers.filter((c) => c.status === "vip").length;
   const monthlyRevenue = customers
     .filter((c) => c.status !== "inactive")
-    .reduce((sum, c) => sum + c.monthlyPrice, 0);
+    .reduce((sum, c) => sum + c.monthlyPrice * frequencyMultiplier(c.frequency), 0);
   const avgClose = customers.length ? Math.round(
     customers.reduce((sum, c) => {
       const join = new Date(c.joinDate);
