@@ -470,6 +470,22 @@ export default function DashboardPage() {
     <div dir="rtl" className="min-h-screen bg-slate-50">
       <Header title="דשבורד" subtitle="סקירה כללית של העסק" />
 
+      {/* ── Push notification banner ── */}
+      {(pushStatus === "idle" || pushStatus === "loading") && (
+        <div className="bg-green-600 text-white px-4 py-3 flex items-center justify-between gap-3">
+          <span className="text-sm font-medium">🔔 הפעל התראות ותקבל תזכורות לפני כל עבודה</span>
+          <button onClick={enablePush} disabled={pushStatus === "loading"}
+            className="bg-white text-green-700 font-bold text-sm px-4 py-1.5 rounded-full hover:bg-green-50 transition-colors disabled:opacity-60 flex-shrink-0">
+            {pushStatus === "loading" ? "⏳ מאשר..." : "הפעל"}
+          </button>
+        </div>
+      )}
+      {pushStatus === "unsupported" && (
+        <div className="bg-blue-600 text-white px-4 py-2.5 text-sm text-center">
+          📧 תזכורות ישלחו אליך במייל אוטומטית — יום לפני ושעה לפני כל עבודה
+        </div>
+      )}
+
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
         {/* ── Greeting + Weather ── */}
