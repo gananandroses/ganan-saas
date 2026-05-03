@@ -206,6 +206,8 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [error, setError] = useState<string | null>(null);
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
   const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerList, setShowCustomerList] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -225,15 +227,15 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSelectCustomer(customerId: string) {
-    const c = existingCustomers.find(x => x.id === customerId);
-    if (!c) return;
+  function handleSelectCustomer(c: { id: string; name: string; address: string; monthly_price: number }) {
     setForm(prev => ({
       ...prev,
       customer_name: c.name,
       address: c.address,
       price: c.monthly_price ? String(c.monthly_price) : prev.price,
     }));
+    setCustomerSearch(c.name);
+    setShowCustomerList(false);
   }
 
   async function handleSubmit(e?: React.FormEvent) {
@@ -306,18 +308,53 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
               ✨ לקוח חדש
             </button>
           </div>
-          {/* Existing customer dropdown */}
+          {/* Customer search / new */}
           {customerMode === "existing" ? (
-            <select
-              onChange={e => handleSelectCustomer(e.target.value)}
-              defaultValue=""
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
-            >
-              <option value="" disabled>בחר לקוח מהרשימה...</option>
-              {existingCustomers.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.address ? ` — ${c.address}` : ""}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                value={customerSearch}
+                onChange={e => { setCustomerSearch(e.target.value); setShowCustomerList(true); setForm(p => ({ ...p, customer_name: "", address: "" })); }}
+                onFocus={() => setShowCustomerList(true)}
+                placeholder="חפש לקוח..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              {/* Selected indicator */}
+              {form.customer_name && (
+                <div className="mt-1.5 flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                  <span className="text-sm font-semibold text-green-700">{form.customer_name}</span>
+                  <button type="button" onClick={() => { setForm(p => ({ ...p, customer_name: "", address: "" })); setCustomerSearch(""); }}
+                    className="text-green-400 hover:text-green-600">
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              {/* Dropdown list */}
+              {showCustomerList && !form.customer_name && (
+                <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
+                  {existingCustomers
+                    .filter(c => c.name.includes(customerSearch) || c.address.includes(customerSearch))
+                    .length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-4">לא נמצאו לקוחות</p>
+                    ) : (
+                      existingCustomers
+                        .filter(c => c.name.includes(customerSearch) || c.address.includes(customerSearch))
+                        .map(c => (
+                          <button key={c.id} type="button"
+                            onMouseDown={() => handleSelectCustomer(c)}
+                            className="w-full text-right px-4 py-3 hover:bg-green-50 border-b border-gray-50 last:border-0 flex justify-between items-center">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                              {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
+                            </div>
+                            {c.monthly_price > 0 && <span className="text-xs text-green-600 font-medium">₪{c.monthly_price.toLocaleString()}</span>}
+                          </button>
+                        ))
+                    )
+                  }
+                </div>
+              )}
+            </div>
           ) : (
             <input name="customer_name" value={form.customer_name} onChange={handleChange}
               placeholder="שם הלקוח החדש"
