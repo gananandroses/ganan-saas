@@ -20,6 +20,7 @@ import {
   Printer,
   Send,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -563,6 +564,12 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [dbCustomers, setDbCustomers] = useState<{id: string; name: string; city: string; phone: string}[]>([]);
 
+  const deleteTransaction = async (id: string) => {
+    if (!confirm("למחוק עסקה זו?")) return;
+    await supabase.from("transactions").delete().eq("id", id);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  };
+
   const fetchTransactions = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -1064,28 +1071,37 @@ export default function FinancePage() {
                           <StatusBadge status={tx.status} />
                         </td>
                         <td className="py-3 px-4">
-                          {tx.status === "pending" || tx.status === "overdue" ? (
+                          <div className="flex items-center gap-2">
+                            {tx.status === "pending" || tx.status === "overdue" ? (
+                              <button
+                                onClick={() => {
+                                  const c = dbCustomers.find(x => x.name === tx.customerName);
+                                  const num = c?.phone?.replace(/\D/g, "") || "";
+                                  const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                                  const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
+                                  window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
+                                }}
+                                className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
+                                <MessageSquare size={12} />
+                                שלח תזכורת
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setShowInvoice(true)}
+                                className="flex items-center gap-1 text-xs text-gray-500 font-semibold hover:text-gray-700 whitespace-nowrap"
+                              >
+                                <FileText size={12} />
+                                צור חשבונית
+                              </button>
+                            )}
                             <button
-                              onClick={() => {
-                                const c = dbCustomers.find(x => x.name === tx.customerName);
-                                const num = c?.phone?.replace(/\D/g, "") || "";
-                                const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
-                                const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                                window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
-                              }}
-                              className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
-                              <MessageSquare size={12} />
-                              שלח תזכורת
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => setShowInvoice(true)}
-                              className="flex items-center gap-1 text-xs text-gray-500 font-semibold hover:text-gray-700 whitespace-nowrap"
+                              onClick={() => deleteTransaction(tx.id)}
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                              title="מחק עסקה"
                             >
-                              <FileText size={12} />
-                              צור חשבונית
+                              <Trash2 size={13} />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     ))}
