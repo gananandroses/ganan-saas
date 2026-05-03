@@ -12,25 +12,26 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export default function PushNotifications() {
-  const [status, setStatus] = useState<"idle" | "loading" | "enabled" | "denied">("idle");
+  const [status, setStatus] = useState<"loading" | "unsupported" | "idle" | "enabled" | "denied">("loading");
 
   useEffect(() => {
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
-    if (Notification.permission === "granted") setStatus("enabled");
-    else if (Notification.permission === "denied") setStatus("denied");
+    // Register service worker regardless
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
 
-    // Register service worker
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }, []);
-
-  async function enable() {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      alert("הדפדפן שלך לא תומך בהתראות. נסה להתקין את האפליקציה על הנייד.");
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setStatus("unsupported");
       return;
     }
 
-    setStatus("loading");
+    if (Notification.permission === "granted") setStatus("enabled");
+    else if (Notification.permission === "denied") setStatus("denied");
+    else setStatus("idle");
+  }, []);
 
+  async function enable() {
+    setStatus("loading");
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") { setStatus("denied"); return; }
@@ -56,34 +57,36 @@ export default function PushNotifications() {
     }
   }
 
-  if (!("Notification" in window)) return null;
+  if (status === "loading") return null;
 
-  if (status === "enabled") {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-xs text-green-700 font-medium">
-        <Bell size={13} />
-        תזכורות פעילות
-      </div>
-    );
-  }
+  if (status === "unsupported") return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-xl text-xs text-gray-400">
+      <BellOff size={13} />
+      התקן את האפליקציה לתזכורות
+    </div>
+  );
 
-  if (status === "denied") {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-xl text-xs text-gray-500">
-        <BellOff size={13} />
-        התראות חסומות
-      </div>
-    );
-  }
+  if (status === "enabled") return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-xs text-green-700 font-medium">
+      <Bell size={13} />
+      תזכורות פעילות ✓
+    </div>
+  );
+
+  if (status === "denied") return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-xl text-xs text-orange-600">
+      <BellOff size={13} />
+      התראות חסומות — אפשר בהגדרות הדפדפן
+    </div>
+  );
 
   return (
     <button
       onClick={enable}
-      disabled={status === "loading"}
-      className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-60"
+      className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition-colors"
     >
-      {status === "loading" ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
-      הפעל תזכורות
+      <Bell size={13} />
+      🔔 הפעל תזכורות
     </button>
   );
 }
