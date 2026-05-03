@@ -321,6 +321,18 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [weather, setWeather] = useState<{ temp: number; humidity: number; icon: string; city: string } | null>(null);
   const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  // Show install banner once per device
+  useEffect(() => {
+    const dismissed = localStorage.getItem("install_banner_dismissed");
+    if (!dismissed) setShowInstallBanner(true);
+  }, []);
+
+  function dismissInstallBanner() {
+    localStorage.setItem("install_banner_dismissed", "1");
+    setShowInstallBanner(false);
+  }
 
   useEffect(() => {
     async function load() {
@@ -461,6 +473,45 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ── Install Banner ── */}
+        {showInstallBanner && (
+          <div className="bg-gradient-to-l from-green-600 to-green-700 rounded-2xl px-5 py-4 flex items-start gap-4 shadow-md relative">
+            <div className="text-3xl flex-shrink-0">📲</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-bold text-sm mb-1">הוסף את גנן Pro למסך הבית שלך</p>
+              <p className="text-green-100 text-xs leading-relaxed mb-3">
+                גש לאפליקציה בקליק אחד — בדיוק כמו אפליקציה רגילה
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {/* iPhone */}
+                <div className="bg-white/15 rounded-xl px-3 py-2 flex-1">
+                  <p className="text-white text-xs font-bold mb-1">🍎 iPhone (Safari)</p>
+                  <ol className="text-green-100 text-xs space-y-0.5 list-none">
+                    <li>1. לחץ על כפתור השיתוף <span className="font-bold">⬆</span> בתחתית</li>
+                    <li>2. גלול ובחר <span className="font-bold">"הוסף למסך הבית"</span></li>
+                    <li>3. לחץ <span className="font-bold">"הוסף"</span> בפינה הימנית</li>
+                  </ol>
+                </div>
+                {/* Android */}
+                <div className="bg-white/15 rounded-xl px-3 py-2 flex-1">
+                  <p className="text-white text-xs font-bold mb-1">🤖 Android (Chrome)</p>
+                  <ol className="text-green-100 text-xs space-y-0.5 list-none">
+                    <li>1. לחץ על שלוש הנקודות <span className="font-bold">⋮</span> למעלה</li>
+                    <li>2. בחר <span className="font-bold">"הוסף למסך הבית"</span></li>
+                    <li>3. לחץ <span className="font-bold">"הוסף"</span></li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={dismissInstallBanner}
+              className="text-white/60 hover:text-white transition-colors flex-shrink-0 mt-0.5"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
 
         {/* ── KPI Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
