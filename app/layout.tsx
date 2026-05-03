@@ -5,6 +5,13 @@ import AuthGuard from "@/components/AuthGuard";
 export const metadata: Metadata = {
   title: "גנן Pro — ניהול עסק גינון",
   description: "מערכת SaaS מתקדמת לניהול עסק גינון",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "גנן Pro",
+  },
+  themeColor: "#16a34a",
 };
 
 export default function RootLayout({
