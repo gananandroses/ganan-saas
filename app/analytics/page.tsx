@@ -384,6 +384,7 @@ function KpiCard({
   sub,
   trend,
   color = "green",
+  onClick,
 }: {
   icon: React.ElementType;
   label: string;
@@ -391,6 +392,7 @@ function KpiCard({
   sub?: string;
   trend?: { pct: number; label: string };
   color?: "green" | "blue" | "amber" | "purple" | "rose" | "teal";
+  onClick?: () => void;
 }) {
   const colorMap = {
     green: "bg-green-50 text-green-600 border-green-100",
@@ -402,25 +404,338 @@ function KpiCard({
   };
   const isPositive = trend ? trend.pct >= 0 : true;
   return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-shadow">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all ${onClick ? "cursor-pointer hover:border-green-200 hover:scale-[1.01] active:scale-[0.99]" : ""}`}
+    >
       <div className="flex items-start justify-between mb-3">
         <div className={`p-2.5 rounded-xl border ${colorMap[color]}`}>
           <Icon size={18} />
         </div>
-        {trend && (
-          <div
-            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
-              isPositive ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-            }`}
-          >
-            {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            {Math.abs(trend.pct)}% {trend.label}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {trend && (
+            <div
+              className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full ${
+                isPositive ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
+              }`}
+            >
+              {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              {Math.abs(trend.pct)}% {trend.label}
+            </div>
+          )}
+          {onClick && (
+            <span className="text-xs text-slate-300 font-medium">לפרטים ›</span>
+          )}
+        </div>
       </div>
       <div className="text-2xl font-bold text-slate-800 mt-1">{value}</div>
       <div className="text-sm text-slate-500 mt-0.5">{label}</div>
       {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+
+type ModalType = "income" | "profitability" | "customersPerEmp" | "totalCustomers" | "jobs" | "incomePerHour";
+
+function DetailModal({
+  type,
+  onClose,
+  rawData,
+  dateRange,
+  a,
+}: {
+  type: ModalType;
+  onClose: () => void;
+  rawData: { transactions: Row[]; customers: Row[]; jobs: Row[]; employees: Row[] };
+  dateRange: 30 | 90 | 365;
+  a: ComputedAnalytics;
+}) {
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - dateRange);
+  const fromStr = fromDate.toISOString().split("T")[0];
+
+  const incomeTx = rawData.transactions.filter(
+    (t) => t.type === "income" && (t.transaction_date as string) >= fromStr
+  ).sort((a, b) => ((b.transaction_date as string) > (a.transaction_date as string) ? 1 : -1));
+
+  const expenseTx = rawData.transactions.filter(
+    (t) => t.type === "expense" && (t.transaction_date as string) >= fromStr
+  ).sort((a, b) => ((b.transaction_date as string) > (a.transaction_date as string) ? 1 : -1));
+
+  const jobsPeriod = rawData.jobs.filter((j) => (j.job_date as string) >= fromStr)
+    .sort((a, b) => ((b.job_date as string) > (a.job_date as string) ? 1 : -1));
+
+  const periodIncome = incomeTx.reduce((s, t) => s + ((t.amount as number) || 0), 0);
+  const periodExpense = expenseTx.reduce((s, t) => s + ((t.amount as number) || 0), 0);
+
+  const titles: Record<ModalType, string> = {
+    income: `הכנסות — ${RANGE_LABELS[dateRange]} אחרונים`,
+    profitability: "רווחיות גולמית — פירוט",
+    customersPerEmp: "לקוחות לעובד — פירוט",
+    totalCustomers: "כל הלקוחות",
+    jobs: `עבודות — ${RANGE_LABELS[dateRange]} אחרונים`,
+    incomePerHour: "הכנסה לשעה — פירוט עובדים",
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        dir="rtl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800 text-base">{titles[type]}</h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+          >
+            <X size={14} className="text-slate-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 p-5 space-y-3">
+
+          {/* ── INCOME ── */}
+          {type === "income" && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-green-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-green-700">{fmt(periodIncome)}</p>
+                  <p className="text-xs text-green-600 mt-0.5">סה״כ הכנסות</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-slate-700">{incomeTx.length}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">עסקאות</p>
+                </div>
+              </div>
+              {incomeTx.length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-8">אין עסקאות הכנסה בתקופה זו</p>
+              ) : (
+                incomeTx.map((t, i) => (
+                  <div key={i} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{(t.description as string) || "עסקה"}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{t.transaction_date as string}</p>
+                    </div>
+                    <span className="text-sm font-bold text-green-600">{fmt((t.amount as number) || 0)}</span>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {/* ── PROFITABILITY ── */}
+          {type === "profitability" && (
+            <>
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="bg-green-50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-green-700">{fmt(periodIncome)}</p>
+                  <p className="text-xs text-green-600 mt-0.5">הכנסות</p>
+                </div>
+                <div className="bg-red-50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-red-600">{fmt(periodExpense)}</p>
+                  <p className="text-xs text-red-500 mt-0.5">הוצאות</p>
+                </div>
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-blue-700">{fmt(periodIncome - periodExpense)}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">רווח נקי</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-3 mb-3 flex items-center justify-between">
+                <span className="text-sm text-slate-600">מרווח גולמי</span>
+                <span className={`text-lg font-bold ${a.kpis.profitability >= 70 ? "text-green-600" : a.kpis.profitability >= 40 ? "text-amber-600" : "text-red-600"}`}>
+                  {a.kpis.profitability > 0 ? `${a.kpis.profitability}%` : "—"}
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-500 mb-2">הוצאות בתקופה:</p>
+              {expenseTx.length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-4">אין הוצאות בתקופה זו</p>
+              ) : (
+                expenseTx.map((t, i) => (
+                  <div key={i} className="flex items-center justify-between py-2.5 border-b border-slate-50 last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{(t.description as string) || "הוצאה"}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{t.transaction_date as string}</p>
+                    </div>
+                    <span className="text-sm font-bold text-red-500">{fmt((t.amount as number) || 0)}</span>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {/* ── CUSTOMERS PER EMPLOYEE ── */}
+          {type === "customersPerEmp" && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-blue-700">{rawData.customers.length}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">סה״כ לקוחות</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-slate-700">{rawData.employees.filter(e => e.status !== "offline").length}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">עובדים פעילים</p>
+                </div>
+              </div>
+              {rawData.employees.length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-8">אין עובדים</p>
+              ) : (
+                rawData.employees.map((emp, i) => {
+                  const isActive = emp.status !== "offline";
+                  const share = isActive && rawData.employees.filter(e => e.status !== "offline").length > 0
+                    ? Math.round(rawData.customers.length / rawData.employees.filter(e => e.status !== "offline").length)
+                    : 0;
+                  return (
+                    <div key={i} className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
+                      <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                        {((emp.name as string) || "?").slice(0, 2)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-700">{emp.name as string}</p>
+                        <p className="text-xs text-slate-400">{emp.role as string}</p>
+                      </div>
+                      <div className="text-left">
+                        {isActive ? (
+                          <>
+                            <p className="text-sm font-bold text-blue-600">{share} לקוחות</p>
+                            <p className="text-xs text-slate-400">משוערך</p>
+                          </>
+                        ) : (
+                          <span className="text-xs bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full">לא פעיל</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </>
+          )}
+
+          {/* ── TOTAL CUSTOMERS ── */}
+          {type === "totalCustomers" && (
+            <>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {[
+                  { label: "VIP", color: "bg-amber-50 text-amber-700", count: rawData.customers.filter(c => c.status === "vip").length },
+                  { label: "פעיל", color: "bg-green-50 text-green-700", count: rawData.customers.filter(c => c.status === "active").length },
+                  { label: "חדש", color: "bg-blue-50 text-blue-700", count: rawData.customers.filter(c => c.status === "new").length },
+                  { label: "רדום", color: "bg-slate-100 text-slate-500", count: rawData.customers.filter(c => c.status === "inactive").length },
+                ].map(s => (
+                  <div key={s.label} className={`${s.color} rounded-xl p-2.5 text-center`}>
+                    <p className="text-lg font-bold">{s.count}</p>
+                    <p className="text-xs mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+              {rawData.customers.length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-8">אין לקוחות</p>
+              ) : (
+                [...rawData.customers]
+                  .sort((a, b) => ((b.monthly_price as number) || 0) - ((a.monthly_price as number) || 0))
+                  .map((c, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                      {((c.name as string) || "?").slice(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-700 truncate">{c.name as string}</p>
+                      <p className="text-xs text-slate-400 truncate">{(c.city as string) || ""}{c.phone ? ` · ${c.phone}` : ""}</p>
+                    </div>
+                    <div className="text-left flex-shrink-0">
+                      <p className="text-sm font-bold text-slate-700">{fmt((c.monthly_price as number) || 0)}<span className="text-xs font-normal text-slate-400">/חודש</span></p>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${STATUS_BADGE[c.status as string] || "bg-gray-100 text-gray-600"}`}>
+                        {STATUS_LABEL[c.status as string] || c.status as string}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {/* ── JOBS ── */}
+          {type === "jobs" && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-amber-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-amber-700">{jobsPeriod.length}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">עבודות בתקופה</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-slate-700">{fmt(jobsPeriod.reduce((s, j) => s + ((j.price as number) || 0), 0))}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">סה״כ הכנסות עבודות</p>
+                </div>
+              </div>
+              {jobsPeriod.length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-8">אין עבודות בתקופה זו</p>
+              ) : (
+                jobsPeriod.map((j, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-700">{(j.type as string) || "עבודה"}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{j.job_date as string}{j.customer_name ? ` · ${j.customer_name}` : ""}</p>
+                    </div>
+                    <span className="text-sm font-bold text-amber-600 flex-shrink-0">{(j.price as number) > 0 ? fmt(j.price as number) : "—"}</span>
+                  </div>
+                ))
+              )}
+            </>
+          )}
+
+          {/* ── INCOME PER HOUR ── */}
+          {type === "incomePerHour" && (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-rose-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-rose-700">{a.kpis.incomePerHour > 0 ? fmt(a.kpis.incomePerHour) : "—"}</p>
+                  <p className="text-xs text-rose-600 mt-0.5">הכנסה ממוצעת לשעה</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 text-center">
+                  <p className="text-xl font-bold text-slate-700">{rawData.employees.reduce((s, e) => s + ((e.hours_this_month as number) || 0), 0)}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">סה״כ שעות החודש</p>
+                </div>
+              </div>
+              {rawData.employees.length === 0 ? (
+                <p className="text-center text-slate-400 text-sm py-8">אין עובדים</p>
+              ) : (
+                rawData.employees.map((emp, i) => {
+                  const hours = (emp.hours_this_month as number) || 0;
+                  const rate = (emp.hourly_rate as number) || 0;
+                  const cost = hours * rate;
+                  return (
+                    <div key={i} className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
+                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                        {((emp.name as string) || "?").slice(0, 2)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-700">{emp.name as string}</p>
+                        <p className="text-xs text-slate-400">{hours} שעות · {fmt(rate)}/שעה</p>
+                      </div>
+                      <div className="text-left flex-shrink-0">
+                        <p className="text-sm font-bold text-slate-700">{cost > 0 ? fmt(cost) : "—"}</p>
+                        <p className="text-xs text-slate-400">עלות חודשית</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </>
+          )}
+
+        </div>
+      </div>
     </div>
   );
 }
@@ -482,6 +797,7 @@ export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<30 | 90 | 365>(365);
   const [fetching, setFetching] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
+  const [activeModal, setActiveModal] = useState<ModalType | null>(null);
 
   // Raw data (fetched once)
   const [rawData, setRawData] = useState<{
@@ -535,6 +851,16 @@ export default function AnalyticsPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 p-6 space-y-6">
+      {/* ── Detail Modal ── */}
+      {activeModal && analytics && (
+        <DetailModal
+          type={activeModal}
+          onClose={() => setActiveModal(null)}
+          rawData={rawData}
+          dateRange={dateRange}
+          a={analytics}
+        />
+      )}
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -637,6 +963,7 @@ export default function AnalyticsPage() {
               value={fmt(a.kpis.periodIncome)}
               sub="מבוסס על עסקאות אמיתיות"
               color="green"
+              onClick={() => setActiveModal("income")}
             />
             <KpiCard
               icon={TrendingUp}
@@ -644,6 +971,7 @@ export default function AnalyticsPage() {
               value={a.kpis.profitability > 0 ? `${a.kpis.profitability}%` : "—"}
               sub="הכנסות פחות הוצאות בתקופה"
               color="teal"
+              onClick={() => setActiveModal("profitability")}
             />
             <KpiCard
               icon={Users}
@@ -651,6 +979,7 @@ export default function AnalyticsPage() {
               value={a.kpis.avgCustomersPerEmployee > 0 ? String(a.kpis.avgCustomersPerEmployee) : "—"}
               sub={`סה"כ ${a.kpis.totalCustomers} לקוחות`}
               color="blue"
+              onClick={() => setActiveModal("customersPerEmp")}
             />
             <KpiCard
               icon={Users}
@@ -658,6 +987,7 @@ export default function AnalyticsPage() {
               value={String(a.kpis.totalCustomers)}
               sub="כולל כל הסטטוסים"
               color="purple"
+              onClick={() => setActiveModal("totalCustomers")}
             />
             <KpiCard
               icon={Clock}
@@ -665,6 +995,7 @@ export default function AnalyticsPage() {
               value={String(a.kpis.totalJobs)}
               sub={`${RANGE_LABELS[dateRange]} אחרונים`}
               color="amber"
+              onClick={() => setActiveModal("jobs")}
             />
             <KpiCard
               icon={Leaf}
@@ -672,6 +1003,7 @@ export default function AnalyticsPage() {
               value={a.kpis.incomePerHour > 0 ? fmt(a.kpis.incomePerHour) : "—"}
               sub="מבוסס על שעות עובדים החודש"
               color="rose"
+              onClick={() => setActiveModal("incomePerHour")}
             />
           </div>
 
