@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, BellOff, Loader2 } from "lucide-react";
+import { Bell, BellOff, Loader2, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -12,28 +12,36 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export default function PushNotifications() {
-  const [status, setStatus] = useState<"loading" | "unsupported" | "idle" | "enabled" | "denied">("loading");
+  const [status, setStatus] = useState<"idle" | "loading" | "enabled" | "denied" | "unsupported">("idle");
 
   useEffect(() => {
-    // Register service worker regardless
+    // Register SW
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
-
-    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+    // Check current permission
+    if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
       setStatus("unsupported");
       return;
     }
-
     if (Notification.permission === "granted") setStatus("enabled");
     else if (Notification.permission === "denied") setStatus("denied");
-    else setStatus("idle");
   }, []);
 
   async function enable() {
     setStatus("loading");
     try {
-      const permission = await Notification.requestPermission();
+      // Safari compatibility: requestPermission can be callback-based
+      let permission: NotificationPermission;
+      if (typeof Notification.requestPermission === "function") {
+        permission = await new Promise((resolve) => {
+          const result = Notification.requestPermission((p) => resolve(p));
+          if (result && typeof result.then === "function") result.then(resolve);
+        });
+      } else {
+        setStatus("unsupported"); return;
+      }
+
       if (permission !== "granted") { setStatus("denied"); return; }
 
       const reg = await navigator.serviceWorker.ready;
@@ -45,48 +53,54 @@ export default function PushNotifications() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setStatus("idle"); return; }
 
-      await fetch("/api/push/subscribe", {
+      const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription: sub.toJSON(), userId: user.id }),
       });
 
-      setStatus("enabled");
+      if (res.ok) setStatus("enabled");
+      else setStatus("idle");
     } catch {
       setStatus("idle");
     }
   }
 
-  if (status === "loading") return null;
+  if (status === "enabled") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1.5 font-medium">
+        <Check size={12} /> התראות פעילות
+      </span>
+    );
+  }
 
-  if (status === "unsupported") return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-xl text-xs text-gray-400">
-      <BellOff size={13} />
-      התקן את האפליקציה לתזכורות
-    </div>
-  );
+  if (status === "denied") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-3 py-1.5">
+        <BellOff size={12} /> אפשר התראות בהגדרות הדפדפן
+      </span>
+    );
+  }
 
-  if (status === "enabled") return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-xl text-xs text-green-700 font-medium">
-      <Bell size={13} />
-      תזכורות פעילות ✓
-    </div>
-  );
+  if (status === "unsupported") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">
+        <Bell size={12} /> תזכורות במייל פעילות ✓
+      </span>
+    );
+  }
 
-  if (status === "denied") return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-xl text-xs text-orange-600">
-      <BellOff size={13} />
-      התראות חסומות — אפשר בהגדרות הדפדפן
-    </div>
-  );
-
+  // idle or loading — show button
   return (
     <button
       onClick={enable}
-      className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition-colors"
+      disabled={status === "loading"}
+      className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-full px-3 py-1.5 transition-colors disabled:opacity-70"
     >
-      <Bell size={13} />
-      🔔 הפעל תזכורות
+      {status === "loading"
+        ? <><Loader2 size={12} className="animate-spin" /> מאשר...</>
+        : <><Bell size={12} /> 🔔 הפעל התראות דפדפן</>
+      }
     </button>
   );
 }
