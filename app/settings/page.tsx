@@ -59,21 +59,38 @@ export default function SettingsPage() {
       setUserId(uid);
       setUserEmail(data.user.email ?? "");
 
-      // Load business settings from localStorage
-      const stored = localStorage.getItem(`garden_settings_${uid}`);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setForm({
-            businessName: parsed.businessName ?? "",
-            ownerName: parsed.ownerName ?? "",
-            phone: parsed.phone ?? "",
-            city: parsed.city ?? "",
-            email: data.user.email ?? "",
-          });
-        } catch {}
+      // Load business profile from Supabase
+      const { data: profile } = await supabase
+        .from("user_profile")
+        .select("business_name, owner_name, phone, city")
+        .eq("user_id", uid)
+        .single();
+
+      if (profile) {
+        setForm({
+          businessName: profile.business_name ?? "",
+          ownerName: profile.owner_name ?? "",
+          phone: profile.phone ?? "",
+          city: profile.city ?? "",
+          email: data.user.email ?? "",
+        });
       } else {
-        setForm(f => ({ ...f, email: data.user!.email ?? "" }));
+        // Migrate from localStorage if exists
+        const stored = localStorage.getItem(`garden_settings_${uid}`);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setForm({
+              businessName: parsed.businessName ?? "",
+              ownerName: parsed.ownerName ?? "",
+              phone: parsed.phone ?? "",
+              city: parsed.city ?? "",
+              email: data.user.email ?? "",
+            });
+          } catch {}
+        } else {
+          setForm(f => ({ ...f, email: data.user!.email ?? "" }));
+        }
       }
 
       // Load notification prefs from Supabase
@@ -173,11 +190,17 @@ export default function SettingsPage() {
     setPushLoading(false);
   }
 
-  // ── Save business form ─────────────────────────────────────────────────────
+  // ── Save business form to Supabase ────────────────────────────────────────
   async function handleSave() {
     setSaving(true);
-    localStorage.setItem(`garden_settings_${userId}`, JSON.stringify(form));
-    await new Promise(r => setTimeout(r, 500));
+    await supabase.from("user_profile").upsert({
+      user_id: userId,
+      business_name: form.businessName,
+      owner_name: form.ownerName,
+      phone: form.phone,
+      city: form.city,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
