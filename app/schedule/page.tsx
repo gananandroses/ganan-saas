@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase/client";
 
 type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 type Priority = "low" | "medium" | "high" | "urgent";
+type JobCategory = "work" | "quote" | "followup";
 
 interface Job {
   id: string;
@@ -28,6 +29,7 @@ interface Job {
   priceBeforeVat: boolean;
   notes?: string;
   priority: Priority;
+  jobCategory: JobCategory;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -70,6 +72,14 @@ function priorityColors(priority: string) {
   }
 }
 
+function categoryConfig(cat: JobCategory) {
+  switch (cat) {
+    case "quote":    return { border: "border-r-purple-500", dot: "bg-purple-500", badge: "bg-purple-100 text-purple-700", header: "bg-purple-600", label: "📋 הצעת מחיר", btnActive: "bg-purple-600 text-white", btnInactive: "bg-gray-100 text-gray-500" };
+    case "followup": return { border: "border-r-amber-400",  dot: "bg-amber-400",  badge: "bg-amber-100 text-amber-700",  header: "bg-amber-500",  label: "🔁 מעקב",        btnActive: "bg-amber-500 text-white",  btnInactive: "bg-gray-100 text-gray-500" };
+    default:         return { border: "border-r-green-500",  dot: "bg-green-500",  badge: "bg-green-100 text-green-700",  header: "bg-green-600",  label: "🌿 עבודת גינון", btnActive: "bg-green-600 text-white",  btnInactive: "bg-gray-100 text-gray-500" };
+  }
+}
+
 function statusConfig(status: string) {
   switch (status) {
     case "completed":  return { label: "הושלם", color: "text-green-700 bg-green-100", icon: <CheckCircle size={12} /> };
@@ -102,6 +112,7 @@ function EditJobModal({ job, onClose, onSaved }: {
     status: job.status,
   });
   const [priceBeforeVat, setPriceBeforeVat] = useState(job.priceBeforeVat);
+  const [jobCategory, setJobCategory] = useState<JobCategory>(job.jobCategory);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -119,9 +130,10 @@ function EditJobModal({ job, onClose, onSaved }: {
       price_before_vat: priceBeforeVat,
       notes: form.notes.trim() || null,
       status: form.status,
+      job_category: jobCategory,
     };
     await supabase.from("jobs").update(payload).eq("id", job.id).eq("user_id", user?.id);
-    onSaved({ ...job, ...payload, customerName: payload.customer_name, address: payload.address ?? "", priceBeforeVat, time: (payload.job_time ?? "00:00").slice(0,5), date: payload.job_date, duration: payload.duration, type: payload.type ?? "", notes: payload.notes ?? undefined, status: payload.status as TaskStatus, priority: payload.priority as Priority });
+    onSaved({ ...job, ...payload, customerName: payload.customer_name, address: payload.address ?? "", priceBeforeVat, jobCategory, time: (payload.job_time ?? "00:00").slice(0,5), date: payload.job_date, duration: payload.duration, type: payload.type ?? "", notes: payload.notes ?? undefined, status: payload.status as TaskStatus, priority: payload.priority as Priority });
     setSaving(false);
     onClose();
   }
@@ -134,6 +146,21 @@ function EditJobModal({ job, onClose, onSaved }: {
         <div className="w-16" />
       </div>
       <div className="px-5 py-5 space-y-4 pb-32">
+        {/* Category selector */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">סוג פגישה</label>
+          <div className="flex gap-1">
+            {(["work", "quote", "followup"] as JobCategory[]).map(cat => {
+              const cfg = categoryConfig(cat);
+              return (
+                <button key={cat} type="button" onClick={() => setJobCategory(cat)}
+                  className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors ${jobCategory === cat ? cfg.btnActive : cfg.btnInactive}`}>
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">שם לקוח</label>
           <input value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))}
@@ -214,7 +241,9 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   job: Job; onClose: () => void; onMarkCompleted: (id: string) => void; onDeleted: (id: string) => void; onEdited: (updated: Job) => void;
 }) {
   const colors = priorityColors(job.priority);
+  const catColors = categoryConfig(job.jobCategory);
   const status = statusConfig(job.status);
+  const headerColor = job.jobCategory !== "work" ? catColors.header : colors.header;
   const [completing, setCompleting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -245,7 +274,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
         </div>
 
         {/* Header */}
-        <div className={`${colors.header} px-6 py-4 sm:rounded-t-3xl flex items-center justify-between`}>
+        <div className={`${headerColor} px-6 py-4 sm:rounded-t-3xl flex items-center justify-between`}>
           <div>
             <h2 className="text-white font-bold text-lg">{job.customerName}</h2>
             <p className="text-white/80 text-sm">{job.type || "עבודת גינון"}</p>
@@ -261,6 +290,11 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
             <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${status.color}`}>
               {status.icon} {status.label}
             </span>
+            {job.jobCategory !== "work" && (
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${catColors.badge}`}>
+                {catColors.label}
+              </span>
+            )}
             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colors.badge}`}>
               עדיפות {priorityLabel(job.priority)}
             </span>
@@ -362,6 +396,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobCategory, setJobCategory] = useState<JobCategory>("work");
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
   const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
@@ -416,6 +451,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       notes: form.notes.trim() || null,
       status: "pending",
       assigned_to: [],
+      job_category: jobCategory,
       user_id: user?.id,
     });
     if (dbError) { setError("שגיאה: " + dbError.message); setSaving(false); return; }
@@ -432,6 +468,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         priceBeforeVat: Boolean(last.price_before_vat),
         notes: last.notes ?? undefined,
         priority: (last.priority ?? "medium") as Priority,
+        jobCategory: (last.job_category ?? "work") as JobCategory,
       });
     }
     setSaving(false);
@@ -457,6 +494,21 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
       {/* Form fields */}
       <div className="px-5 py-5 space-y-4 pb-32">
+        {/* Job category */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">סוג פגישה</label>
+          <div className="flex gap-1">
+            {(["work", "quote", "followup"] as JobCategory[]).map(cat => {
+              const cfg = categoryConfig(cat);
+              return (
+                <button key={cat} type="button" onClick={() => setJobCategory(cat)}
+                  className={`flex-1 text-xs py-2.5 rounded-xl font-medium transition-colors ${jobCategory === cat ? cfg.btnActive : cfg.btnInactive}`}>
+                  {cfg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">לקוח *</label>
           {/* Toggle */}
@@ -612,11 +664,13 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
 function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
   const colors = priorityColors(job.priority);
+  const catColors = categoryConfig(job.jobCategory);
   const status = statusConfig(job.status);
+  const borderColor = job.jobCategory !== "work" ? catColors.border : colors.border;
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-2xl p-4 shadow-sm border-r-4 ${colors.border} cursor-pointer active:scale-[0.98] transition-transform`}
+      className={`bg-white rounded-2xl p-4 shadow-sm border-r-4 ${borderColor} cursor-pointer active:scale-[0.98] transition-transform`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
@@ -624,6 +678,11 @@ function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
             <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${status.color}`}>
               {status.label}
             </span>
+            {job.jobCategory !== "work" && (
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${catColors.badge}`}>
+                {catColors.label}
+              </span>
+            )}
             {job.priority === "urgent" && (
               <span className="text-xs font-bold text-red-600 flex items-center gap-0.5">
                 <AlertCircle size={11} /> דחוף
@@ -698,6 +757,7 @@ export default function SchedulePage() {
         price: Number(row.price), priceBeforeVat: Boolean(row.price_before_vat),
         notes: row.notes ?? undefined,
         priority: (row.priority ?? "medium") as Priority,
+        jobCategory: (row.job_category ?? "work") as JobCategory,
       })));
     }
     setLoading(false);
@@ -817,6 +877,8 @@ export default function SchedulePage() {
                     {dayJobs.slice(0, 3).map((j, idx) => (
                       <div key={idx} className={`w-1 h-1 rounded-full ${
                         isSelected ? "bg-white" :
+                        j.jobCategory === "quote" ? "bg-purple-500" :
+                        j.jobCategory === "followup" ? "bg-amber-400" :
                         j.priority === "urgent" ? "bg-red-500" :
                         j.priority === "high" ? "bg-orange-400" :
                         j.status === "completed" ? "bg-gray-300" :
