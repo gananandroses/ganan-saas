@@ -291,12 +291,12 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
           <div className="bg-gray-50 rounded-2xl p-4 flex justify-between items-center">
             <span className="text-gray-500 text-sm">מחיר</span>
             <div className="text-left">
-              <span className="font-bold text-xl text-gray-800">₪{job.price.toLocaleString()}</span>
-              {job.priceBeforeVat && (
-                <p className="text-xs text-gray-400">
-                  + מע&quot;מ · סה&quot;כ ₪{Math.round(job.price * 1.18).toLocaleString()}
-                </p>
-              )}
+              <span className="font-bold text-xl text-gray-800">
+                ₪{(job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)).toLocaleString()}
+              </span>
+              <p className="text-xs text-gray-400">
+                + מע&quot;מ · סה&quot;כ ₪{Math.round((job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)) * 1.18).toLocaleString()}
+              </p>
             </div>
           </div>
 
@@ -634,8 +634,10 @@ function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
           <p className="text-sm text-gray-500 mt-0.5">{job.type || "עבודת גינון"}</p>
         </div>
         <div className="text-left flex-shrink-0">
-          <p className="text-green-700 font-bold text-base">₪{job.price.toLocaleString()}</p>
-          {job.priceBeforeVat && <p className="text-xs text-gray-400 text-left">+ מע&quot;מ</p>}
+          <p className="text-green-700 font-bold text-base">
+            ₪{(job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)).toLocaleString()}
+          </p>
+          <p className="text-xs text-gray-400 text-left">+ מע&quot;מ</p>
         </div>
       </div>
       <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
@@ -724,7 +726,7 @@ export default function SchedulePage() {
     [jobs, selectedISO]
   );
 
-  const dayRevenue = selectedDayJobs.reduce((s, j) => s + j.price, 0);
+  const dayRevenue = selectedDayJobs.reduce((s, j) => s + (j.priceBeforeVat ? j.price : Math.round(j.price / 1.18)), 0);
   const dayCompleted = selectedDayJobs.filter(j => j.status === "completed").length;
 
   return (
