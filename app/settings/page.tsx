@@ -125,7 +125,7 @@ export default function SettingsPage() {
       const appKey = urlBase64ToUint8Array(vapidKey);
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: appKey,
+        applicationServerKey: appKey as unknown as BufferSource,
       });
 
       const { data: { user } } = await supabase.auth.getUser();
