@@ -902,6 +902,7 @@ export default function CustomersPage() {
   const monthlyRevenue = customers
     .filter((c) => c.status !== "inactive")
     .reduce((sum, c) => sum + c.monthlyPrice * frequencyMultiplier(c.frequency), 0);
+  const monthlyVat = Math.round(monthlyRevenue / 1.18 * 0.18);
   const avgClose = customers.length ? Math.round(
     customers.reduce((sum, c) => {
       const join = new Date(c.joinDate);
@@ -1125,11 +1126,11 @@ export default function CustomersPage() {
             sub="לקוחות פעילים"
           />
           <StatCard
-            title="ממוצע לסגירה"
-            value={`${avgClose} חודשים`}
-            icon={<Clock size={22} className="text-purple-600" />}
+            title='החזרי מע"מ'
+            value={`₪${monthlyVat.toLocaleString()}`}
+            icon={<CreditCard size={22} className="text-purple-600" />}
             accent="bg-purple-100"
-            sub="ממוצע לקוח"
+            sub="לתשלום לרשות המיסים"
           />
         </div>
 
