@@ -1045,37 +1045,52 @@ export default function CustomersPage() {
 
   // Load from Supabase
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data, error } = await supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false });
-      if (!error && data) {
-        // Map snake_case DB fields to camelCase
-        setCustomers(data.map((c: Record<string, unknown>) => ({
-          id: c.id as string,
-          name: c.name as string,
-          city: c.city as string || "",
-          address: c.address as string || "",
-          phone: c.phone as string || "",
-          email: c.email as string || undefined,
-          monthlyPrice: c.monthly_price as number || 0,
-          frequency: c.frequency as string || "",
-          status: c.status as CustomerStatus || "active",
-          joinDate: c.join_date as string || "",
-          lastVisit: c.last_visit as string || "",
-          nextVisit: c.next_visit as string || "",
-          notes: c.notes as string || "",
-          tags: c.tags as string[] || [],
-          totalPaid: c.total_paid as number || 0,
-          balance: c.balance as number || 0,
-          lat: c.lat as number || 0,
-          lng: c.lng as number || 0,
-        })));
-      }
-      setLoading(false);
-    }
-    load();
+    loadCustomers();
   }, []);
+
+  async function loadCustomers() {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Load customers + upcoming jobs in parallel
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    const [{ data, error }, { data: jobsData }] = await Promise.all([
+      supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false }),
+      supabase.from("jobs").select("customer_name, job_date").eq("user_id", user?.id).gte("job_date", todayStr).order("job_date"),
+    ]);
+
+    // Build a map: customer_name → earliest upcoming job date
+    const nextJobMap: Record<string, string> = {};
+    (jobsData ?? []).forEach((j: Record<string, unknown>) => {
+      const name = j.customer_name as string;
+      if (name && !nextJobMap[name]) nextJobMap[name] = j.job_date as string;
+    });
+
+    if (!error && data) {
+      setCustomers(data.map((c: Record<string, unknown>) => ({
+        id: c.id as string,
+        name: c.name as string,
+        city: c.city as string || "",
+        address: c.address as string || "",
+        phone: c.phone as string || "",
+        email: c.email as string || undefined,
+        monthlyPrice: c.monthly_price as number || 0,
+        frequency: c.frequency as string || "",
+        status: c.status as CustomerStatus || "active",
+        joinDate: c.join_date as string || "",
+        lastVisit: c.last_visit as string || "",
+        nextVisit: nextJobMap[c.name as string] || (c.next_visit as string) || "",
+        notes: c.notes as string || "",
+        tags: c.tags as string[] || [],
+        totalPaid: c.total_paid as number || 0,
+        balance: c.balance as number || 0,
+        lat: c.lat as number || 0,
+        lng: c.lng as number || 0,
+      })));
+    }
+    setLoading(false);
+  }
 
   // Stats
   const totalCustomers = customers.length;
@@ -1174,29 +1189,7 @@ export default function CustomersPage() {
     }
 
     // reload full list
-    const { data: fresh } = await supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false });
-    if (fresh) {
-      setCustomers(fresh.map((c: Record<string, unknown>) => ({
-        id: c.id as string,
-        name: c.name as string,
-        city: c.city as string || "",
-        address: c.address as string || "",
-        phone: c.phone as string || "",
-        email: c.email as string || undefined,
-        monthlyPrice: c.monthly_price as number || 0,
-        frequency: c.frequency as string || "",
-        status: c.status as CustomerStatus || "active",
-        joinDate: c.join_date as string || "",
-        lastVisit: c.last_visit as string || "",
-        nextVisit: c.next_visit as string || "",
-        notes: c.notes as string || "",
-        tags: c.tags as string[] || [],
-        totalPaid: c.total_paid as number || 0,
-        balance: c.balance as number || 0,
-        lat: c.lat as number || 0,
-        lng: c.lng as number || 0,
-      })));
-    }
+    await loadCustomers();
 
     setShowAddModal(false);
     setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "" });
@@ -1254,23 +1247,7 @@ export default function CustomersPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={async () => {
-                setLoading(true);
-                const { data: { user } } = await supabase.auth.getUser();
-                supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false }).then(({ data }) => {
-                  if (data) setCustomers(data.map((c: Record<string, unknown>) => ({
-                    id: c.id as string, name: c.name as string, city: c.city as string || "",
-                    address: c.address as string || "", phone: c.phone as string || "",
-                    email: c.email as string || undefined, monthlyPrice: c.monthly_price as number || 0,
-                    frequency: c.frequency as string || "", status: (c.status as string || "active") as import("@/lib/mock-data").CustomerStatus,
-                    joinDate: c.join_date as string || "", lastVisit: c.last_visit as string || "",
-                    nextVisit: c.next_visit as string || "", notes: c.notes as string || "",
-                    tags: c.tags as string[] || [], totalPaid: c.total_paid as number || 0,
-                    balance: c.balance as number || 0, lat: c.lat as number || 0, lng: c.lng as number || 0,
-                  })));
-                  setLoading(false);
-                });
-              }}
+              onClick={loadCustomers}
               className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200"
             >
               <RefreshCw size={16} />
