@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
-import PushNotifications from "@/components/PushNotifications";
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -323,6 +322,34 @@ export default function DashboardPage() {
   const [weather, setWeather] = useState<{ temp: number; humidity: number; icon: string; city: string } | null>(null);
   const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied"|"unsupported">("idle");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
+      setPushStatus("unsupported"); return;
+    }
+    if (Notification.permission === "granted") setPushStatus("enabled");
+    else if (Notification.permission === "denied") setPushStatus("denied");
+    else setPushStatus("idle");
+  }, []);
+
+  async function enablePush() {
+    setPushStatus("loading");
+    try {
+      const p = await Notification.requestPermission();
+      if (p !== "granted") { setPushStatus("denied"); return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+      });
+      const { data: { user } } = await supabase.auth.getUser();
+      await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON(), userId: user?.id }) });
+      setPushStatus("enabled");
+    } catch { setPushStatus("idle"); }
+  }
 
   // Show install banner once per device
   useEffect(() => {
@@ -451,7 +478,21 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
             <p className="text-sm text-gray-500 mt-0.5">{hebrewDate()}</p>
             <div className="mt-2">
-              <PushNotifications />
+              {pushStatus === "enabled" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1.5 font-medium">🔔 התראות פעילות ✓</span>
+              )}
+              {pushStatus === "denied" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-3 py-1.5">🔕 אפשר התראות בהגדרות הדפדפן</span>
+              )}
+              {pushStatus === "unsupported" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-3 py-1.5">📧 תזכורות במייל פעילות ✓</span>
+              )}
+              {(pushStatus === "idle" || pushStatus === "loading") && (
+                <button onClick={enablePush} disabled={pushStatus === "loading"}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-full px-4 py-2 transition-colors disabled:opacity-60">
+                  {pushStatus === "loading" ? "⏳ מאשר..." : "🔔 הפעל התראות"}
+                </button>
+              )}
             </div>
           </div>
           {weather ? (
