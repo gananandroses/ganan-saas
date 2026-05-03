@@ -246,12 +246,12 @@ function NewEquipmentModal({ onClose, onSaved }: NewEquipmentModalProps) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">שירות אחרון</label>
-              <input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+              <input type="date" dir="ltr" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.lastService} onChange={(e) => setForm(f => ({ ...f, lastService: e.target.value }))} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">שירות הבא</label>
-              <input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+              <input type="date" dir="ltr" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.nextService} onChange={(e) => setForm(f => ({ ...f, nextService: e.target.value }))} />
             </div>
           </div>
@@ -1236,6 +1236,7 @@ export default function InventoryPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">תאריך תחזוקה</label>
               <input
                 type="date"
+                dir="ltr"
                 value={maintenanceDate}
                 onChange={e => setMaintenanceDate(e.target.value)}
                 min={new Date().toISOString().split("T")[0]}

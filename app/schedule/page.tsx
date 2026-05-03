@@ -377,7 +377,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">תאריך *</label>
-            <input name="job_date" type="date" value={form.job_date} onChange={handleChange}
+            <input name="job_date" type="date" value={form.job_date} onChange={handleChange} dir="ltr"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
           <div>

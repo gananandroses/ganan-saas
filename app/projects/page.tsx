@@ -343,6 +343,8 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
 
 // ── New / Edit Project Modal ──────────────────────────────────
 
+interface CustomerOption { id: string; name: string; address: string; monthlyPrice: number; }
+
 function ProjectFormModal({
   initial, onClose, onSaved,
 }: {
@@ -372,6 +374,37 @@ function ProjectFormModal({
   const [addToCalendar, setAddToCalendar] = useState(false);
   const [calendarDate, setCalendarDate] = useState(form.start_date || new Date().toISOString().split("T")[0]);
   const [calendarTime, setCalendarTime] = useState("09:00");
+
+  // Customer selector states
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">(
+    initial?.customerName ? "existing" : "new"
+  );
+  const [existingCustomers, setExistingCustomers] = useState<CustomerOption[]>([]);
+  const [customerSearch, setCustomerSearch] = useState(initial?.customerName ?? "");
+  const [showCustomerList, setShowCustomerList] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("customers").select("id, name, address, monthly_price").eq("user_id", user.id).order("name")
+        .then(({ data }) => {
+          if (data) setExistingCustomers(data.map(r => ({
+            id: String(r.id), name: r.name ?? "", address: r.address ?? "", monthlyPrice: Number(r.monthly_price) || 0,
+          })));
+        });
+    });
+  }, []);
+
+  function handleSelectCustomer(c: CustomerOption) {
+    setForm(p => ({ ...p, customer_name: c.name }));
+    setCustomerSearch(c.name);
+    setShowCustomerList(false);
+  }
+
+  const filteredCustomers = existingCustomers.filter(c =>
+    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    c.address.toLowerCase().includes(customerSearch.toLowerCase())
+  );
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -466,19 +499,57 @@ function ProjectFormModal({
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide">פרטים כלליים</h3>
           <input name="name" value={form.name} onChange={handleChange} placeholder="שם הפרויקט *"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-          <input name="customer_name" value={form.customer_name} onChange={handleChange} placeholder="שם לקוח"
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          {/* Customer selector */}
+          <div>
+            <div className="flex gap-2 mb-2">
+              <button type="button" onClick={() => setCustomerMode("existing")}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "existing" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
+                👤 לקוח קיים
+              </button>
+              <button type="button" onClick={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: "" })); setCustomerSearch(""); }}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "new" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
+                ✨ לקוח חדש
+              </button>
+            </div>
+            {customerMode === "existing" ? (
+              <div className="relative">
+                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  value={customerSearch}
+                  onChange={e => { setCustomerSearch(e.target.value); setShowCustomerList(true); }}
+                  onFocus={() => setShowCustomerList(true)}
+                  placeholder="חפש לקוח..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+                {showCustomerList && filteredCustomers.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                    {filteredCustomers.map(c => (
+                      <button key={c.id} type="button"
+                        onMouseDown={() => handleSelectCustomer(c)}
+                        className="w-full text-right px-4 py-2.5 hover:bg-green-50 transition-colors border-b border-gray-50 last:border-0">
+                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                        {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <input name="customer_name" value={form.customer_name} onChange={handleChange} placeholder="שם לקוח"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+            )}
+          </div>
           <textarea name="description" value={form.description} onChange={handleChange} rows={2} placeholder="תיאור הפרויקט..."
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">תאריך התחלה</label>
-              <input name="start_date" type="date" value={form.start_date} onChange={handleChange}
+              <input name="start_date" type="date" value={form.start_date} onChange={handleChange} dir="ltr"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">תאריך סיום</label>
-              <input name="end_date" type="date" value={form.end_date} onChange={handleChange}
+              <input name="end_date" type="date" value={form.end_date} onChange={handleChange} dir="ltr"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
           </div>
@@ -669,7 +740,7 @@ function ProjectFormModal({
               <div className="grid grid-cols-2 gap-3 px-1">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">תאריך ביקור</label>
-                  <input type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)}
+                  <input type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)} dir="ltr"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                 </div>
                 <div>
@@ -753,11 +824,20 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
 
 // ── Project Card ──────────────────────────────────────────────
 
-function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => void }) {
+function ProjectCard({ project, onUpdate, onDelete }: { project: Project; onUpdate: () => void; onDelete: (id: string) => void }) {
   const [checkedTasks, setCheckedTasks] = useState<Set<number>>(new Set());
   const [showUpdate, setShowUpdate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showFinance, setShowFinance] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!confirm(`למחוק את הפרויקט "${project.name}"?`)) return;
+    setDeleting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("projects").delete().eq("id", project.id).eq("user_id", user?.id);
+    onDelete(project.id);
+  }
   const colors = statusColor(project.status);
   const days = daysRemaining(project.endDate);
   const { materialsCost, laborCost, totalCost, profit, budgetBeforeVat } = calcFinancials(project);
@@ -905,6 +985,10 @@ function ProjectCard({ project, onUpdate }: { project: Project; onUpdate: () => 
         <button onClick={() => setShowUpdate(true)}
           className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2">
           <BarChart2 size={13} /> התקדמות
+        </button>
+        <button onClick={handleDelete} disabled={deleting}
+          className="py-2.5 px-3 rounded-xl text-sm font-semibold border border-red-100 text-red-400 hover:bg-red-50 flex items-center justify-center">
+          <Trash2 size={14} />
         </button>
         <button onClick={() => setShowEdit(true)}
           className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 flex items-center justify-center gap-2">
@@ -1146,7 +1230,7 @@ export default function ProjectsPage() {
           </div>
         ) : viewMode === "cards" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-28">
-            {projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={fetchProjects} />)}
+            {projects.map(p => <ProjectCard key={p.id} project={p} onUpdate={fetchProjects} onDelete={id => setProjects(prev => prev.filter(x => x.id !== id))} />)}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-28">
