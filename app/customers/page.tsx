@@ -420,10 +420,12 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
       const today = new Date();
       const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
       const { data } = await supabase
-        .from("jobs").select("job_date, job_time")
-        .eq("user_id", user?.id).eq("customer_name", customer.name)
-        .gte("job_date", todayStr).order("job_date").limit(1);
-      setNextJob(data && data.length > 0 ? { date: data[0].job_date, time: (data[0].job_time ?? "").slice(0,5) } : null);
+        .from("jobs").select("job_date, job_time, customer_name")
+        .eq("user_id", user?.id)
+        .gte("job_date", todayStr).order("job_date");
+      const normalize = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+      const match = (data ?? []).find(j => normalize(j.customer_name) === normalize(customer.name));
+      setNextJob(match ? { date: match.job_date, time: (match.job_time ?? "").slice(0,5) } : null);
     }
     loadNextJob();
   }, [customer.name]);
@@ -1060,10 +1062,11 @@ export default function CustomersPage() {
       supabase.from("jobs").select("customer_name, job_date").eq("user_id", user?.id).gte("job_date", todayStr).order("job_date"),
     ]);
 
-    // Build a map: customer_name → earliest upcoming job date
+    // Build a map: normalized customer_name → earliest upcoming job date
+    const normalize = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
     const nextJobMap: Record<string, string> = {};
     (jobsData ?? []).forEach((j: Record<string, unknown>) => {
-      const name = j.customer_name as string;
+      const name = normalize(j.customer_name as string);
       if (name && !nextJobMap[name]) nextJobMap[name] = j.job_date as string;
     });
 
@@ -1080,7 +1083,7 @@ export default function CustomersPage() {
         status: c.status as CustomerStatus || "active",
         joinDate: c.join_date as string || "",
         lastVisit: c.last_visit as string || "",
-        nextVisit: nextJobMap[c.name as string] || (c.next_visit as string) || "",
+        nextVisit: nextJobMap[normalize(c.name as string)] || (c.next_visit as string) || "",
         notes: c.notes as string || "",
         tags: c.tags as string[] || [],
         totalPaid: c.total_paid as number || 0,
