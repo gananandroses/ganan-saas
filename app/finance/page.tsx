@@ -566,7 +566,9 @@ export default function FinancePage() {
 
   const deleteTransaction = async (id: string) => {
     if (!confirm("למחוק עסקה זו?")) return;
-    await supabase.from("transactions").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
@@ -821,7 +823,7 @@ export default function FinancePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">פיננסים וחיובים</h1>
-            <p className="text-sm text-gray-500 mt-0.5">אפריל 2026</p>
+            <p className="text-sm text-gray-500 mt-0.5">{new Date().toLocaleDateString("he-IL", { month: "long", year: "numeric" })}</p>
           </div>
           <div className="flex items-center gap-2">
             <button

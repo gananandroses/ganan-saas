@@ -918,7 +918,7 @@ function AIChat() {
           <div>
             <h2 className="font-bold text-slate-800">שאל את הגנן AI</h2>
             <p className="text-xs text-slate-400">
-              מופעל על ידי Claude — מומחה גינון וירקות
+              עוזר חכם — מומחה גינון וירקות
             </p>
           </div>
           <div className="mr-auto flex items-center gap-1.5">
@@ -1027,10 +1027,10 @@ export default function AIToolsPage() {
               כלי AI לגינון
             </h1>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
               <p className="text-sm text-slate-500 font-medium">
-                מופעל על ידי{" "}
-                <span className="text-emerald-600 font-bold">Claude AI</span>
+                <span className="text-amber-600 font-bold">גרסת הדגמה</span>
+                {" "}— AI מלא בקרוב
               </p>
             </div>
           </div>

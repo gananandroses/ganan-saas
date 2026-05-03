@@ -617,7 +617,7 @@ export default function AutomationsPage() {
               icon={<Calendar size={18} className="text-blue-600" />}
               title="Google Calendar"
               description="סנכרון ביקורים ועבודות"
-              status="connected"
+              status="disconnected"
               color="bg-blue-50"
             />
             <IntegrationCard
@@ -631,7 +631,7 @@ export default function AutomationsPage() {
               icon={<CreditCard size={18} className="text-purple-600" />}
               title="Bit"
               description="יצירת קישורי תשלום"
-              status="connected"
+              status="disconnected"
               color="bg-purple-50"
             />
             <IntegrationCard

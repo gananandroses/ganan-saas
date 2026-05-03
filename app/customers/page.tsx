@@ -985,15 +985,18 @@ export default function CustomersPage() {
     // Also delete the customer's jobs (find name first)
     const customerToDelete = customers.find(c => c.id === id);
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("customers").delete().eq("id", id);
+    if (!user) return;
+    await supabase.from("customers").delete().eq("id", id).eq("user_id", user.id);
     if (customerToDelete) {
-      await supabase.from("jobs").delete().eq("customer_name", customerToDelete.name).eq("user_id", user?.id);
+      await supabase.from("jobs").delete().eq("customer_name", customerToDelete.name).eq("user_id", user.id);
     }
     setCustomers((prev) => prev.filter((c) => c.id !== id));
     setSelectedCustomer(null);
   }
 
   async function handleUpdateCustomer(id: string, data: Partial<Customer>) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     await supabase.from("customers").update({
       name: data.name,
       phone: data.phone,
@@ -1004,7 +1007,7 @@ export default function CustomersPage() {
       frequency: data.frequency,
       status: data.status,
       notes: data.notes,
-    }).eq("id", id);
+    }).eq("id", id).eq("user_id", user.id);
     setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
     setSelectedCustomer(prev => prev ? { ...prev, ...data } : null);
   }
