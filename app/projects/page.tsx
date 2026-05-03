@@ -369,6 +369,9 @@ function ProjectFormModal({
   const [newTask, setNewTask] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [addToCalendar, setAddToCalendar] = useState(false);
+  const [calendarDate, setCalendarDate] = useState(form.start_date || new Date().toISOString().split("T")[0]);
+  const [calendarTime, setCalendarTime] = useState("09:00");
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
@@ -424,6 +427,25 @@ function ProjectFormModal({
     }
 
     if (dbError) { setError("שגיאה: " + dbError.message); setSaving(false); return; }
+
+    // Add to calendar if requested
+    if (addToCalendar && data) {
+      await supabase.from("jobs").insert({
+        customer_name: form.customer_name.trim() || form.name.trim(),
+        address: null,
+        job_date: calendarDate,
+        job_time: calendarTime,
+        duration: 2,
+        type: form.name.trim(),
+        priority: "medium",
+        price: parseFloat(form.budget) || 0,
+        notes: `פרויקט: ${form.name.trim()}`,
+        status: "pending",
+        assigned_to: [],
+        user_id: user?.id,
+      });
+    }
+
     if (data) onSaved(mapProject(data));
     setSaving(false);
     onClose();
@@ -628,6 +650,37 @@ function ProjectFormModal({
           <textarea name="notes" value={form.notes} onChange={handleChange} rows={3} placeholder="הערות נוספות על הפרויקט..."
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
         </section>
+
+        {/* Add to calendar */}
+        {!isEdit && (
+          <section className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setAddToCalendar(v => !v)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-colors text-sm font-semibold ${addToCalendar ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 bg-white text-gray-500"}`}
+            >
+              <span className="text-lg">📅</span>
+              <span className="flex-1 text-right">שריין ביומן</span>
+              <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${addToCalendar ? "border-green-500 bg-green-500" : "border-gray-300"}`}>
+                {addToCalendar && <span className="text-white text-xs">✓</span>}
+              </span>
+            </button>
+            {addToCalendar && (
+              <div className="grid grid-cols-2 gap-3 px-1">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">תאריך ביקור</label>
+                  <input type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">שעה</label>
+                  <input type="time" value={calendarTime} onChange={e => setCalendarTime(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{error}</p>}
 

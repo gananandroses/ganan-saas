@@ -212,6 +212,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerList, setShowCustomerList] = useState(false);
+  const [priceVatType, setPriceVatType] = useState<"include" | "before">("include");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -256,7 +257,9 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       duration: parseFloat(form.duration) || 1,
       type: form.type.trim() || null,
       priority: form.priority,
-      price: parseFloat(form.price) || 0,
+      price: priceVatType === "before"
+        ? Math.round((parseFloat(form.price) || 0) * 1.18)
+        : parseFloat(form.price) || 0,
       notes: form.notes.trim() || null,
       status: "pending",
       assigned_to: [],
@@ -393,6 +396,21 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">מחיר (₪)</label>
             <input name="price" type="number" min="0" value={form.price} onChange={handleChange} placeholder="350"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+            <div className="flex gap-1 mt-1.5">
+              <button type="button" onClick={() => setPriceVatType("include")}
+                className={`flex-1 text-xs py-1 rounded-lg font-medium transition-colors ${priceVatType === "include" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                כולל מע״מ
+              </button>
+              <button type="button" onClick={() => setPriceVatType("before")}
+                className={`flex-1 text-xs py-1 rounded-lg font-medium transition-colors ${priceVatType === "before" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500"}`}>
+                + מע״מ
+              </button>
+            </div>
+            {form.price && parseFloat(form.price) > 0 && priceVatType === "before" && (
+              <p className="text-xs text-gray-400 mt-1">
+                סה״כ כולל מע״מ: ₪{Math.round(parseFloat(form.price) * 1.18).toLocaleString()}
+              </p>
+            )}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
