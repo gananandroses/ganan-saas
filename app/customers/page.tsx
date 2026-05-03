@@ -110,11 +110,15 @@ interface StatCardProps {
   icon: React.ReactNode;
   accent: string;
   sub?: string;
+  onClick?: () => void;
 }
 
-function StatCard({ title, value, icon, accent, sub }: StatCardProps) {
+function StatCard({ title, value, icon, accent, sub, onClick }: StatCardProps) {
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-4">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center gap-4 ${onClick ? "cursor-pointer hover:shadow-md hover:border-gray-200 transition-all active:scale-95" : ""}`}
+    >
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${accent}`}>
         {icon}
       </div>
@@ -122,6 +126,98 @@ function StatCard({ title, value, icon, accent, sub }: StatCardProps) {
         <p className="text-xs text-gray-500">{title}</p>
         <p className="text-xl font-bold text-gray-800">{value}</p>
         {sub && <p className="text-xs text-gray-400">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ===== STAT DETAIL MODAL =====
+
+type StatModal = "total" | "vip" | "revenue" | "vat" | null;
+
+function StatDetailModal({
+  type, customers, monthlyRevenue, monthlyVat, onClose,
+}: {
+  type: StatModal;
+  customers: Customer[];
+  monthlyRevenue: number;
+  monthlyVat: number;
+  onClose: () => void;
+}) {
+  if (!type) return null;
+
+  const activeCustomers = customers.filter(c => c.status !== "inactive");
+  const vipCustomers    = customers.filter(c => c.status === "vip");
+
+  const titles: Record<NonNullable<StatModal>, string> = {
+    total:   `כל הלקוחות (${customers.length})`,
+    vip:     `לקוחות VIP (${vipCustomers.length})`,
+    revenue: "הכנסה חודשית מפורטת",
+    vat:     'החזרי מע"מ חודשיים',
+  };
+
+  const listForType = {
+    total:   customers,
+    vip:     vipCustomers,
+    revenue: activeCustomers,
+    vat:     activeCustomers,
+  }[type];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "85dvh" }} dir="rtl">
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        </div>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-bold text-gray-900">{titles[type]}</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Summary row */}
+        {(type === "revenue" || type === "vat") && (
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex justify-between text-sm">
+            <span className="text-gray-500">{type === "revenue" ? "סה״כ חודשי" : 'סה״כ מע"מ'}</span>
+            <span className="font-bold text-green-700">
+              ₪{(type === "revenue" ? monthlyRevenue : monthlyVat).toLocaleString()}
+            </span>
+          </div>
+        )}
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {listForType.length === 0 && (
+            <p className="text-center text-gray-400 py-10 text-sm">אין לקוחות להציג</p>
+          )}
+          {listForType.map(c => {
+            const perMonth = c.monthlyPrice * frequencyMultiplier(c.frequency);
+            const vatPerMonth = Math.round(perMonth / 1.18 * 0.18);
+            return (
+              <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                  <p className="text-xs text-gray-400">{c.city} · {c.frequency}</p>
+                </div>
+                <div className="text-right">
+                  {type === "vat" && (
+                    <p className="text-sm font-bold text-purple-600">₪{vatPerMonth.toLocaleString()}</p>
+                  )}
+                  {type === "revenue" && (
+                    <p className="text-sm font-bold text-green-700">₪{perMonth.toLocaleString()}</p>
+                  )}
+                  {(type === "total" || type === "vip") && (
+                    <p className="text-sm font-bold text-gray-700">₪{c.monthlyPrice.toLocaleString()}/ביקור</p>
+                  )}
+                  {c.status === "vip" && <p className="text-xs text-yellow-500 font-semibold">★ VIP</p>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -902,7 +998,9 @@ export default function CustomersPage() {
   const monthlyRevenue = customers
     .filter((c) => c.status !== "inactive")
     .reduce((sum, c) => sum + c.monthlyPrice * frequencyMultiplier(c.frequency), 0);
+  // VAT = 18% of the net price (price / 1.18 * 0.18 extracts VAT from a VAT-inclusive price)
   const monthlyVat = Math.round(monthlyRevenue / 1.18 * 0.18);
+  const [statModal, setStatModal] = useState<StatModal>(null);
   const avgClose = customers.length ? Math.round(
     customers.reduce((sum, c) => {
       const join = new Date(c.joinDate);
@@ -1109,30 +1207,42 @@ export default function CustomersPage() {
             value={String(totalCustomers)}
             icon={<Users size={22} className="text-green-600" />}
             accent="bg-green-100"
-            sub={`${activeCount} פעילים`}
+            sub={`${activeCount} פעילים · לחץ לפירוט`}
+            onClick={() => setStatModal("total")}
           />
           <StatCard
             title="לקוחות VIP"
             value={String(vipCount)}
             icon={<Star size={22} className="text-yellow-500 fill-yellow-500" />}
             accent="bg-yellow-100"
-            sub="לקוחות מובחרים"
+            sub="לחץ לרשימה"
+            onClick={() => setStatModal("vip")}
           />
           <StatCard
             title="הכנסה חודשית"
             value={formatCurrency(monthlyRevenue)}
             icon={<TrendingUp size={22} className="text-blue-600" />}
             accent="bg-blue-100"
-            sub="לקוחות פעילים"
+            sub="לחץ לפירוט לקוח"
+            onClick={() => setStatModal("revenue")}
           />
           <StatCard
             title='החזרי מע"מ'
             value={`₪${monthlyVat.toLocaleString()}`}
             icon={<CreditCard size={22} className="text-purple-600" />}
             accent="bg-purple-100"
-            sub="לתשלום לרשות המיסים"
+            sub="לחץ לפירוט"
+            onClick={() => setStatModal("vat")}
           />
         </div>
+
+        <StatDetailModal
+          type={statModal}
+          customers={customers}
+          monthlyRevenue={monthlyRevenue}
+          monthlyVat={monthlyVat}
+          onClose={() => setStatModal(null)}
+        />
 
         {/* ===== FILTER BAR ===== */}
         <div className="flex flex-col sm:flex-row gap-3">
