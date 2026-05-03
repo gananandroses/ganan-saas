@@ -43,7 +43,7 @@ export async function middleware(request: NextRequest) {
   // Check subscription status
   const { data: sub } = await supabase
     .from('subscriptions')
-    .select('status, trial_ends_at, current_period_end')
+    .select('status, trial_ends_at, current_period_end, is_exempt')
     .eq('user_id', user.id)
     .single()
 
@@ -52,6 +52,8 @@ export async function middleware(request: NextRequest) {
   const hasAccess =
     sub &&
     (
+      // Developer / friends & family — bypass all checks
+      sub.is_exempt === true ||
       // Active trial
       (sub.status === 'trial' && new Date(sub.trial_ends_at) > now) ||
       // Paid subscription within period
