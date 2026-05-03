@@ -6,8 +6,13 @@ const PUBLIC_ROUTES = ['/login', '/register', '/', '/landing', '/auth/callback']
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Allow public routes
-  if (PUBLIC_ROUTES.some(route => pathname === route) || pathname.startsWith('/_next') || pathname.startsWith('/api')) {
+  // Allow public routes, subscribe pages, and static/api paths
+  if (
+    PUBLIC_ROUTES.some(route => pathname === route) ||
+    pathname.startsWith('/subscribe') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api')
+  ) {
     return NextResponse.next()
   }
 
@@ -33,6 +38,28 @@ export async function middleware(request: NextRequest) {
   // Not logged in → redirect to login
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Check subscription status
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('status, trial_ends_at, current_period_end')
+    .eq('user_id', user.id)
+    .single()
+
+  const now = new Date()
+
+  const hasAccess =
+    sub &&
+    (
+      // Active trial
+      (sub.status === 'trial' && new Date(sub.trial_ends_at) > now) ||
+      // Paid subscription within period
+      (sub.status === 'active' && sub.current_period_end && new Date(sub.current_period_end) > now)
+    )
+
+  if (!hasAccess) {
+    return NextResponse.redirect(new URL('/subscribe', request.url))
   }
 
   return response
