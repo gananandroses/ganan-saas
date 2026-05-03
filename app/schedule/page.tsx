@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
-  Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw,
+  Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw, ArrowRight,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -434,6 +435,7 @@ function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
 
 export default function SchedulePage() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showNewJobModal, setShowNewJobModal] = useState(false);
@@ -506,7 +508,12 @@ export default function SchedulePage() {
       {/* ── Header ── */}
       <div className="bg-white border-b border-gray-200 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-gray-900">לוח זמנים</h1>
+          <div className="flex items-center gap-2">
+            <button onClick={() => router.back()} className="p-2 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200">
+              <ArrowRight size={18} />
+            </button>
+            <h1 className="text-xl font-bold text-gray-900">לוח זמנים</h1>
+          </div>
           <div className="flex items-center gap-2">
             <button onClick={() => fetchJobs()} className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200">
               <RefreshCw size={16} />
