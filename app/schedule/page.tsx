@@ -397,9 +397,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobCategory, setJobCategory] = useState<JobCategory>("work");
-  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
   const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
-  const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerList, setShowCustomerList] = useState(false);
   const [priceVatType, setPriceVatType] = useState<"include" | "before">("before");
 
@@ -428,7 +426,6 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       address: c.address,
       price: c.monthly_price ? String(c.monthly_price) : prev.price,
     }));
-    setCustomerSearch(c.name);
     setShowCustomerList(false);
   }
 
@@ -510,70 +507,44 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">לקוח *</label>
-          {/* Toggle */}
-          <div className="flex gap-1 mb-2">
-            <button type="button" onClick={() => setCustomerMode("existing")}
-              className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors ${customerMode === "existing" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
-              👤 לקוח קיים
-            </button>
-            <button type="button" onClick={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: "", address: "" })); }}
-              className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors ${customerMode === "new" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
-              ✨ לקוח חדש
-            </button>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-sm font-medium text-gray-700">שם לקוח *</label>
+            <a href="/customers" target="_blank"
+              className="text-xs text-green-600 font-medium flex items-center gap-1 hover:underline">
+              <Plus size={12} /> הוסף לקוח חדש
+            </a>
           </div>
-          {/* Customer search / new */}
-          {customerMode === "existing" ? (
-            <div className="relative">
-              <input
-                type="text"
-                value={customerSearch}
-                onChange={e => { setCustomerSearch(e.target.value); setShowCustomerList(true); setForm(p => ({ ...p, customer_name: "", address: "" })); }}
-                onFocus={() => setShowCustomerList(true)}
-                placeholder="חפש לקוח..."
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              />
-              {/* Selected indicator */}
-              {form.customer_name && (
-                <div className="mt-1.5 flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                  <span className="text-sm font-semibold text-green-700">{form.customer_name}</span>
-                  <button type="button" onClick={() => { setForm(p => ({ ...p, customer_name: "", address: "" })); setCustomerSearch(""); }}
-                    className="text-green-400 hover:text-green-600">
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              {/* Dropdown list */}
-              {showCustomerList && !form.customer_name && (
-                <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
-                  {existingCustomers
-                    .filter(c => c.name.includes(customerSearch) || c.address.includes(customerSearch))
-                    .length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-4">לא נמצאו לקוחות</p>
-                    ) : (
-                      existingCustomers
-                        .filter(c => c.name.includes(customerSearch) || c.address.includes(customerSearch))
-                        .map(c => (
-                          <button key={c.id} type="button"
-                            onMouseDown={() => handleSelectCustomer(c)}
-                            className="w-full text-right px-4 py-3 hover:bg-green-50 border-b border-gray-50 last:border-0 flex justify-between items-center">
-                            <div>
-                              <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                              {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
-                            </div>
-                            {c.monthly_price > 0 && <span className="text-xs text-green-600 font-medium">₪{c.monthly_price.toLocaleString()}</span>}
-                          </button>
-                        ))
-                    )
-                  }
-                </div>
-              )}
-            </div>
-          ) : (
-            <input name="customer_name" value={form.customer_name} onChange={handleChange}
-              placeholder="שם הלקוח החדש"
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-          )}
+          <div className="relative">
+            <input
+              name="customer_name"
+              type="text"
+              value={form.customer_name}
+              onChange={e => { handleChange(e); setShowCustomerList(true); }}
+              onFocus={() => setShowCustomerList(true)}
+              onBlur={() => setTimeout(() => setShowCustomerList(false), 150)}
+              placeholder="הקלד שם לקוח..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            />
+            {/* Suggestions dropdown */}
+            {showCustomerList && form.customer_name.length > 0 && (
+              <div className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
+                {existingCustomers
+                  .filter(c => c.name.includes(form.customer_name) || c.address.includes(form.customer_name))
+                  .map(c => (
+                    <button key={c.id} type="button"
+                      onMouseDown={() => handleSelectCustomer(c)}
+                      className="w-full text-right px-4 py-3 hover:bg-green-50 border-b border-gray-50 last:border-0 flex justify-between items-center">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                        {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
+                      </div>
+                      {c.monthly_price > 0 && <span className="text-xs text-green-600 font-medium">₪{c.monthly_price.toLocaleString()}</span>}
+                    </button>
+                  ))
+                }
+              </div>
+            )}
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">כתובת</label>
