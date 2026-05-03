@@ -25,6 +25,7 @@ interface Job {
   status: TaskStatus;
   assignedTo: string[];
   price: number;
+  priceBeforeVat: boolean;
   notes?: string;
   priority: Priority;
 }
@@ -154,7 +155,14 @@ function JobDetailModal({ job, onClose, onMarkCompleted }: {
           {/* Price */}
           <div className="bg-gray-50 rounded-2xl p-4 flex justify-between items-center">
             <span className="text-gray-500 text-sm">מחיר</span>
-            <span className="font-bold text-xl text-gray-800">₪{job.price.toLocaleString()}</span>
+            <div className="text-left">
+              <span className="font-bold text-xl text-gray-800">₪{job.price.toLocaleString()}</span>
+              {job.priceBeforeVat && (
+                <p className="text-xs text-gray-400">
+                  + מע&quot;מ · סה&quot;כ ₪{Math.round(job.price * 1.18).toLocaleString()}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Notes */}
@@ -257,9 +265,8 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       duration: parseFloat(form.duration) || 1,
       type: form.type.trim() || null,
       priority: form.priority,
-      price: priceVatType === "before"
-        ? Math.round((parseFloat(form.price) || 0) * 1.18)
-        : parseFloat(form.price) || 0,
+      price: parseFloat(form.price) || 0,
+      price_before_vat: priceVatType === "before",
       notes: form.notes.trim() || null,
       status: "pending",
       assigned_to: [],
@@ -275,7 +282,9 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         id: last.id, customerId: last.customer_id ?? null, customerName: last.customer_name ?? "",
         address: last.address ?? "", date: last.job_date, time: (last.job_time ?? "00:00").slice(0, 5),
         duration: Number(last.duration), type: last.type ?? "", status: last.status as TaskStatus,
-        assignedTo: last.assigned_to ?? [], price: Number(last.price), notes: last.notes ?? undefined,
+        assignedTo: last.assigned_to ?? [], price: Number(last.price),
+        priceBeforeVat: Boolean(last.price_before_vat),
+        notes: last.notes ?? undefined,
         priority: (last.priority ?? "medium") as Priority,
       });
     }
@@ -480,6 +489,7 @@ function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
         </div>
         <div className="text-left flex-shrink-0">
           <p className="text-green-700 font-bold text-base">₪{job.price.toLocaleString()}</p>
+          {job.priceBeforeVat && <p className="text-xs text-gray-400 text-left">+ מע&quot;מ</p>}
         </div>
       </div>
       <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
@@ -537,7 +547,8 @@ export default function SchedulePage() {
         date: row.job_date, time: (row.job_time ?? "00:00").slice(0, 5),
         duration: Number(row.duration), type: row.type ?? "",
         status: row.status as TaskStatus, assignedTo: row.assigned_to ?? [],
-        price: Number(row.price), notes: row.notes ?? undefined,
+        price: Number(row.price), priceBeforeVat: Boolean(row.price_before_vat),
+        notes: row.notes ?? undefined,
         priority: (row.priority ?? "medium") as Priority,
       })));
     }
