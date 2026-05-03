@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, Sparkles, BarChart3, Zap, FolderKanban,
@@ -27,6 +28,17 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [userName, setUserName] = useState("");
+  const [userInitial, setUserInitial] = useState("?");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const name = user.user_metadata?.full_name || user.email?.split("@")[0] || "";
+      setUserName(name);
+      setUserInitial((name[0] || "?").toUpperCase());
+    });
+  }, []);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -89,10 +101,10 @@ export default function Sidebar() {
         {/* User card */}
         <div className="mt-3 p-3 bg-green-50 rounded-xl flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-            א
+            {userInitial}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-800 truncate">אריאל חסין</p>
+            <p className="text-sm font-semibold text-gray-800 truncate">{userName || "..."}</p>
             <p className="text-xs text-gray-500 truncate">בעל עסק</p>
           </div>
         </div>
