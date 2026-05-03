@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { supabase } from "@/lib/supabase/client";
@@ -472,15 +473,16 @@ export default function DashboardPage() {
     <div dir="rtl" className="min-h-screen bg-slate-50">
       <Header title="דשבורד" subtitle="סקירה כללית של העסק" />
 
-      {/* ── Push notification floating button ── */}
-      {(pushStatus === "idle" || pushStatus === "loading") && (
+      {/* ── Push notification floating button (Portal to bypass overflow:hidden) ── */}
+      {(pushStatus === "idle" || pushStatus === "loading") && typeof document !== "undefined" && createPortal(
         <button
           onClick={enablePush}
           disabled={pushStatus === "loading"}
-          style={{position:"fixed",bottom:"90px",left:"16px",zIndex:9999,background:"#16a34a",color:"white",padding:"12px 18px",borderRadius:"999px",fontWeight:"bold",fontSize:"14px",boxShadow:"0 4px 16px rgba(0,0,0,0.25)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px"}}
+          style={{position:"fixed",bottom:"90px",left:"16px",zIndex:99999,background:"#16a34a",color:"white",padding:"14px 20px",borderRadius:"999px",fontWeight:"bold",fontSize:"15px",boxShadow:"0 4px 20px rgba(0,0,0,0.3)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",direction:"rtl"}}
         >
           🔔 {pushStatus === "loading" ? "מאשר..." : "הפעל התראות"}
-        </button>
+        </button>,
+        document.body
       )}
 
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
