@@ -366,7 +366,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerList, setShowCustomerList] = useState(false);
-  const [priceVatType, setPriceVatType] = useState<"include" | "before">("include");
+  const [priceVatType, setPriceVatType] = useState<"include" | "before">("before");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
