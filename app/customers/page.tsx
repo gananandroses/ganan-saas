@@ -284,6 +284,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editVatType, setEditVatType] = useState<"before" | "include">("include");
   const [editForm, setEditForm] = useState({
     name: customer.name,
     phone: customer.phone,
@@ -311,7 +312,9 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
       email: editForm.email || undefined,
       city: editForm.city,
       address: editForm.address,
-      monthlyPrice: parseFloat(editForm.monthly_price) || 0,
+      monthlyPrice: editVatType === "before"
+        ? Math.round((parseFloat(editForm.monthly_price) || 0) * 1.18)
+        : parseFloat(editForm.monthly_price) || 0,
       frequency: editForm.frequency,
       status: editForm.status as CustomerStatus,
       notes: editForm.notes,
@@ -398,6 +401,23 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                 <label className="block text-sm font-medium text-gray-700 mb-1">מחיר חודשי (₪)</label>
                 <input type="number" value={editForm.monthly_price} onChange={e => setEditForm(p => ({...p, monthly_price: e.target.value}))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                <div className="flex gap-1 mt-2">
+                  <button type="button" onClick={() => setEditVatType("include")}
+                    className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${editVatType === "include" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                    כולל מע״מ
+                  </button>
+                  <button type="button" onClick={() => setEditVatType("before")}
+                    className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${editVatType === "before" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                    לפני מע״מ
+                  </button>
+                </div>
+                {editForm.monthly_price && parseFloat(editForm.monthly_price) > 0 && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {editVatType === "before"
+                      ? `✓ כולל מע״מ: ₪${Math.round(parseFloat(editForm.monthly_price) * 1.18).toLocaleString()}`
+                      : `✓ לפני מע״מ: ₪${Math.round(parseFloat(editForm.monthly_price) / 1.18).toLocaleString()}`}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
@@ -920,6 +940,7 @@ export default function CustomersPage() {
     name: "", city: "", address: "", phone: "", email: "",
     monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "",
   });
+  const [newVatType, setNewVatType] = useState<"before" | "include">("include");
 
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
@@ -934,7 +955,9 @@ export default function CustomersPage() {
       address: newCustomer.address,
       phone: newCustomer.phone,
       email: newCustomer.email || null,
-      monthly_price: parseFloat(newCustomer.monthly_price) || 0,
+      monthly_price: newVatType === "before"
+        ? Math.round((parseFloat(newCustomer.monthly_price) || 0) * 1.18)
+        : parseFloat(newCustomer.monthly_price) || 0,
       frequency: newCustomer.frequency,
       status: newCustomer.status,
       notes: newCustomer.notes,
@@ -978,6 +1001,7 @@ export default function CustomersPage() {
 
     setShowAddModal(false);
     setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "" });
+    setNewVatType("include");
     setSaving(false);
   }
 
@@ -1310,6 +1334,27 @@ export default function CustomersPage() {
                   <input type="number" value={newCustomer.monthly_price} onChange={e => setNewCustomer(p => ({...p, monthly_price: e.target.value}))}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="400" />
+                  {/* VAT toggle */}
+                  <div className="flex gap-1 mt-2">
+                    <button type="button"
+                      onClick={() => setNewVatType("include")}
+                      className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${newVatType === "include" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                      כולל מע״מ
+                    </button>
+                    <button type="button"
+                      onClick={() => setNewVatType("before")}
+                      className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${newVatType === "before" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                      לפני מע״מ
+                    </button>
+                  </div>
+                  {/* Live calculation */}
+                  {newCustomer.monthly_price && parseFloat(newCustomer.monthly_price) > 0 && (
+                    <p className="text-xs text-gray-400 mt-1 text-left">
+                      {newVatType === "before"
+                        ? `✓ כולל מע״מ (18%): ₪${Math.round(parseFloat(newCustomer.monthly_price) * 1.18).toLocaleString()}`
+                        : `✓ לפני מע״מ: ₪${Math.round(parseFloat(newCustomer.monthly_price) / 1.18).toLocaleString()}`}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">תדירות</label>
