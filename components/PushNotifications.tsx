@@ -45,10 +45,11 @@ export default function PushNotifications() {
       if (permission !== "granted") { setStatus("denied"); return; }
 
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
-      });
+      const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+      const padding = "=".repeat((4 - key.length % 4) % 4);
+      const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const appKey = Uint8Array.from([...window.atob(base64)].map(c => c.charCodeAt(0)));
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setStatus("idle"); return; }

@@ -40,7 +40,7 @@ async function sendPush(
 ) {
   try {
     await webpush.sendNotification(
-      subscription as Parameters<typeof webpush.sendNotification>[0],
+      subscription as unknown as Parameters<typeof webpush.sendNotification>[0],
       JSON.stringify({ title, body, url, tag })
     );
   } catch (e: unknown) {

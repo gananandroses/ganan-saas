@@ -341,10 +341,12 @@ export default function DashboardPage() {
       const p = await Notification.requestPermission();
       if (p !== "granted") { setPushStatus("denied"); return; }
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-      });
+      const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!;
+      const padding = "=".repeat((4 - key.length % 4) % 4);
+      const base64 = (key + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const raw = window.atob(base64);
+      const appKey = Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
       const { data: { user } } = await supabase.auth.getUser();
       await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON(), userId: user?.id }) });
       setPushStatus("enabled");
