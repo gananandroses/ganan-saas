@@ -203,9 +203,36 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
+  const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("customers").select("id, name, address, phone, monthly_price")
+        .eq("user_id", user.id).order("name")
+        .then(({ data }) => {
+          if (data) setExistingCustomers(data.map(c => ({
+            id: String(c.id), name: String(c.name), address: String(c.address || ""),
+            phone: String(c.phone || ""), monthly_price: Number(c.monthly_price || 0),
+          })));
+        });
+    });
+  }, []);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  }
+
+  function handleSelectCustomer(customerId: string) {
+    const c = existingCustomers.find(x => x.id === customerId);
+    if (!c) return;
+    setForm(prev => ({
+      ...prev,
+      customer_name: c.name,
+      address: c.address,
+      price: c.monthly_price ? String(c.monthly_price) : prev.price,
+    }));
   }
 
   async function handleSubmit(e?: React.FormEvent) {
@@ -266,10 +293,35 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       {/* Form fields */}
       <div className="px-5 py-5 space-y-4 pb-32">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">שם לקוח *</label>
-          <input name="customer_name" value={form.customer_name} onChange={handleChange}
-            placeholder="משפחת כהן"
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">לקוח *</label>
+          {/* Toggle */}
+          <div className="flex gap-1 mb-2">
+            <button type="button" onClick={() => setCustomerMode("existing")}
+              className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors ${customerMode === "existing" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+              👤 לקוח קיים
+            </button>
+            <button type="button" onClick={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: "", address: "" })); }}
+              className={`flex-1 text-xs py-2 rounded-xl font-medium transition-colors ${customerMode === "new" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+              ✨ לקוח חדש
+            </button>
+          </div>
+          {/* Existing customer dropdown */}
+          {customerMode === "existing" ? (
+            <select
+              onChange={e => handleSelectCustomer(e.target.value)}
+              defaultValue=""
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 bg-white"
+            >
+              <option value="" disabled>בחר לקוח מהרשימה...</option>
+              {existingCustomers.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.address ? ` — ${c.address}` : ""}</option>
+              ))}
+            </select>
+          ) : (
+            <input name="customer_name" value={form.customer_name} onChange={handleChange}
+              placeholder="שם הלקוח החדש"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">כתובת</label>
