@@ -22,6 +22,7 @@ import {
   Loader2,
   Pencil,
   X,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -748,6 +749,14 @@ export default function InventoryPage() {
     fetchMovements();
   };
 
+  const handleDeleteItem = async (id: string) => {
+    if (!confirm("למחוק פריט זה מהמלאי?")) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("inventory").delete().eq("id", id).eq("user_id", user.id);
+    setInventoryItems(prev => prev.filter(i => i.id !== id));
+  };
+
   // Filter items
   const filteredItems =
     selectedCategory === "הכל"
@@ -943,7 +952,7 @@ export default function InventoryPage() {
                       </div>
                     </div>
 
-                    {/* Stock Level Badge + Edit Button */}
+                    {/* Stock Level Badge + Edit + Delete */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span
                         className={`px-2 py-1 rounded-lg text-xs font-semibold ${stockStatus.bgColor} ${stockStatus.color}`}
@@ -955,6 +964,12 @@ export default function InventoryPage() {
                         className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                       >
                         <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
