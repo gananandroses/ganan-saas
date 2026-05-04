@@ -675,7 +675,9 @@ export default function FinancePage() {
   // KPI calculations
   const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-  const netProfit = totalIncome - totalExpense;
+  // Net profit = (income - expenses) excluding VAT — the actual money the business keeps
+  const cashFlow = totalIncome - totalExpense;
+  const netProfit = Math.round(cashFlow / 1.18);
   const totalVat = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.vatAmount, 0);
   const openDebt = transactions
     .filter((t) => t.type === "income" && (t.status === "pending" || t.status === "overdue"))
@@ -764,7 +766,7 @@ export default function FinancePage() {
                 <p className="text-xs text-gray-400 mt-0.5">
                   {detailModal === "income" && `${transactions.filter(t => t.type === "income").length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
                   {detailModal === "expense" && `${transactions.filter(t => t.type === "expense").length} תנועות · ₪${totalExpense.toLocaleString()} סה״כ`}
-                  {detailModal === "profit" && `הכנסות פחות הוצאות`}
+                  {detailModal === "profit" && `(הכנסות - הוצאות) ÷ 1.18 — אחרי הפחתת מע״מ`}
                 </p>
               </div>
               <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -772,18 +774,24 @@ export default function FinancePage() {
 
             {/* Profit summary row */}
             {detailModal === "profit" && (
-              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex-shrink-0 grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p className="text-xs text-gray-400">הכנסות</p>
-                  <p className="text-sm font-bold text-green-600">+₪{totalIncome.toLocaleString()}</p>
+              <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex-shrink-0 space-y-2">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-xs text-gray-400">הכנסות</p>
+                    <p className="text-sm font-bold text-green-600">+₪{totalIncome.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">הוצאות</p>
+                    <p className="text-sm font-bold text-red-500">-₪{totalExpense.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">תזרים</p>
+                    <p className="text-sm font-bold text-gray-700">₪{cashFlow.toLocaleString()}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-400">הוצאות</p>
-                  <p className="text-sm font-bold text-red-500">-₪{totalExpense.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400">רווח נקי</p>
-                  <p className={`text-sm font-bold ${netProfit >= 0 ? "text-blue-600" : "text-red-600"}`}>₪{netProfit.toLocaleString()}</p>
+                <div className="border-t border-gray-200 pt-2 flex justify-between items-center px-1">
+                  <span className="text-xs text-gray-500">רווח נקי (אחרי מע״מ ÷ 1.18)</span>
+                  <span className={`text-base font-bold ${netProfit >= 0 ? "text-blue-600" : "text-red-600"}`}>₪{netProfit.toLocaleString()}</span>
                 </div>
               </div>
             )}
