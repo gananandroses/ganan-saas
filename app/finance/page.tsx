@@ -578,6 +578,25 @@ function InvoicePanel({ onClose, customers }: { onClose: () => void; customers: 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+type RangePreset = "week" | "2weeks" | "month" | "3months" | "6months" | "year" | "all" | "custom";
+
+function getPresetRange(preset: RangePreset): { from: string; to: string } {
+  const today = new Date();
+  const to = today.toISOString().slice(0, 10);
+  const from = new Date(today);
+  switch (preset) {
+    case "week": from.setDate(from.getDate() - 7); break;
+    case "2weeks": from.setDate(from.getDate() - 14); break;
+    case "month": from.setMonth(from.getMonth() - 1); break;
+    case "3months": from.setMonth(from.getMonth() - 3); break;
+    case "6months": from.setMonth(from.getMonth() - 6); break;
+    case "year": from.setFullYear(from.getFullYear() - 1); break;
+    case "all": return { from: "1900-01-01", to };
+    default: from.setMonth(from.getMonth() - 1);
+  }
+  return { from: from.toISOString().slice(0, 10), to };
+}
+
 export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [showInvoice, setShowInvoice] = useState(false);
@@ -587,6 +606,19 @@ export default function FinancePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dbCustomers, setDbCustomers] = useState<{id: string; name: string; city: string; phone: string}[]>([]);
+  // Date range filter
+  const [rangePreset, setRangePreset] = useState<RangePreset>("month");
+  const [rangeFrom, setRangeFrom] = useState(getPresetRange("month").from);
+  const [rangeTo, setRangeTo] = useState(getPresetRange("month").to);
+
+  function applyPreset(preset: RangePreset) {
+    setRangePreset(preset);
+    if (preset !== "custom") {
+      const r = getPresetRange(preset);
+      setRangeFrom(r.from);
+      setRangeTo(r.to);
+    }
+  }
 
   const deleteTransaction = async (id: string) => {
     if (!confirm("למחוק עסקה זו?")) return;
@@ -643,8 +675,11 @@ export default function FinancePage() {
     return { month: label, income, expense };
   });
 
-  // Filtered transactions
-  const filteredTx = transactions.filter((t) => {
+  // Apply date range filter
+  const txInRange = transactions.filter(t => t.date >= rangeFrom && t.date <= rangeTo);
+
+  // Filtered transactions (tab + range)
+  const filteredTx = txInRange.filter((t) => {
     if (activeTab === "income") return t.type === "income";
     if (activeTab === "expense") return t.type === "expense";
     if (activeTab === "pending")
@@ -652,14 +687,14 @@ export default function FinancePage() {
     return true;
   });
 
-  // Overdue / pending payments
-  const alerts = transactions.filter(
+  // Overdue / pending payments (in range)
+  const alerts = txInRange.filter(
     (t) => t.type === "income" && (t.status === "pending" || t.status === "overdue")
   );
 
-  // Top 5 customers by revenue
+  // Top 5 customers by revenue (in range)
   const customerRevenueMap: Record<string, { name: string; total: number }> = {};
-  transactions
+  txInRange
     .filter((t) => t.type === "income")
     .forEach((t) => {
       if (!customerRevenueMap[t.customerName]) {
@@ -672,20 +707,27 @@ export default function FinancePage() {
     .slice(0, 5);
   const maxCustomerRevenue = Math.max(...customerRevenue.map((c) => c.total), 1);
 
-  // KPI calculations
-  const totalIncome = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const totalExpense = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  // KPI calculations (in range)
+  const totalIncome = txInRange.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const totalExpense = txInRange.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   // Net profit = (income - expenses) excluding VAT — the actual money the business keeps
   const cashFlow = totalIncome - totalExpense;
   const netProfit = Math.round(cashFlow / 1.18);
-  const totalVat = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.vatAmount, 0);
+  const totalVat = txInRange.filter((t) => t.type === "income").reduce((s, t) => s + t.vatAmount, 0);
   // VAT paid on expenses (input VAT) — assume expenses include VAT, deductible from VAT collected
   const inputVat = Math.round(totalExpense - totalExpense / 1.18);
   // Net VAT to pay = VAT collected - VAT paid on inputs
   const netVatToPay = Math.max(0, totalVat - inputVat);
-  const openDebt = transactions
+  const openDebt = txInRange
     .filter((t) => t.type === "income" && (t.status === "pending" || t.status === "overdue"))
     .reduce((s, t) => s + t.amount, 0);
+
+  // Range label for display
+  const rangeLabel: Record<RangePreset, string> = {
+    week: "שבוע אחרון", "2weeks": "שבועיים אחרונים", month: "חודש אחרון",
+    "3months": "3 חודשים אחרונים", "6months": "6 חודשים אחרונים", year: "שנה אחרונה",
+    all: "כל הזמנים", custom: `${rangeFrom} → ${rangeTo}`,
+  };
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: "all", label: "הכל", count: transactions.length },
@@ -768,8 +810,8 @@ export default function FinancePage() {
                   {detailModal === "income" ? "פירוט הכנסות" : detailModal === "expense" ? "פירוט הוצאות" : "פירוט רווח נקי"}
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {detailModal === "income" && `${transactions.filter(t => t.type === "income").length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
-                  {detailModal === "expense" && `${transactions.filter(t => t.type === "expense").length} תנועות · ₪${totalExpense.toLocaleString()} סה״כ`}
+                  {detailModal === "income" && `${txInRange.filter(t => t.type === "income").length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
+                  {detailModal === "expense" && `${txInRange.filter(t => t.type === "expense").length} תנועות · ₪${totalExpense.toLocaleString()} סה״כ`}
                   {detailModal === "profit" && `(הכנסות - הוצאות) ÷ 1.18 — אחרי הפחתת מע״מ`}
                 </p>
               </div>
@@ -803,8 +845,8 @@ export default function FinancePage() {
             {/* Transaction list */}
             <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
               {(detailModal === "profit"
-                ? [...transactions].sort((a, b) => b.date.localeCompare(a.date))
-                : transactions.filter(t => t.type === detailModal)
+                ? [...txInRange].sort((a, b) => b.date.localeCompare(a.date))
+                : txInRange.filter(t => t.type === detailModal)
               ).map(tx => (
                 <div key={tx.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -830,7 +872,7 @@ export default function FinancePage() {
                   </div>
                 </div>
               ))}
-              {transactions.filter(t => detailModal === "profit" || t.type === detailModal).length === 0 && (
+              {txInRange.filter(t => detailModal === "profit" || t.type === detailModal).length === 0 && (
                 <div className="py-12 text-center text-gray-400 text-sm">אין תנועות להצגה</div>
               )}
             </div>
@@ -861,7 +903,7 @@ export default function FinancePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">פיננסים וחיובים</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{new Date().toLocaleDateString("he-IL", { month: "long", year: "numeric" })}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{rangeLabel[rangePreset]}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -874,6 +916,52 @@ export default function FinancePage() {
           </div>
         </div>
 
+        {/* ── Date Range Filter ── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 font-medium ml-1">טווח:</span>
+            {([
+              { k: "week" as RangePreset, l: "שבוע" },
+              { k: "2weeks" as RangePreset, l: "שבועיים" },
+              { k: "month" as RangePreset, l: "חודש" },
+              { k: "3months" as RangePreset, l: "3 חודשים" },
+              { k: "6months" as RangePreset, l: "חצי שנה" },
+              { k: "year" as RangePreset, l: "שנה" },
+              { k: "all" as RangePreset, l: "הכל" },
+              { k: "custom" as RangePreset, l: "מותאם" },
+            ]).map(({ k, l }) => (
+              <button
+                key={k}
+                onClick={() => applyPreset(k)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                  rangePreset === k
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          {rangePreset === "custom" && (
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">מתאריך</label>
+                <input type="date" dir="ltr" value={rangeFrom} onChange={e => setRangeFrom(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">עד תאריך</label>
+                <input type="date" dir="ltr" value={rangeTo} onChange={e => setRangeTo(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-gray-400">
+            {txInRange.length} תנועות בטווח · {rangeFrom} ← {rangeTo}
+          </p>
+        </div>
+
         {/* ── KPI Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard
@@ -881,7 +969,7 @@ export default function FinancePage() {
             iconBg="bg-green-50"
             label="סה״כ הכנסות"
             value={`₪${totalIncome.toLocaleString()}`}
-            sub="כל הזמנים"
+            sub={rangeLabel[rangePreset]}
             onClick={() => setDetailModal("income")}
           />
           <KpiCard
