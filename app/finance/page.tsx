@@ -765,10 +765,17 @@ export default function FinancePage() {
             </div>
             <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
               {alerts.map((tx) => {
-                const c = dbCustomers.find(x => x.name === tx.customerName);
+                const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
                 const phone = c?.phone?.replace(/\D/g, "") || "";
                 const intl = phone.startsWith("0") ? "972" + phone.slice(1) : phone;
                 const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description || "שירותי גינון"}. נשמח לסידור התשלום 🌿`);
+                const waUrl = `https://api.whatsapp.com/send?phone=${intl}&text=${msg}`;
+                const handleSend = (e: React.MouseEvent) => {
+                  if (!intl) {
+                    e.preventDefault();
+                    alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
+                  }
+                };
                 return (
                   <div key={tx.id} className="px-5 py-4 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -780,13 +787,11 @@ export default function FinancePage() {
                       <span className={`text-sm font-bold ${tx.status === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
                         ₪{tx.amount.toLocaleString()}
                       </span>
-                      {intl && (
-                        <a href={`https://wa.me/${intl}?text=${msg}`} target="_blank" rel="noreferrer"
-                          className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg">
-                          <MessageSquare size={12} />
-                          שלח
-                        </a>
-                      )}
+                      <a href={intl ? waUrl : "#"} onClick={handleSend} target="_blank" rel="noreferrer"
+                        className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300 cursor-not-allowed"}`}>
+                        <MessageSquare size={12} />
+                        {intl ? "שלח" : "אין טלפון"}
+                      </a>
                     </div>
                   </div>
                 );
@@ -1242,11 +1247,15 @@ export default function FinancePage() {
                             {tx.status === "pending" || tx.status === "overdue" ? (
                               <button
                                 onClick={() => {
-                                  const c = dbCustomers.find(x => x.name === tx.customerName);
+                                  const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
                                   const num = c?.phone?.replace(/\D/g, "") || "";
                                   const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                                  if (!intl) {
+                                    alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
+                                    return;
+                                  }
                                   const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                                  window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
+                                  window.open(`https://api.whatsapp.com/send?phone=${intl}&text=${msg}`, "_blank");
                                 }}
                                 className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
                                 <MessageSquare size={12} />
@@ -1324,11 +1333,15 @@ export default function FinancePage() {
                     </div>
                     <button
                       onClick={() => {
-                        const c = dbCustomers.find(x => x.name === tx.customerName);
+                        const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
                         const num = c?.phone?.replace(/\D/g, "") || "";
                         const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                        if (!intl) {
+                          alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
+                          return;
+                        }
                         const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                        window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
+                        window.open(`https://api.whatsapp.com/send?phone=${intl}&text=${msg}`, "_blank");
                       }}
                       className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
                       <MessageSquare size={12} />

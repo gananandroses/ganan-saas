@@ -268,6 +268,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
       const vatAmount = totalWithVat - priceBefore;
       const txDate = job.date || new Date().toISOString().split("T")[0];
       await supabase.from("transactions").insert({
+        customer_id: job.customerId,
         customer_name: job.customerName,
         type: "income",
         amount: totalWithVat,
@@ -281,6 +282,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
       // Create expense transaction if expenses > 0
       if (job.expenses && job.expenses > 0) {
         await supabase.from("transactions").insert({
+          customer_id: job.customerId,
           customer_name: job.customerName,
           type: "expense",
           amount: job.expenses,
