@@ -267,14 +267,14 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl" dir="rtl">
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] flex flex-col" dir="rtl">
         {/* Handle (mobile) */}
-        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
 
         {/* Header */}
-        <div className={`${headerColor} px-6 py-4 sm:rounded-t-3xl flex items-center justify-between`}>
+        <div className={`${headerColor} px-6 py-4 sm:rounded-t-3xl flex items-center justify-between flex-shrink-0`}>
           <div>
             <h2 className="text-white font-bold text-lg">{job.customerName}</h2>
             <p className="text-white/80 text-sm">{job.type || "עבודת גינון"}</p>
@@ -284,7 +284,8 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        {/* Scrollable content */}
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Badges */}
           <div className="flex gap-2 flex-wrap">
             <span className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${status.color}`}>
@@ -351,35 +352,36 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
               נווט עם Waze
             </button>
           )}
-
-          {/* Actions */}
-          <div className="flex gap-2 pt-1 pb-2">
-            {job.status !== "completed" && job.status !== "cancelled" && (
-              <button
-                onClick={handleComplete}
-                disabled={completing}
-                className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-2xl py-3 text-sm font-bold transition-colors"
-              >
-                {completing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={15} />}
-                הושלם
-              </button>
-            )}
-            <button onClick={() => setShowEdit(true)}
-              className="flex-1 flex items-center justify-center gap-1.5 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-2xl py-3 text-sm font-semibold transition-colors">
-              <AlertCircle size={14} /> עריכה
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="w-11 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-2xl py-3 transition-colors"
-            >
-              {deleting ? <Loader2 size={14} className="animate-spin" /> : <X size={16} />}
-            </button>
-          </div>
-          {showEdit && (
-            <EditJobModal job={job} onClose={() => setShowEdit(false)} onSaved={updated => { onEdited(updated); onClose(); }} />
-          )}
         </div>
+
+        {/* Actions — always visible at bottom */}
+        <div className="flex gap-2 px-5 py-4 border-t border-gray-100 flex-shrink-0">
+          {job.status !== "completed" && job.status !== "cancelled" && (
+            <button
+              onClick={handleComplete}
+              disabled={completing}
+              className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-2xl py-3 text-sm font-bold transition-colors"
+            >
+              {completing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={15} />}
+              הושלם
+            </button>
+          )}
+          <button onClick={() => setShowEdit(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-2xl py-3 text-sm font-semibold transition-colors">
+            <AlertCircle size={14} /> עריכה
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-11 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-2xl py-3 transition-colors"
+          >
+            {deleting ? <Loader2 size={14} className="animate-spin" /> : <X size={16} />}
+          </button>
+        </div>
+
+        {showEdit && (
+          <EditJobModal job={job} onClose={() => setShowEdit(false)} onSaved={updated => { onEdited(updated); onClose(); }} />
+        )}
       </div>
     </div>
   );
@@ -397,19 +399,19 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobCategory, setJobCategory] = useState<JobCategory>("work");
-  const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; phone: string; monthly_price: number }[]>([]);
+  const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; city: string; phone: string; monthly_price: number }[]>([]);
   const [showCustomerList, setShowCustomerList] = useState(false);
   const [priceVatType, setPriceVatType] = useState<"include" | "before">("before");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("customers").select("id, name, address, phone, monthly_price")
+      supabase.from("customers").select("id, name, address, city, phone, monthly_price")
         .eq("user_id", user.id).order("name")
         .then(({ data }) => {
           if (data) setExistingCustomers(data.map(c => ({
             id: String(c.id), name: String(c.name), address: String(c.address || ""),
-            phone: String(c.phone || ""), monthly_price: Number(c.monthly_price || 0),
+            city: String(c.city || ""), phone: String(c.phone || ""), monthly_price: Number(c.monthly_price || 0),
           })));
         });
     });
@@ -419,11 +421,14 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSelectCustomer(c: { id: string; name: string; address: string; monthly_price: number }) {
+  function handleSelectCustomer(c: { id: string; name: string; address: string; city: string; monthly_price: number }) {
+    const fullAddress = c.address && c.city
+      ? `${c.address}, ${c.city}`
+      : c.address || c.city || "";
     setForm(prev => ({
       ...prev,
       customer_name: c.name,
-      address: c.address,
+      address: fullAddress,
       price: c.monthly_price ? String(c.monthly_price) : prev.price,
     }));
     setShowCustomerList(false);
