@@ -679,6 +679,10 @@ export default function FinancePage() {
   const cashFlow = totalIncome - totalExpense;
   const netProfit = Math.round(cashFlow / 1.18);
   const totalVat = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.vatAmount, 0);
+  // VAT paid on expenses (input VAT) — assume expenses include VAT, deductible from VAT collected
+  const inputVat = Math.round(totalExpense - totalExpense / 1.18);
+  // Net VAT to pay = VAT collected - VAT paid on inputs
+  const netVatToPay = Math.max(0, totalVat - inputVat);
   const openDebt = transactions
     .filter((t) => t.type === "income" && (t.status === "pending" || t.status === "overdue"))
     .reduce((s, t) => s + t.amount, 0);
@@ -910,19 +914,31 @@ export default function FinancePage() {
 
         {/* ── VAT Summary ── */}
         {totalVat > 0 && (
-          <div className="bg-gradient-to-l from-purple-50 to-indigo-50 border border-purple-100 rounded-2xl px-5 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <FileText size={18} className="text-purple-600" />
+          <div className="bg-gradient-to-l from-purple-50 to-indigo-50 border border-purple-100 rounded-2xl px-5 py-4 space-y-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                  <FileText size={18} className="text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-purple-800">מע״מ נטו — לתשלום לרשות המיסים</p>
+                  <p className="text-xs text-purple-500 mt-0.5">מע״מ שנגבה פחות מע״מ ששולם על תשומות</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-bold text-purple-800">מע״מ שנגבה — לתשלום לרשות המיסים</p>
-                <p className="text-xs text-purple-500 mt-0.5">מחושב על בסיס עסקאות הכנסה עם מע״מ</p>
+              <div className="text-right flex-shrink-0">
+                <p className="text-2xl font-black text-purple-700">₪{netVatToPay.toLocaleString()}</p>
+                <p className="text-xs text-purple-400">לתשלום</p>
               </div>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-black text-purple-700">₪{totalVat.toLocaleString()}</p>
-              <p className="text-xs text-purple-400">18% מע״מ</p>
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t border-purple-100 text-xs">
+              <div className="flex justify-between">
+                <span className="text-purple-500">מע״מ שנגבה (עסקאות)</span>
+                <span className="font-bold text-purple-700">+₪{totalVat.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-purple-500">מע״מ תשומות (הוצאות)</span>
+                <span className="font-bold text-purple-700">-₪{inputVat.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         )}
