@@ -267,7 +267,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] flex flex-col" dir="rtl">
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[80vh] flex flex-col" dir="rtl">
         {/* Handle (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
@@ -355,7 +355,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
         </div>
 
         {/* Actions — always visible at bottom */}
-        <div className="flex gap-2 px-5 py-4 border-t border-gray-100 flex-shrink-0">
+        <div className="flex gap-2 px-5 py-4 border-t border-gray-100 flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {job.status !== "completed" && job.status !== "cancelled" && (
             <button
               onClick={handleComplete}
