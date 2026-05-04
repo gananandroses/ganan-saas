@@ -266,8 +266,8 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[80vh] flex flex-col" dir="rtl">
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center pb-[88px] sm:pb-0" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-3xl shadow-2xl max-h-[80vh] flex flex-col mx-2 sm:mx-4" dir="rtl">
         {/* Handle (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
@@ -479,7 +479,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
   return (
     // Full-screen on mobile — most reliable approach for iOS
-    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+    <div className="fixed inset-0 z-[70] bg-white overflow-y-auto" dir="rtl">
 
       {/* Top nav bar — always visible, never hidden by keyboard */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
