@@ -940,6 +940,14 @@ export default function FinancePage() {
                 <span className="font-bold text-purple-700">-₪{inputVat.toLocaleString()}</span>
               </div>
             </div>
+            <div className="pt-2 border-t border-purple-100 space-y-1.5">
+              <p className="text-[11px] text-purple-600 leading-relaxed">
+                <span className="font-semibold">⚠️ הערה:</span> החישוב מניח שכל ההוצאות כוללות מע״מ וקיימת חשבונית מס. הוצאות ללא חשבונית מס לא מזכות בקיזוז מע״מ.
+              </p>
+              <p className="text-[11px] text-gray-500 leading-relaxed italic">
+                * נתון זה הינו הכוונה כללית בלבד ואינו מהווה ייעוץ מס או תחליף לראיית חשבון. לפני הגשת דוח מע״מ, התייעץ עם רואה חשבון או יועץ מס מוסמך.
+              </p>
+            </div>
           </div>
         )}
 
