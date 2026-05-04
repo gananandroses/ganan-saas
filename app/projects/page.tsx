@@ -778,6 +778,53 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("projects").update({ progress, status }).eq("id", project.id).eq("user_id", user?.id);
+
+    // When project status changes to completed, auto-create transactions
+    if (status === "completed" && project.status !== "completed" && user?.id) {
+      const txDate = project.startDate || new Date().toISOString().split("T")[0];
+      const { totalCost, budgetBeforeVat } = calcFinancials(project);
+      // Income transaction (project budget)
+      if (project.budget > 0) {
+        const totalWithVat = Math.round(budgetBeforeVat * 1.18);
+        const vatAmount = totalWithVat - Math.round(budgetBeforeVat);
+        const incomeDesc = `פרויקט: ${project.name}`;
+        const { data: existingIncome } = await supabase.from("transactions")
+          .select("id").eq("user_id", user.id).eq("type", "income").eq("description", incomeDesc).limit(1);
+        if (!existingIncome || existingIncome.length === 0) {
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            customer_name: project.customerName || "פרויקט",
+            type: "income",
+            amount: totalWithVat,
+            vat_amount: vatAmount,
+            description: incomeDesc,
+            method: "cash",
+            status: "pending",
+            transaction_date: txDate,
+          });
+        }
+      }
+      // Expense transaction (materials + labor)
+      if (totalCost > 0) {
+        const expenseDesc = `חומרים: ${project.name}`;
+        const { data: existingExpense } = await supabase.from("transactions")
+          .select("id").eq("user_id", user.id).eq("type", "expense").eq("description", expenseDesc).limit(1);
+        if (!existingExpense || existingExpense.length === 0) {
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            customer_name: project.customerName || "פרויקט",
+            type: "expense",
+            amount: Math.round(totalCost),
+            vat_amount: 0,
+            description: expenseDesc,
+            method: "cash",
+            status: "paid",
+            transaction_date: txDate,
+          });
+        }
+      }
+    }
+
     onUpdated(project.id, progress, status);
     setSaving(false);
     onClose();
