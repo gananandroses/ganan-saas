@@ -558,12 +558,12 @@ function DetailModal({
                   <p className="text-xs text-red-500 mt-0.5">הוצאות</p>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-blue-700">{fmt(periodIncome - periodExpense)}</p>
-                  <p className="text-xs text-blue-600 mt-0.5">רווח נקי</p>
+                  <p className="text-lg font-bold text-blue-700">{fmt(Math.round((periodIncome - periodExpense) / 1.18))}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">רווח נקי (אחרי מע״מ)</p>
                 </div>
               </div>
               <div className="bg-slate-50 rounded-xl p-3 mb-3 flex items-center justify-between">
-                <span className="text-sm text-slate-600">מרווח גולמי</span>
+                <span className="text-sm text-slate-600">רווחיות (אחרי מע״מ)</span>
                 <span className={`text-lg font-bold ${a.kpis.profitability >= 70 ? "text-green-600" : a.kpis.profitability >= 40 ? "text-amber-600" : "text-red-600"}`}>
                   {a.kpis.profitability > 0 ? `${a.kpis.profitability}%` : "—"}
                 </span>
@@ -1067,8 +1067,8 @@ export default function AnalyticsPage() {
                   { label: "סה״כ הכנסות (כל הזמנים)", value: fmt(a.chartTotals.totalIncome), color: "text-green-600" },
                   { label: "סה״כ הוצאות (כל הזמנים)", value: fmt(a.chartTotals.totalExpense), color: "text-red-500" },
                   {
-                    label: "רווח נקי",
-                    value: fmt(a.chartTotals.totalIncome - a.chartTotals.totalExpense),
+                    label: "רווח נקי (אחרי מע״מ)",
+                    value: fmt(Math.round((a.chartTotals.totalIncome - a.chartTotals.totalExpense) / 1.18)),
                     color: "text-blue-600",
                   },
                 ].map((s) => (
