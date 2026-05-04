@@ -1249,13 +1249,19 @@ export default function FinancePage() {
                                 onClick={() => {
                                   const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
                                   const num = c?.phone?.replace(/\D/g, "") || "";
-                                  const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                                  let intl = num;
+                                  if (num.startsWith("0")) intl = "972" + num.slice(1);
+                                  else if (num.startsWith("972")) intl = num;
+                                  else if (num.length === 9) intl = "972" + num; // missing leading 0
+                                  console.log("[WhatsApp] customer:", tx.customerName, "found:", c, "rawPhone:", c?.phone, "cleanedPhone:", num, "intl:", intl);
                                   if (!intl) {
                                     alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
                                     return;
                                   }
                                   const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                                  window.open(`https://api.whatsapp.com/send?phone=${intl}&text=${msg}`, "_blank");
+                                  const url = `https://api.whatsapp.com/send?phone=${intl}&text=${msg}`;
+                                  console.log("[WhatsApp] opening URL:", url);
+                                  window.open(url, "_blank");
                                 }}
                                 className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
                                 <MessageSquare size={12} />
@@ -1335,13 +1341,19 @@ export default function FinancePage() {
                       onClick={() => {
                         const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
                         const num = c?.phone?.replace(/\D/g, "") || "";
-                        const intl = num.startsWith("0") ? "972" + num.slice(1) : num;
+                        let intl = num;
+                        if (num.startsWith("0")) intl = "972" + num.slice(1);
+                        else if (num.startsWith("972")) intl = num;
+                        else if (num.length === 9) intl = "972" + num;
+                        console.log("[WhatsApp] customer:", tx.customerName, "found:", c, "rawPhone:", c?.phone, "cleanedPhone:", num, "intl:", intl);
                         if (!intl) {
                           alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
                           return;
                         }
                         const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                        window.open(`https://api.whatsapp.com/send?phone=${intl}&text=${msg}`, "_blank");
+                        const url = `https://api.whatsapp.com/send?phone=${intl}&text=${msg}`;
+                        console.log("[WhatsApp] opening URL:", url);
+                        window.open(url, "_blank");
                       }}
                       className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
                       <MessageSquare size={12} />
