@@ -171,6 +171,9 @@ export default function AutomationsPage() {
   // Modal state
   const [waModal, setWaModal] = useState<null | { phone: string; message: string; actionId: string }>(null);
 
+  // Wizard state — for "send all" sequential flow
+  const [wizard, setWizard] = useState<null | { actions: ActionItem[]; index: number; editedMessage: string }>(null);
+
   // Section collapse state
   const [collapsed, setCollapsed] = useState<Record<ActionType, boolean>>({
     tomorrow_visit: false,
@@ -363,6 +366,36 @@ export default function AutomationsPage() {
     setWaModal(null);
   }
 
+  // ─── Wizard (send all) ─────────────────────────────────────────
+  function startWizard() {
+    const allActions = visibleActions.flatMap(g => g.list).filter(a => !!normalizePhone(a.phone));
+    if (allActions.length === 0) {
+      alert("אין פעולות זמינות לשליחה (רק ללקוחות עם טלפון רשום).");
+      return;
+    }
+    setWizard({ actions: allActions, index: 0, editedMessage: allActions[0].message });
+  }
+
+  function wizardSendAndAdvance() {
+    if (!wizard) return;
+    const current = wizard.actions[wizard.index];
+    const intl = normalizePhone(current.phone);
+    const url = `https://api.whatsapp.com/send?phone=${intl}&text=${encodeURIComponent(wizard.editedMessage)}`;
+    window.open(url, "_blank");
+    dismissAction(current.id);
+    advanceWizard();
+  }
+
+  function advanceWizard() {
+    if (!wizard) return;
+    const nextIdx = wizard.index + 1;
+    if (nextIdx >= wizard.actions.length) {
+      setWizard(null); // done
+    } else {
+      setWizard({ actions: wizard.actions, index: nextIdx, editedMessage: wizard.actions[nextIdx].message });
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────
@@ -404,22 +437,35 @@ export default function AutomationsPage() {
 
       <div className="p-6 space-y-6 max-w-4xl mx-auto">
         {/* Hero */}
-        <div className="bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-100 rounded-2xl p-5 sm:p-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
-              <Inbox size={22} className="text-violet-600" />
+        <div className="bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-100 rounded-2xl p-5 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
+                <Inbox size={22} className="text-violet-600" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">תור פעולות היום</h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {loading ? "טוען..." : totalPending > 0 ? `${totalPending} פעולות ממתינות` : "אין פעולות ממתינות 🎉"}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">תור פעולות היום</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {loading ? "טוען..." : totalPending > 0 ? `${totalPending} פעולות ממתינות` : "אין פעולות ממתינות 🎉"}
-              </p>
+            <div className="text-left">
+              <p className="text-3xl sm:text-4xl font-black text-violet-700">{totalPending}</p>
+              <p className="text-xs text-violet-500 font-medium">לטיפול</p>
             </div>
           </div>
-          <div className="text-left">
-            <p className="text-3xl sm:text-4xl font-black text-violet-700">{totalPending}</p>
-            <p className="text-xs text-violet-500 font-medium">לטיפול</p>
-          </div>
+
+          {/* Send All button */}
+          {!loading && totalPending > 0 && (
+            <button
+              onClick={startWizard}
+              className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl py-3.5 text-sm shadow-sm transition-colors"
+            >
+              <MessageSquare size={18} />
+              שלח לכולם — אשף ({totalPending} הודעות)
+            </button>
+          )}
         </div>
 
         {/* Sections */}
@@ -472,6 +518,77 @@ export default function AutomationsPage() {
           </div>
         )}
       </div>
+
+      {/* Wizard Modal — Send All */}
+      {wizard && (() => {
+        const current = wizard.actions[wizard.index];
+        const total = wizard.actions.length;
+        const progress = ((wizard.index + 1) / total) * 100;
+        const sectionLabel = sectionConfig[current.type].title;
+        return (
+          <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setWizard(null)}>
+            <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
+              {/* Progress bar */}
+              <div className="h-1.5 bg-gray-100 rounded-t-3xl overflow-hidden flex-shrink-0">
+                <div className="h-full bg-violet-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+              </div>
+
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <p className="text-xs text-violet-600 font-semibold">אשף שליחה · {wizard.index + 1} מתוך {total}</p>
+                  <h2 className="text-base font-bold text-gray-900 mt-0.5">{current.customerName}</h2>
+                  <p className="text-xs text-gray-500">{sectionLabel}</p>
+                </div>
+                <button onClick={() => setWizard(null)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-3 overflow-y-auto flex-1">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">הודעה</label>
+                  <textarea
+                    rows={9}
+                    value={wizard.editedMessage}
+                    onChange={(e) => setWizard({ ...wizard, editedMessage: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
+                  />
+                </div>
+                <div className="bg-violet-50 rounded-xl p-3 text-xs text-violet-700 leading-relaxed">
+                  💡 לחיצה על "פתח ב-WhatsApp" תפתח טאב עם השיחה. שלח שם, וחזור לכאן ולחץ על "הבא". כל הודעה נשלחת בנפרד כדי לא לעורר חסימת דפדפן.
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 space-y-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <button
+                  onClick={wizardSendAndAdvance}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors"
+                >
+                  <MessageSquare size={16} />
+                  פתח ב-WhatsApp ועבור להבא
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={advanceWizard}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50"
+                  >
+                    דלג ←
+                  </button>
+                  <button
+                    onClick={() => setWizard(null)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50"
+                  >
+                    סיים אשף
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* WhatsApp Modal */}
       {waModal && (
