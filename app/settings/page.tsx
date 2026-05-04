@@ -28,6 +28,11 @@ export default function SettingsPage() {
     phone: "",
     email: "",
     city: "",
+    bitPhone: "",
+    payboxPhone: "",
+    bankName: "",
+    bankBranch: "",
+    bankAccount: "",
   });
 
   // Notification prefs (saved to Supabase)
@@ -62,7 +67,7 @@ export default function SettingsPage() {
       // Load business profile from Supabase
       const { data: profile } = await supabase
         .from("user_profile")
-        .select("business_name, owner_name, phone, city")
+        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account")
         .eq("user_id", uid)
         .single();
 
@@ -73,6 +78,11 @@ export default function SettingsPage() {
           phone: profile.phone ?? "",
           city: profile.city ?? "",
           email: data.user.email ?? "",
+          bitPhone: profile.bit_phone ?? "",
+          payboxPhone: profile.paybox_phone ?? "",
+          bankName: profile.bank_name ?? "",
+          bankBranch: profile.bank_branch ?? "",
+          bankAccount: profile.bank_account ?? "",
         });
       } else {
         // Migrate from localStorage if exists
@@ -86,6 +96,11 @@ export default function SettingsPage() {
               phone: parsed.phone ?? "",
               city: parsed.city ?? "",
               email: data.user.email ?? "",
+              bitPhone: parsed.bitPhone ?? "",
+              payboxPhone: parsed.payboxPhone ?? "",
+              bankName: parsed.bankName ?? "",
+              bankBranch: parsed.bankBranch ?? "",
+              bankAccount: parsed.bankAccount ?? "",
             });
           } catch {}
         } else {
@@ -199,6 +214,11 @@ export default function SettingsPage() {
       owner_name: form.ownerName,
       phone: form.phone,
       city: form.city,
+      bit_phone: form.bitPhone,
+      paybox_phone: form.payboxPhone,
+      bank_name: form.bankName,
+      bank_branch: form.bankBranch,
+      bank_account: form.bankAccount,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     setSaving(false);
@@ -273,6 +293,78 @@ export default function SettingsPage() {
               />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Payment Details */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+            <Building className="w-4 h-4 text-purple-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">פרטי תשלום</h2>
+            <p className="text-xs text-gray-500">יסונכרנו אוטומטית עם תזכורות WhatsApp</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bit (טלפון)</label>
+              <input
+                type="tel"
+                placeholder="054-1234567"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                value={form.bitPhone}
+                onChange={e => setForm(f => ({ ...f, bitPhone: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">PayBox (טלפון)</label>
+              <input
+                type="tel"
+                placeholder="054-1234567"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                value={form.payboxPhone}
+                onChange={e => setForm(f => ({ ...f, payboxPhone: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">בנק</label>
+              <input
+                type="text"
+                placeholder="הפועלים"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                value={form.bankName}
+                onChange={e => setForm(f => ({ ...f, bankName: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">סניף</label>
+              <input
+                type="text"
+                placeholder="123"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                value={form.bankBranch}
+                onChange={e => setForm(f => ({ ...f, bankBranch: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">מספר חשבון</label>
+              <input
+                type="text"
+                placeholder="456789"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                value={form.bankAccount}
+                onChange={e => setForm(f => ({ ...f, bankAccount: e.target.value }))}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">
+            ⓘ פרטים אלו יתווספו אוטומטית להודעת תזכורת WhatsApp ללקוחות עם חוב פתוח. ריקים — לא יוצגו.
+          </p>
         </div>
       </div>
 

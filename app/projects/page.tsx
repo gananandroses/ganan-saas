@@ -843,16 +843,34 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
             <span className="font-medium text-gray-700">התקדמות</span>
             <span className="font-bold text-green-600">{progress}%</span>
           </div>
-          <input type="range" min="0" max="100" step="5" value={progress} onChange={e => setProgress(Number(e.target.value))} className="w-full accent-green-600" />
-          <div className="h-2 bg-gray-100 rounded-full mt-2 overflow-hidden">
-            <div className={`h-full rounded-full ${statusColor(status).bar}`} style={{ width: `${progress}%` }} />
+          <input dir="ltr" type="range" min={0} max={100} step={5} value={progress}
+            onChange={e => setProgress(Number(e.target.value))}
+            className="w-full accent-green-600" />
+          <div className="grid grid-cols-5 gap-1.5 mt-3">
+            {[0, 25, 50, 75, 100].map(v => (
+              <button key={v} type="button" onClick={() => setProgress(v)}
+                className={`py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                  progress === v
+                    ? "bg-green-600 border-green-600 text-white"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}>
+                {v}%
+              </button>
+            ))}
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full mt-3 overflow-hidden">
+            <div className={`h-full rounded-full ${statusColor(status).bar} transition-all`} style={{ width: `${progress}%` }} />
           </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס</label>
           <div className="grid grid-cols-2 gap-2">
             {(["planning", "active", "on_hold", "completed"] as ProjectStatus[]).map(s => (
-              <button key={s} onClick={() => setStatus(s)}
+              <button key={s} onClick={() => {
+                setStatus(s);
+                if (s === "completed") setProgress(100);
+                else if (s === "planning" && progress > 0) setProgress(0);
+              }}
                 className={`py-2.5 rounded-xl text-sm font-semibold border transition-all ${status === s ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 text-gray-600"}`}>
                 {statusLabel(s)}
               </button>

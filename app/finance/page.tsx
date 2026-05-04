@@ -607,14 +607,29 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [dbCustomers, setDbCustomers] = useState<{id: string; name: string; city: string; phone: string}[]>([]);
   // Date range filter
-  const [rangePreset, setRangePreset] = useState<RangePreset>("month");
-  const [rangeFrom, setRangeFrom] = useState(getPresetRange("month").from);
-  const [rangeTo, setRangeTo] = useState(getPresetRange("month").to);
+  const [rangePreset, setRangePreset] = useState<RangePreset>("year");
+  const [rangeFrom, setRangeFrom] = useState(getPresetRange("year").from);
+  const [rangeTo, setRangeTo] = useState(getPresetRange("year").to);
   // WhatsApp reminder modal
   const [waModal, setWaModal] = useState<null | { intl: string; message: string }>(null);
   const [waSaveDefault, setWaSaveDefault] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState<{ bitPhone: string; payboxPhone: string; bankName: string; bankBranch: string; bankAccount: string; businessName: string }>({
+    bitPhone: "", payboxPhone: "", bankName: "", bankBranch: "", bankAccount: "", businessName: ""
+  });
 
   const DEFAULT_WA_TEMPLATE = "שלום {name}, יש לך תשלום פתוח של ₪{amount} עבור {description}. נשמח לסידור התשלום 🌿";
+
+  function buildPaymentDetailsBlock(): string {
+    const lines: string[] = [];
+    if (paymentSettings.bitPhone) lines.push(`• Bit: ${paymentSettings.bitPhone}`);
+    if (paymentSettings.payboxPhone) lines.push(`• PayBox: ${paymentSettings.payboxPhone}`);
+    if (paymentSettings.bankName || paymentSettings.bankAccount) {
+      const bankLine = `• העברה בנקאית: ${paymentSettings.bankName || ""}${paymentSettings.bankBranch ? ` סניף ${paymentSettings.bankBranch}` : ""}${paymentSettings.bankAccount ? ` חשבון ${paymentSettings.bankAccount}` : ""}`.trim();
+      lines.push(bankLine);
+    }
+    if (lines.length === 0) return "";
+    return "\n\nאמצעי תשלום:\n" + lines.join("\n");
+  }
 
   function openWhatsAppReminder(tx: Transaction) {
     const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
@@ -627,8 +642,16 @@ export default function FinancePage() {
       alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
       return;
     }
-    const template = (typeof window !== "undefined" && localStorage.getItem("whatsapp_reminder_template")) || DEFAULT_WA_TEMPLATE;
-    const message = template
+    const customTemplate = typeof window !== "undefined" ? localStorage.getItem("whatsapp_reminder_template") : null;
+    let baseMessage: string;
+    if (customTemplate) {
+      // User has custom template — use it as-is
+      baseMessage = customTemplate;
+    } else {
+      // Build default template + auto-append payment details from settings
+      baseMessage = DEFAULT_WA_TEMPLATE + buildPaymentDetailsBlock();
+    }
+    const message = baseMessage
       .replace(/{name}/g, tx.customerName)
       .replace(/{amount}/g, tx.amount.toLocaleString())
       .replace(/{description}/g, tx.description || "שירותי גינון");
@@ -639,13 +662,18 @@ export default function FinancePage() {
   function sendWhatsAppMessage() {
     if (!waModal) return;
     if (waSaveDefault && typeof window !== "undefined") {
-      // Save as template — convert back the specific values to placeholders is complex, so we save as-is
-      // User should use {name}/{amount}/{description} placeholders manually if they want dynamic
       localStorage.setItem("whatsapp_reminder_template", waModal.message);
     }
     const url = `https://api.whatsapp.com/send?phone=${waModal.intl}&text=${encodeURIComponent(waModal.message)}`;
     window.open(url, "_blank");
     setWaModal(null);
+  }
+
+  async function markAsPaid(txId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("transactions").update({ status: "paid" }).eq("id", txId).eq("user_id", user.id);
+    setTransactions(prev => prev.map(t => t.id === txId ? { ...t, status: "paid" as PaymentStatus } : t));
   }
 
   function applyPreset(preset: RangePreset) {
@@ -697,6 +725,19 @@ export default function FinancePage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       supabase.from("customers").select("id, name, city, phone").eq("user_id", user?.id).order("name").then(({data}) => {
         if (data) setDbCustomers(data.map(c => ({id: String(c.id), name: String(c.name), city: String(c.city||''), phone: String(c.phone||'')})));
+      });
+      // Load payment details from user_profile
+      supabase.from("user_profile").select("business_name, bit_phone, paybox_phone, bank_name, bank_branch, bank_account").eq("user_id", user?.id).single().then(({data}) => {
+        if (data) {
+          setPaymentSettings({
+            businessName: data.business_name ?? "",
+            bitPhone: data.bit_phone ?? "",
+            payboxPhone: data.paybox_phone ?? "",
+            bankName: data.bank_name ?? "",
+            bankBranch: data.bank_branch ?? "",
+            bankAccount: data.bank_account ?? "",
+          });
+        }
       });
     });
   }, []);
@@ -894,6 +935,11 @@ export default function FinancePage() {
                         className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300"}`}>
                         <MessageSquare size={12} />
                         {intl ? "שלח" : "אין טלפון"}
+                      </button>
+                      <button onClick={() => { if (confirm(`לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`)) markAsPaid(tx.id); }}
+                        title="סמן כשולם"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
+                        <CheckCircle size={14} />
                       </button>
                     </div>
                   </div>
@@ -1348,12 +1394,20 @@ export default function FinancePage() {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             {tx.status === "pending" || tx.status === "overdue" ? (
-                              <button
-                                onClick={() => openWhatsAppReminder(tx)}
-                                className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
-                                <MessageSquare size={12} />
-                                שלח תזכורת
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => openWhatsAppReminder(tx)}
+                                  className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
+                                  <MessageSquare size={12} />
+                                  שלח תזכורת
+                                </button>
+                                <button
+                                  onClick={() => { if (confirm(`לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`)) markAsPaid(tx.id); }}
+                                  className="flex items-center gap-1 text-xs text-emerald-600 font-semibold hover:text-emerald-800 whitespace-nowrap">
+                                  <CheckCircle size={12} />
+                                  שולם
+                                </button>
+                              </>
                             ) : (
                               <button
                                 onClick={() => setShowInvoice(true)}
@@ -1424,12 +1478,20 @@ export default function FinancePage() {
                         <p className="text-xs text-gray-400 mt-0.5">{tx.date ? formatDate(tx.date) : "—"}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => openWhatsAppReminder(tx)}
-                      className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
-                      <MessageSquare size={12} />
-                      שלח תזכורת WhatsApp
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openWhatsAppReminder(tx)}
+                        className="flex-[2] flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+                        <MessageSquare size={12} />
+                        שלח תזכורת
+                      </button>
+                      <button
+                        onClick={() => { if (confirm(`לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`)) markAsPaid(tx.id); }}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold py-2 rounded-lg transition-colors">
+                        <CheckCircle size={12} />
+                        שולם
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {alerts.length === 0 && (
