@@ -27,6 +27,7 @@ interface Job {
   assignedTo: string[];
   price: number;
   priceBeforeVat: boolean;
+  expenses: number;
   notes?: string;
   priority: Priority;
   jobCategory: JobCategory;
@@ -108,6 +109,7 @@ function EditJobModal({ job, onClose, onSaved }: {
     type: job.type,
     priority: job.priority,
     price: String(job.price),
+    expenses: String(job.expenses ?? 0),
     notes: job.notes ?? "",
     status: job.status,
   });
@@ -128,12 +130,13 @@ function EditJobModal({ job, onClose, onSaved }: {
       priority: form.priority,
       price: parseFloat(form.price) || 0,
       price_before_vat: priceBeforeVat,
+      expenses: parseFloat(form.expenses) || 0,
       notes: form.notes.trim() || null,
       status: form.status,
       job_category: jobCategory,
     };
     await supabase.from("jobs").update(payload).eq("id", job.id).eq("user_id", user?.id);
-    onSaved({ ...job, ...payload, customerName: payload.customer_name, address: payload.address ?? "", priceBeforeVat, jobCategory, time: (payload.job_time ?? "00:00").slice(0,5), date: payload.job_date, duration: payload.duration, type: payload.type ?? "", notes: payload.notes ?? undefined, status: payload.status as TaskStatus, priority: payload.priority as Priority });
+    onSaved({ ...job, ...payload, customerName: payload.customer_name, address: payload.address ?? "", priceBeforeVat, expenses: payload.expenses, jobCategory, time: (payload.job_time ?? "00:00").slice(0,5), date: payload.job_date, duration: payload.duration, type: payload.type ?? "", notes: payload.notes ?? undefined, status: payload.status as TaskStatus, priority: payload.priority as Priority });
     setSaving(false);
     onClose();
   }
@@ -205,6 +208,12 @@ function EditJobModal({ job, onClose, onSaved }: {
             </div>
           </div>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">הוצאות לעבודה (₪) <span className="text-xs text-gray-400 font-normal">— חומרים, דלק, עובדים</span></label>
+          <input type="number" min="0" value={form.expenses} onChange={e => setForm(p => ({ ...p, expenses: e.target.value }))}
+            placeholder="0"
+            className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">סוג עבודה</label>
@@ -257,6 +266,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
       const priceBefore = job.priceBeforeVat ? job.price : Math.round(job.price / 1.18);
       const totalWithVat = Math.round(priceBefore * 1.18);
       const vatAmount = totalWithVat - priceBefore;
+      const txDate = job.date || new Date().toISOString().split("T")[0];
       await supabase.from("transactions").insert({
         customer_name: job.customerName,
         type: "income",
@@ -265,9 +275,23 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
         description: `${job.type || "עבודת גינון"}${job.address ? " · " + job.address : ""}`,
         method: "cash",
         status: "pending",
-        transaction_date: job.date || new Date().toISOString().split("T")[0],
+        transaction_date: txDate,
         user_id: user.id,
       });
+      // Create expense transaction if expenses > 0
+      if (job.expenses && job.expenses > 0) {
+        await supabase.from("transactions").insert({
+          customer_name: job.customerName,
+          type: "expense",
+          amount: job.expenses,
+          vat_amount: 0,
+          description: `הוצאות עבודה: ${job.type || "עבודת גינון"}`,
+          method: "cash",
+          status: "paid",
+          transaction_date: txDate,
+          user_id: user.id,
+        });
+      }
     }
     setCompleting(false);
     if (!error) { onMarkCompleted(job.id); onClose(); }
@@ -352,6 +376,24 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
             </div>
           </div>
 
+          {/* Expenses & Profit */}
+          {(job.expenses ?? 0) > 0 && (
+            <div className="bg-orange-50 rounded-2xl p-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 text-sm">הוצאות לעבודה</span>
+                <span className="font-bold text-base text-orange-700">
+                  -₪{(job.expenses ?? 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="border-t border-orange-200 pt-2 flex justify-between items-center">
+                <span className="text-gray-700 text-sm font-semibold">רווח נטו (לפני מע״מ)</span>
+                <span className="font-bold text-base text-green-700">
+                  ₪{((job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)) - (job.expenses ?? 0)).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Notes */}
           {job.notes && (
             <div className="bg-yellow-50 rounded-2xl p-3 text-sm text-yellow-800">
@@ -411,7 +453,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 }) {
   const [form, setForm] = useState({
     customer_name: "", address: "", job_date: defaultDate || formatDateISO(new Date()),
-    job_time: "09:00", duration: "2", type: "", priority: "medium" as Priority, price: "", notes: "",
+    job_time: "09:00", duration: "2", type: "", priority: "medium" as Priority, price: "", expenses: "", notes: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -467,6 +509,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       priority: form.priority,
       price: parseFloat(form.price) || 0,
       price_before_vat: priceVatType === "before",
+      expenses: parseFloat(form.expenses) || 0,
       notes: form.notes.trim() || null,
       status: "pending",
       assigned_to: [],
@@ -485,6 +528,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         duration: Number(last.duration), type: last.type ?? "", status: last.status as TaskStatus,
         assignedTo: last.assigned_to ?? [], price: Number(last.price),
         priceBeforeVat: Boolean(last.price_before_vat),
+        expenses: Number(last.expenses ?? 0),
         notes: last.notes ?? undefined,
         priority: (last.priority ?? "medium") as Priority,
         jobCategory: (last.job_category ?? "work") as JobCategory,
@@ -612,6 +656,11 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
               </p>
             )}
           </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">הוצאות לעבודה (₪) <span className="text-xs text-gray-400 font-normal">— חומרים, דלק, עובדים</span></label>
+          <input name="expenses" type="number" min="0" value={form.expenses} onChange={handleChange} placeholder="0"
+            className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -748,6 +797,7 @@ export default function SchedulePage() {
         duration: Number(row.duration), type: row.type ?? "",
         status: row.status as TaskStatus, assignedTo: row.assigned_to ?? [],
         price: Number(row.price), priceBeforeVat: Boolean(row.price_before_vat),
+        expenses: Number(row.expenses ?? 0),
         notes: row.notes ?? undefined,
         priority: (row.priority ?? "medium") as Priority,
         jobCategory: (row.job_category ?? "work") as JobCategory,
