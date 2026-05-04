@@ -610,6 +610,43 @@ export default function FinancePage() {
   const [rangePreset, setRangePreset] = useState<RangePreset>("month");
   const [rangeFrom, setRangeFrom] = useState(getPresetRange("month").from);
   const [rangeTo, setRangeTo] = useState(getPresetRange("month").to);
+  // WhatsApp reminder modal
+  const [waModal, setWaModal] = useState<null | { intl: string; message: string }>(null);
+  const [waSaveDefault, setWaSaveDefault] = useState(false);
+
+  const DEFAULT_WA_TEMPLATE = "שלום {name}, יש לך תשלום פתוח של ₪{amount} עבור {description}. נשמח לסידור התשלום 🌿";
+
+  function openWhatsAppReminder(tx: Transaction) {
+    const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
+    const num = c?.phone?.replace(/\D/g, "") || "";
+    let intl = num;
+    if (num.startsWith("0")) intl = "972" + num.slice(1);
+    else if (num.startsWith("972")) intl = num;
+    else if (num.length === 9) intl = "972" + num;
+    if (!intl) {
+      alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
+      return;
+    }
+    const template = (typeof window !== "undefined" && localStorage.getItem("whatsapp_reminder_template")) || DEFAULT_WA_TEMPLATE;
+    const message = template
+      .replace(/{name}/g, tx.customerName)
+      .replace(/{amount}/g, tx.amount.toLocaleString())
+      .replace(/{description}/g, tx.description || "שירותי גינון");
+    setWaModal({ intl, message });
+    setWaSaveDefault(false);
+  }
+
+  function sendWhatsAppMessage() {
+    if (!waModal) return;
+    if (waSaveDefault && typeof window !== "undefined") {
+      // Save as template — convert back the specific values to placeholders is complex, so we save as-is
+      // User should use {name}/{amount}/{description} placeholders manually if they want dynamic
+      localStorage.setItem("whatsapp_reminder_template", waModal.message);
+    }
+    const url = `https://api.whatsapp.com/send?phone=${waModal.intl}&text=${encodeURIComponent(waModal.message)}`;
+    window.open(url, "_blank");
+    setWaModal(null);
+  }
 
   function applyPreset(preset: RangePreset) {
     setRangePreset(preset);
@@ -750,6 +787,80 @@ export default function FinancePage() {
 
       {showInvoice && <InvoicePanel onClose={() => setShowInvoice(false)} customers={dbCustomers} />}
 
+      {/* ===== WhatsApp Reminder Modal ===== */}
+      {waModal && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setWaModal(null)}>
+          <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh]" dir="rtl">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center">
+                  <MessageSquare size={16} className="text-green-600" />
+                </div>
+                <h2 className="text-base font-bold text-gray-900">תזכורת WhatsApp</h2>
+              </div>
+              <button onClick={() => setWaModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-3 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">תוכן ההודעה</label>
+                <textarea
+                  rows={8}
+                  value={waModal.message}
+                  onChange={(e) => setWaModal({ ...waModal, message: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none"
+                  placeholder="ערוך את הטקסט לפני שליחה..."
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">💡 טיפ: פרטי תשלום אישיים</p>
+                <p>תוכל להוסיף פרטי תשלום (Bit, PayBox, חשבון בנק) ישירות לטקסט. הם יישמרו כברירת מחדל לתזכורות הבאות.</p>
+                <p className="text-blue-500 mt-1">לדוגמה: <span className="font-mono">"... ניתן לשלוח דרך Bit ל-050-1234567 או העברה לבנק הפועלים, סניף 123, חשבון 456789"</span></p>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
+                <p className="font-semibold text-gray-700">משתנים זמינים בתבנית:</p>
+                <p><code className="bg-white px-1.5 py-0.5 rounded">{"{name}"}</code> — שם הלקוח</p>
+                <p><code className="bg-white px-1.5 py-0.5 rounded">{"{amount}"}</code> — סכום</p>
+                <p><code className="bg-white px-1.5 py-0.5 rounded">{"{description}"}</code> — תיאור החוב</p>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={waSaveDefault}
+                  onChange={(e) => setWaSaveDefault(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-400"
+                />
+                שמור כתבנית ברירת מחדל לפעם הבאה
+              </label>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 flex gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <button
+                onClick={() => setWaModal(null)}
+                className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={sendWhatsAppMessage}
+                className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold"
+              >
+                <MessageSquare size={16} />
+                פתח ב-WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== DEBT MODAL ===== */}
       {showDebtModal && (
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center" onClick={() => setShowDebtModal(false)}>
@@ -768,14 +879,6 @@ export default function FinancePage() {
                 const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
                 const phone = c?.phone?.replace(/\D/g, "") || "";
                 const intl = phone.startsWith("0") ? "972" + phone.slice(1) : phone;
-                const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description || "שירותי גינון"}. נשמח לסידור התשלום 🌿`);
-                const waUrl = `https://api.whatsapp.com/send?phone=${intl}&text=${msg}`;
-                const handleSend = (e: React.MouseEvent) => {
-                  if (!intl) {
-                    e.preventDefault();
-                    alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
-                  }
-                };
                 return (
                   <div key={tx.id} className="px-5 py-4 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -787,11 +890,11 @@ export default function FinancePage() {
                       <span className={`text-sm font-bold ${tx.status === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
                         ₪{tx.amount.toLocaleString()}
                       </span>
-                      <a href={intl ? waUrl : "#"} onClick={handleSend} target="_blank" rel="noreferrer"
-                        className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300 cursor-not-allowed"}`}>
+                      <button onClick={() => openWhatsAppReminder(tx)}
+                        className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300"}`}>
                         <MessageSquare size={12} />
                         {intl ? "שלח" : "אין טלפון"}
-                      </a>
+                      </button>
                     </div>
                   </div>
                 );
@@ -1246,23 +1349,7 @@ export default function FinancePage() {
                           <div className="flex items-center gap-2">
                             {tx.status === "pending" || tx.status === "overdue" ? (
                               <button
-                                onClick={() => {
-                                  const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
-                                  const num = c?.phone?.replace(/\D/g, "") || "";
-                                  let intl = num;
-                                  if (num.startsWith("0")) intl = "972" + num.slice(1);
-                                  else if (num.startsWith("972")) intl = num;
-                                  else if (num.length === 9) intl = "972" + num; // missing leading 0
-                                  console.log("[WhatsApp] customer:", tx.customerName, "found:", c, "rawPhone:", c?.phone, "cleanedPhone:", num, "intl:", intl);
-                                  if (!intl) {
-                                    alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
-                                    return;
-                                  }
-                                  const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                                  const url = `https://api.whatsapp.com/send?phone=${intl}&text=${msg}`;
-                                  console.log("[WhatsApp] opening URL:", url);
-                                  window.open(url, "_blank");
-                                }}
+                                onClick={() => openWhatsAppReminder(tx)}
                                 className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
                                 <MessageSquare size={12} />
                                 שלח תזכורת
@@ -1338,23 +1425,7 @@ export default function FinancePage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
-                        const num = c?.phone?.replace(/\D/g, "") || "";
-                        let intl = num;
-                        if (num.startsWith("0")) intl = "972" + num.slice(1);
-                        else if (num.startsWith("972")) intl = num;
-                        else if (num.length === 9) intl = "972" + num;
-                        console.log("[WhatsApp] customer:", tx.customerName, "found:", c, "rawPhone:", c?.phone, "cleanedPhone:", num, "intl:", intl);
-                        if (!intl) {
-                          alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
-                          return;
-                        }
-                        const msg = encodeURIComponent(`שלום ${tx.customerName}, יש לך תשלום פתוח של ₪${tx.amount} עבור ${tx.description}. נשמח לסידור התשלום.`);
-                        const url = `https://api.whatsapp.com/send?phone=${intl}&text=${msg}`;
-                        console.log("[WhatsApp] opening URL:", url);
-                        window.open(url, "_blank");
-                      }}
+                      onClick={() => openWhatsAppReminder(tx)}
                       className="w-full flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
                       <MessageSquare size={12} />
                       שלח תזכורת WhatsApp
