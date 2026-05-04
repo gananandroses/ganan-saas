@@ -373,6 +373,7 @@ function ProjectFormModal({
   const [error, setError] = useState("");
   const [addToCalendar, setAddToCalendar] = useState(false);
   const [calendarDate, setCalendarDate] = useState(form.start_date || new Date().toISOString().split("T")[0]);
+  const [calendarEndDate, setCalendarEndDate] = useState("");
   const [calendarTime, setCalendarTime] = useState("09:00");
 
   // Customer selector states
@@ -461,22 +462,41 @@ function ProjectFormModal({
 
     if (dbError) { setError("שגיאה: " + dbError.message); setSaving(false); return; }
 
-    // Add to calendar if requested
+    // Add to calendar if requested — creates a job per day in range
     if (addToCalendar && data) {
-      await supabase.from("jobs").insert({
+      const startDate = calendarDate;
+      const endDate = calendarEndDate || calendarDate;
+      const dates: string[] = [];
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      // Cap at 60 days to prevent runaway
+      const daysDiff = Math.min(60, Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))));
+      for (let i = 0; i <= daysDiff; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        dates.push(`${y}-${m}-${day}`);
+      }
+      const totalDays = dates.length;
+      const jobRows = dates.map((dt, idx) => ({
         customer_name: form.customer_name.trim() || form.name.trim(),
         address: null,
-        job_date: calendarDate,
+        job_date: dt,
         job_time: calendarTime,
         duration: 2,
-        type: form.name.trim(),
+        type: totalDays > 1 ? `${form.name.trim()} (יום ${idx + 1}/${totalDays})` : form.name.trim(),
         priority: "medium",
-        price: parseFloat(form.budget) || 0,
-        notes: `פרויקט: ${form.name.trim()}`,
+        price: idx === 0 ? (parseFloat(form.budget) || 0) : 0, // price only on first day to avoid duplication
+        notes: `פרויקט: ${form.name.trim()}${totalDays > 1 ? ` · ${totalDays} ימי עבודה` : ""}`,
         status: "pending",
         assigned_to: [],
         user_id: user?.id,
-      });
+      }));
+      if (jobRows.length > 0) {
+        await supabase.from("jobs").insert(jobRows);
+      }
     }
 
     if (data) onSaved(mapProject(data));
@@ -737,17 +757,40 @@ function ProjectFormModal({
               </span>
             </button>
             {addToCalendar && (
-              <div className="grid grid-cols-2 gap-3 px-1">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">תאריך ביקור</label>
-                  <input type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)} dir="ltr"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+              <div className="space-y-3 px-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">מתאריך</label>
+                    <input type="date" value={calendarDate} onChange={e => setCalendarDate(e.target.value)} dir="ltr"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">עד תאריך <span className="text-gray-400 font-normal">(אופציונלי)</span></label>
+                    <input type="date" value={calendarEndDate} onChange={e => setCalendarEndDate(e.target.value)} dir="ltr" min={calendarDate}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">שעה</label>
-                  <input type="time" value={calendarTime} onChange={e => setCalendarTime(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">שעה (כל יום)</label>
+                    <input type="time" value={calendarTime} onChange={e => setCalendarTime(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                  </div>
+                  <div className="flex items-end">
+                    <p className="text-xs text-gray-500 leading-snug">
+                      {(() => {
+                        if (!calendarEndDate || calendarEndDate === calendarDate) return "📅 יום אחד";
+                        const days = Math.floor((new Date(calendarEndDate).getTime() - new Date(calendarDate).getTime()) / (1000*60*60*24)) + 1;
+                        if (days < 0) return "⚠️ תאריך סיום לפני התחלה";
+                        if (days > 60) return "⚠️ מקסימום 60 ימים";
+                        return `📅 ${days} ימי עבודה ביומן`;
+                      })()}
+                    </p>
+                  </div>
                 </div>
+                <p className="text-xs text-gray-400">
+                  ⓘ יווצר רשומת לוח זמנים לכל יום בטווח. המחיר ירשם רק ביום הראשון כדי למנוע כפילות.
+                </p>
               </div>
             )}
           </section>
