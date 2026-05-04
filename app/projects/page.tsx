@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus, LayoutGrid, CalendarDays, CheckSquare, Square,
   TrendingUp, AlertTriangle, DollarSign, Briefcase,
   Pencil, ArrowRight, BarChart2, X, Loader2, RefreshCw,
   Trash2, Clock, Package, TrendingDown, ChevronDown, ChevronUp, FileText,
-  ShoppingCart, Search,
+  ShoppingCart, Search, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
@@ -1142,6 +1143,7 @@ function mapProject(row: Record<string, unknown>): Project {
 type KpiModal = "total" | "active" | "budget" | "profit" | null;
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -1176,9 +1178,18 @@ export default function ProjectsPage() {
 
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">פרויקטים</h1>
-            <p className="text-gray-500 text-sm mt-0.5">{projects.length} פרויקטים סה״כ</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              title="חזור"
+              className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100 active:bg-gray-200 active:scale-95 transition-all"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-500" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">פרויקטים</h1>
+              <p className="text-gray-500 text-sm mt-0.5">{projects.length} פרויקטים סה״כ</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchProjects} className="p-2.5 rounded-xl bg-gray-100 text-gray-500">

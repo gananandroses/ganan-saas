@@ -116,6 +116,9 @@ interface ComputedAnalytics {
     profitability: number;
     avgCustomersPerEmployee: number;
     incomePerHour: number;
+    jobsCompletedPeriod: number;
+    avgRevenuePerJob: number;
+    hasEmployees: boolean;
     totalCustomers: number;
     totalJobs: number;
   };
@@ -181,9 +184,10 @@ function compute(
   const totalExpenseAll = expenseAll.reduce((s, t) => s + ((t.amount as number) || 0), 0);
   const periodExpense = expensePeriod.reduce((s, t) => s + ((t.amount as number) || 0), 0);
 
+  // Profitability: net profit (after VAT removal) / net income
   const profitability =
     periodIncome > 0
-      ? Math.round(((periodIncome - periodExpense) / periodIncome) * 1000) / 10
+      ? Math.round(((periodIncome - periodExpense) / 1.18 / (periodIncome / 1.18)) * 1000) / 10
       : 0;
 
   const activeEmps = employees.filter((e) => e.status !== "offline").length;
@@ -196,6 +200,11 @@ function compute(
     .reduce((s, t) => s + ((t.amount as number) || 0), 0);
   const totalHours = employees.reduce((s, e) => s + ((e.hours_this_month as number) || 0), 0);
   const incomePerHour = totalHours > 0 ? Math.round(monthlyIncome / totalHours) : 0;
+
+  // Completed jobs in period
+  const jobsCompletedPeriod = jobsPeriod.filter((j) => j.status === "completed").length;
+  const avgRevenuePerJob =
+    jobsCompletedPeriod > 0 ? Math.round(periodIncome / jobsCompletedPeriod) : 0;
 
   // ── Revenue chart ──────────────────────────────────────────────────────────
   const revenueData: RevenuePoint[] = Array.from({ length: numMonths }, (_, i) => {
@@ -361,7 +370,10 @@ function compute(
       avgCustomersPerEmployee,
       incomePerHour,
       totalCustomers: customers.length,
-      totalJobs: jobs.length,
+      totalJobs: jobsPeriod.length,
+      jobsCompletedPeriod,
+      avgRevenuePerJob,
+      hasEmployees: employees.length > 0,
     },
     revenueData,
     chartTotals: { totalIncome: totalIncomeAll, totalExpense: totalExpenseAll },
@@ -958,19 +970,11 @@ export default function AnalyticsPage() {
             />
             <KpiCard
               icon={TrendingUp}
-              label="רווחיות גולמית"
+              label="רווחיות (אחרי מע״מ)"
               value={a.kpis.profitability > 0 ? `${a.kpis.profitability}%` : "—"}
-              sub="הכנסות פחות הוצאות בתקופה"
+              sub="רווח נטו ÷ הכנסה נטו"
               color="teal"
               onClick={() => setActiveModal("profitability")}
-            />
-            <KpiCard
-              icon={Users}
-              label="לקוחות לעובד"
-              value={a.kpis.avgCustomersPerEmployee > 0 ? String(a.kpis.avgCustomersPerEmployee) : "—"}
-              sub={`סה"כ ${a.kpis.totalCustomers} לקוחות`}
-              color="blue"
-              onClick={() => setActiveModal("customersPerEmp")}
             />
             <KpiCard
               icon={Users}
@@ -984,18 +988,38 @@ export default function AnalyticsPage() {
               icon={Clock}
               label="עבודות בתקופה"
               value={String(a.kpis.totalJobs)}
-              sub={`${RANGE_LABELS[dateRange]} אחרונים`}
+              sub={`${a.kpis.jobsCompletedPeriod} הושלמו · ${RANGE_LABELS[dateRange]}`}
               color="amber"
               onClick={() => setActiveModal("jobs")}
             />
             <KpiCard
-              icon={Leaf}
-              label="הכנסה לשעה"
-              value={a.kpis.incomePerHour > 0 ? fmt(a.kpis.incomePerHour) : "—"}
-              sub="מבוסס על שעות עובדים החודש"
+              icon={DollarSign}
+              label="ממוצע לעבודה"
+              value={a.kpis.avgRevenuePerJob > 0 ? fmt(a.kpis.avgRevenuePerJob) : "—"}
+              sub="הכנסות ÷ עבודות שהושלמו"
               color="rose"
-              onClick={() => setActiveModal("incomePerHour")}
+              onClick={() => setActiveModal("income")}
             />
+            {a.kpis.hasEmployees && (
+              <>
+                <KpiCard
+                  icon={Users}
+                  label="לקוחות לעובד"
+                  value={a.kpis.avgCustomersPerEmployee > 0 ? String(a.kpis.avgCustomersPerEmployee) : "—"}
+                  sub={`סה"כ ${a.kpis.totalCustomers} לקוחות`}
+                  color="blue"
+                  onClick={() => setActiveModal("customersPerEmp")}
+                />
+                <KpiCard
+                  icon={Leaf}
+                  label="הכנסה לשעה"
+                  value={a.kpis.incomePerHour > 0 ? fmt(a.kpis.incomePerHour) : "—"}
+                  sub="מבוסס על שעות עובדים החודש"
+                  color="rose"
+                  onClick={() => setActiveModal("incomePerHour")}
+                />
+              </>
+            )}
           </div>
 
           {/* ── Revenue Trend ── */}
