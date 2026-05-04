@@ -252,6 +252,23 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
     setCompleting(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
+    if (!error && user?.id) {
+      // Create income transaction automatically
+      const priceBefore = job.priceBeforeVat ? job.price : Math.round(job.price / 1.18);
+      const totalWithVat = Math.round(priceBefore * 1.18);
+      const vatAmount = totalWithVat - priceBefore;
+      await supabase.from("transactions").insert({
+        customer_name: job.customerName,
+        type: "income",
+        amount: totalWithVat,
+        vat_amount: vatAmount,
+        description: `${job.type || "עבודת גינון"}${job.address ? " · " + job.address : ""}`,
+        method: "cash",
+        status: "pending",
+        transaction_date: job.date || new Date().toISOString().split("T")[0],
+        user_id: user.id,
+      });
+    }
     setCompleting(false);
     if (!error) { onMarkCompleted(job.id); onClose(); }
   }
