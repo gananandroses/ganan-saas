@@ -113,41 +113,84 @@ function normalizePhone(raw: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Templates per action type
+// Templates per action type — with editable placeholders
 // ─────────────────────────────────────────────────────────────
 
+const DEFAULT_TEMPLATES: Record<ActionType, string> = {
+  tomorrow_visit:
+    "שלום {name},\nאנחנו מגיעים אליך מחר בשעה {time} ל{type}.\nיש שינוי או הערה? נשמח לדעת מראש 🌿\n\n{businessName}",
+  open_debt:
+    "שלום {name},\nיש לך תשלום פתוח של ₪{amount} עבור {description} ({days} ימים).\nנשמח לסידור התשלום 🌿{paymentBlock}\n\n{businessName}",
+  completed_today:
+    "שלום {name},\nסיימנו את {type} היום. תודה שבחרתם בנו! 🌿\nאם הכל מצא חן בעיניך — נשמח לדירוג / המלצה.{paymentBlock}\n\n{businessName}",
+  inactive_customer:
+    "שלום {name},\nמזמן לא נפגשנו! עברו {days} ימים מאז הביקור האחרון.\nרוצה לקבוע ביקור או טיפול עונתי? כתוב לי כאן 🌸\n\n{businessName}",
+};
+
+const TEMPLATE_KEY_PREFIX = "automation_template_";
+
+function loadTemplate(type: ActionType): string {
+  if (typeof window === "undefined") return DEFAULT_TEMPLATES[type];
+  const stored = localStorage.getItem(TEMPLATE_KEY_PREFIX + type);
+  return stored || DEFAULT_TEMPLATES[type];
+}
+
+function saveTemplate(type: ActionType, template: string) {
+  if (typeof window === "undefined") return;
+  if (template === DEFAULT_TEMPLATES[type]) {
+    localStorage.removeItem(TEMPLATE_KEY_PREFIX + type);
+  } else {
+    localStorage.setItem(TEMPLATE_KEY_PREFIX + type, template);
+  }
+}
+
+function applyTemplate(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, val] of Object.entries(vars)) {
+    out = out.replace(new RegExp(`\\{${key}\\}`, "g"), val);
+  }
+  // Clean up empty placeholders that weren't filled
+  out = out.replace(/\{[a-zA-Z]+\}/g, "");
+  // Clean up double newlines from empty business name
+  out = out.replace(/\n{3,}/g, "\n\n").trim();
+  return out;
+}
+
 function buildTomorrowVisitMsg(name: string, time: string, type: string, businessName: string): string {
-  const greeting = `שלום ${name},`;
-  const body = `אנחנו מגיעים אליך מחר${time ? ` בשעה ${time}` : ""}${type ? ` ל${type}` : ""}.`;
-  const ask = `יש שינוי או הערה? נשמח לדעת מראש 🌿`;
-  const sig = businessName ? `\n\n${businessName}` : "";
-  return `${greeting}\n${body}\n${ask}${sig}`;
+  return applyTemplate(loadTemplate("tomorrow_visit"), {
+    name,
+    time: time || "",
+    type: type || "ביקור",
+    businessName: businessName || "",
+  });
 }
 
 function buildDebtReminderMsg(name: string, amount: number, description: string, days: number, settings: PaymentSettings): string {
-  const greeting = `שלום ${name},`;
-  const body = `יש לך תשלום פתוח של ₪${amount.toLocaleString()} עבור ${description || "שירותי גינון"}${days > 0 ? ` (${days} ימים)` : ""}.`;
-  const ask = `נשמח לסידור התשלום 🌿`;
-  const payment = buildPaymentBlock(settings);
-  const sig = settings.businessName ? `\n\n${settings.businessName}` : "";
-  return `${greeting}\n${body}\n${ask}${payment}${sig}`;
+  return applyTemplate(loadTemplate("open_debt"), {
+    name,
+    amount: amount.toLocaleString(),
+    description: description || "שירותי גינון",
+    days: String(days),
+    paymentBlock: buildPaymentBlock(settings),
+    businessName: settings.businessName || "",
+  });
 }
 
 function buildCompletedTodayMsg(name: string, type: string, settings: PaymentSettings): string {
-  const greeting = `שלום ${name},`;
-  const body = `סיימנו את ${type || "העבודה"} היום. תודה שבחרתם בנו! 🌿`;
-  const ask = `אם הכל מצא חן בעיניך — נשמח לדירוג / המלצה.`;
-  const payment = buildPaymentBlock(settings);
-  const sig = settings.businessName ? `\n\n${settings.businessName}` : "";
-  return `${greeting}\n${body}\n${ask}${payment}${sig}`;
+  return applyTemplate(loadTemplate("completed_today"), {
+    name,
+    type: type || "העבודה",
+    paymentBlock: buildPaymentBlock(settings),
+    businessName: settings.businessName || "",
+  });
 }
 
 function buildInactiveCustomerMsg(name: string, daysSince: number, businessName: string): string {
-  const greeting = `שלום ${name},`;
-  const body = `מזמן לא נפגשנו! עברו ${daysSince} ימים מאז הביקור האחרון.`;
-  const ask = `רוצה לקבוע ביקור או טיפול עונתי? כתוב לי כאן 🌸`;
-  const sig = businessName ? `\n\n${businessName}` : "";
-  return `${greeting}\n${body}\n${ask}${sig}`;
+  return applyTemplate(loadTemplate("inactive_customer"), {
+    name,
+    days: String(daysSince),
+    businessName: businessName || "",
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -173,6 +216,38 @@ export default function AutomationsPage() {
 
   // Wizard state — for "send all" sequential flow
   const [wizard, setWizard] = useState<null | { actions: ActionItem[]; index: number; editedMessage: string }>(null);
+
+  // Templates editor state
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<Record<ActionType, string>>({
+    tomorrow_visit: DEFAULT_TEMPLATES.tomorrow_visit,
+    open_debt: DEFAULT_TEMPLATES.open_debt,
+    completed_today: DEFAULT_TEMPLATES.completed_today,
+    inactive_customer: DEFAULT_TEMPLATES.inactive_customer,
+  });
+  const [templateRefresh, setTemplateRefresh] = useState(0); // bump to re-render actions
+
+  function openTemplatesEditor() {
+    setTemplates({
+      tomorrow_visit: loadTemplate("tomorrow_visit"),
+      open_debt: loadTemplate("open_debt"),
+      completed_today: loadTemplate("completed_today"),
+      inactive_customer: loadTemplate("inactive_customer"),
+    });
+    setShowTemplates(true);
+  }
+
+  function saveAllTemplates() {
+    (Object.keys(templates) as ActionType[]).forEach(type => {
+      saveTemplate(type, templates[type]);
+    });
+    setShowTemplates(false);
+    setTemplateRefresh(n => n + 1); // trigger recompute
+  }
+
+  function resetTemplate(type: ActionType) {
+    setTemplates(prev => ({ ...prev, [type]: DEFAULT_TEMPLATES[type] }));
+  }
 
   // Section collapse state
   const [collapsed, setCollapsed] = useState<Record<ActionType, boolean>>({
@@ -335,7 +410,8 @@ export default function AutomationsPage() {
     items.push({ type: "inactive_customer", list: inactive });
 
     return items;
-  }, [jobs, transactions, customers, settings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, transactions, customers, settings, templateRefresh]);
 
   // Filter out dismissed
   const visibleActions = actions.map(group => ({
@@ -456,15 +532,26 @@ export default function AutomationsPage() {
             </div>
           </div>
 
-          {/* Send All button */}
-          {!loading && totalPending > 0 && (
-            <button
-              onClick={startWizard}
-              className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl py-3.5 text-sm shadow-sm transition-colors"
-            >
-              <MessageSquare size={18} />
-              שלח לכולם — אשף ({totalPending} הודעות)
-            </button>
+          {/* Action buttons */}
+          {!loading && (
+            <div className="flex gap-2">
+              {totalPending > 0 && (
+                <button
+                  onClick={startWizard}
+                  className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl py-3.5 text-sm shadow-sm transition-colors"
+                >
+                  <MessageSquare size={18} />
+                  שלח לכולם — אשף ({totalPending})
+                </button>
+              )}
+              <button
+                onClick={openTemplatesEditor}
+                title="ערוך תבניות הודעה"
+                className="flex items-center justify-center gap-2 bg-white border border-violet-200 text-violet-700 hover:bg-violet-50 font-semibold rounded-2xl px-4 py-3.5 text-sm shadow-sm transition-colors"
+              >
+                ✏️ ערוך תבניות
+              </button>
+            </div>
           )}
         </div>
 
@@ -589,6 +676,80 @@ export default function AutomationsPage() {
           </div>
         );
       })()}
+
+      {/* Templates Editor Modal */}
+      {showTemplates && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowTemplates(false)}>
+          <div className="bg-white w-full sm:max-w-2xl sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">עריכת תבניות הודעה</h2>
+                <p className="text-xs text-gray-500 mt-0.5">השינויים יחולו על כל ההודעות העתידיות</p>
+              </div>
+              <button onClick={() => setShowTemplates(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5 overflow-y-auto flex-1">
+              {/* Variables help */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+                <p className="font-semibold">💡 משתנים זמינים בתבניות (יוחלפו אוטומטית בכל לקוח):</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 mt-1.5 font-mono text-[11px]">
+                  <span><code className="bg-white px-1 rounded">{"{name}"}</code> — שם לקוח</span>
+                  <span><code className="bg-white px-1 rounded">{"{time}"}</code> — שעת ביקור</span>
+                  <span><code className="bg-white px-1 rounded">{"{type}"}</code> — סוג עבודה</span>
+                  <span><code className="bg-white px-1 rounded">{"{amount}"}</code> — סכום</span>
+                  <span><code className="bg-white px-1 rounded">{"{description}"}</code> — תיאור</span>
+                  <span><code className="bg-white px-1 rounded">{"{days}"}</code> — מספר ימים</span>
+                  <span><code className="bg-white px-1 rounded">{"{paymentBlock}"}</code> — פרטי תשלום</span>
+                  <span><code className="bg-white px-1 rounded">{"{businessName}"}</code> — שם העסק</span>
+                </div>
+              </div>
+
+              {/* Templates */}
+              {([
+                { type: "tomorrow_visit" as ActionType, title: "📅 תזכורת ביקור מחר", color: "blue" },
+                { type: "open_debt" as ActionType, title: "💰 תזכורת תשלום (חוב פתוח)", color: "amber" },
+                { type: "completed_today" as ActionType, title: "✅ סיכום עבודה שהושלמה", color: "green" },
+                { type: "inactive_customer" as ActionType, title: "🌸 לקוח לא פעיל", color: "pink" },
+              ]).map(({ type, title }) => {
+                const isCustom = templates[type] !== DEFAULT_TEMPLATES[type];
+                return (
+                  <div key={type} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-gray-800">{title}</label>
+                      {isCustom && (
+                        <button
+                          onClick={() => resetTemplate(type)}
+                          className="text-xs text-gray-500 hover:text-red-600 font-medium"
+                        >
+                          איפוס לברירת מחדל ↺
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      rows={6}
+                      value={templates[type]}
+                      onChange={(e) => setTemplates(p => ({ ...p, [type]: e.target.value }))}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none font-normal"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 flex gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <button onClick={() => setShowTemplates(false)} className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                ביטול
+              </button>
+              <button onClick={saveAllTemplates} className="flex-[2] py-3 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold">
+                שמור תבניות
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* WhatsApp Modal */}
       {waModal && (
