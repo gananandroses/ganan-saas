@@ -95,6 +95,7 @@ export default function QuotesListPage() {
     const arr = new Uint8Array(16);
     crypto.getRandomValues(arr);
     const publicToken = Array.from(arr).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+    const pinCode = String(Math.floor(1000 + Math.random() * 9000));
 
     const { data: dupe } = await supabase.from("quotes").insert({
       user_id: user.id,
@@ -115,6 +116,7 @@ export default function QuotesListPage() {
       quote_year: currentYear,
       quote_seq: nextSeq,
       public_token: publicToken,
+      pin_code: pinCode,
     }).select().single();
 
     if (dupe) {

@@ -44,6 +44,9 @@ interface QuoteData {
   user_id: string;
   discount_amount: number | null;
   discount_type: "amount" | "percent" | null;
+  pin_code: string | null;
+  pin_attempts: number | null;
+  pin_locked_until: string | null;
 }
 
 interface PaymentSettings {
@@ -208,6 +211,7 @@ export default function QuoteViewPage() {
     const arr = new Uint8Array(16);
     crypto.getRandomValues(arr);
     const publicToken = Array.from(arr).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+    const pinCode = String(Math.floor(1000 + Math.random() * 9000));
 
     const { data: dupe } = await supabase.from("quotes").insert({
       user_id: user.id,
@@ -228,6 +232,7 @@ export default function QuoteViewPage() {
       quote_year: currentYear,
       quote_seq: nextSeq,
       public_token: publicToken,
+      pin_code: pinCode,
     }).select().single();
 
     if (dupe) {
@@ -244,6 +249,38 @@ export default function QuoteViewPage() {
     } catch {
       prompt("העתק את הקישור:", url);
     }
+  }
+
+  async function copyPin() {
+    if (!quote?.pin_code) return;
+    try {
+      await navigator.clipboard.writeText(quote.pin_code);
+      alert(`✅ הקוד הועתק: ${quote.pin_code}\nשלח ללקוח בהודעה נפרדת.`);
+    } catch {
+      prompt("העתק את הקוד:", quote.pin_code);
+    }
+  }
+
+  function sendPinViaWhatsApp() {
+    if (!quote || !quote.customer_phone || !quote.pin_code) return;
+    const cleaned = quote.customer_phone.replace(/\D/g, "");
+    let intl = cleaned;
+    if (cleaned.startsWith("0")) intl = "972" + cleaned.slice(1);
+    else if (cleaned.startsWith("972")) intl = cleaned;
+    const msg = `הקוד לאישור הצעת המחיר ${quote.quote_number ? `#${quote.quote_number} ` : ""}: ${quote.pin_code}\n\nהזן אותו בעמוד ההצעה כדי לחתום ולאשר.`;
+    window.open(`https://api.whatsapp.com/send?phone=${intl}&text=${encodeURIComponent(msg)}`, "_blank");
+  }
+
+  async function regeneratePin() {
+    if (!quote) return;
+    if (!confirm("ייצר קוד חדש? הקוד הנוכחי יבוטל.")) return;
+    const newPin = String(Math.floor(1000 + Math.random() * 9000));
+    await supabase.from("quotes").update({
+      pin_code: newPin,
+      pin_attempts: 0,
+      pin_locked_until: null,
+    }).eq("id", quote.id);
+    setQuote({ ...quote, pin_code: newPin, pin_attempts: 0, pin_locked_until: null });
   }
 
   function handlePrint() { window.print(); }
@@ -355,6 +392,58 @@ export default function QuoteViewPage() {
           </div>
         </div>
       </div>
+
+      {/* PIN security panel — visible only to seller */}
+      {quote.pin_code && !quote.signed_at && (
+        <div className="no-print bg-gradient-to-l from-amber-50 to-yellow-50 border-b border-amber-200 px-4 py-4">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold text-amber-900 mb-1">🔐 קוד אישור — שלח ללקוח בנפרד</p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  {quote.pin_code.split("").map((digit, idx) => (
+                    <div key={idx} className="w-12 h-14 bg-white border-2 border-amber-300 rounded-xl flex items-center justify-center shadow-sm">
+                      <span className="text-2xl font-black text-amber-700">{digit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {quote.customer_phone && (
+                  <button onClick={sendPinViaWhatsApp}
+                    className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-sm">
+                    <MessageSquare size={13} /> שלח קוד ב-WhatsApp
+                  </button>
+                )}
+                <button onClick={copyPin}
+                  className="flex items-center gap-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-2 rounded-lg">
+                  <Copy size={13} /> העתק
+                </button>
+                <button onClick={regeneratePin}
+                  className="flex items-center gap-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg">
+                  🔄 קוד חדש
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-amber-700 mt-2 leading-relaxed">
+              ⓘ <strong>חשוב:</strong> שלח את הקוד בהודעה <strong>נפרדת</strong> מהקישור — לאבטחה מקסימלית. הקוד יפוג לאחר חתימה מוצלחת.
+              {(quote.pin_attempts ?? 0) > 0 && ` · ${quote.pin_attempts} ניסיונות שגויים נרשמו.`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* PIN locked indicator */}
+      {quote.pin_locked_until && new Date(quote.pin_locked_until) > new Date() && !quote.signed_at && (
+        <div className="no-print bg-red-50 border-b border-red-200 px-4 py-3">
+          <div className="max-w-3xl mx-auto">
+            <p className="text-sm text-red-800 font-semibold">
+              🔒 הקוד ננעל עקב 3 ניסיונות שגויים. נסה שוב לאחר {new Date(quote.pin_locked_until).toLocaleTimeString("he-IL")}.
+              לחץ &quot;קוד חדש&quot; כדי לפתוח מחדש.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Activity tracking bar */}
       {(quote.view_count || quote.signed_at || quote.project_id) && (

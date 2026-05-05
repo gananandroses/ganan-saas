@@ -39,6 +39,9 @@ interface QuoteData {
   signed_at: string | null;
   signature_data: string | null;
   signed_by_name: string | null;
+  pin_code: string | null;
+  pin_attempts: number | null;
+  pin_locked_until: string | null;
 }
 
 interface Testimonial { customer_name: string; rating: number; text: string; location?: string }
@@ -85,6 +88,8 @@ export default function PublicQuotePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasSignature, setHasSignature] = useState(false);
   const [countdown, setCountdown] = useState<{ days: number; hours: number; minutes: number; expired: boolean } | null>(null);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
 
   // Countdown timer for valid_until
   useEffect(() => {
@@ -226,6 +231,39 @@ export default function PublicQuotePage() {
 
   async function handleSign() {
     if (!quote || !signerName.trim() || !hasSignature) return;
+    setPinError(null);
+
+    // Check PIN lockout
+    if (quote.pin_locked_until && new Date(quote.pin_locked_until) > new Date()) {
+      setPinError(`הקוד ננעל. נסה שוב לאחר ${new Date(quote.pin_locked_until).toLocaleTimeString("he-IL")}`);
+      return;
+    }
+
+    // Verify PIN
+    if (quote.pin_code) {
+      if (!pinInput || pinInput.length !== 4) {
+        setPinError("הזן קוד 4 ספרות");
+        return;
+      }
+      if (pinInput !== quote.pin_code) {
+        const newAttempts = (quote.pin_attempts ?? 0) + 1;
+        const updates: Record<string, unknown> = { pin_attempts: newAttempts };
+        if (newAttempts >= 3) {
+          // Lock for 15 minutes
+          const lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+          updates.pin_locked_until = lockUntil;
+          await supabase.from("quotes").update(updates).eq("public_token", token);
+          setQuote({ ...quote, pin_attempts: newAttempts, pin_locked_until: lockUntil });
+          setPinError(`קוד שגוי. נחסם ל-15 דקות. צור קשר עם השולח לקבלת קוד חדש.`);
+          return;
+        }
+        await supabase.from("quotes").update(updates).eq("public_token", token);
+        setQuote({ ...quote, pin_attempts: newAttempts });
+        setPinError(`קוד שגוי. נשארו ${3 - newAttempts} ניסיונות.`);
+        return;
+      }
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const sigData = canvas.toDataURL("image/png");
@@ -236,6 +274,9 @@ export default function PublicQuotePage() {
       signature_data: sigData,
       signed_by_name: signerName.trim(),
       status: "accepted",
+      pin_code: null,             // Invalidate PIN after successful sign
+      pin_attempts: 0,
+      pin_locked_until: null,
     }).eq("public_token", token);
 
     setQuote({
@@ -244,6 +285,7 @@ export default function PublicQuotePage() {
       signature_data: sigData,
       signed_by_name: signerName.trim(),
       status: "accepted",
+      pin_code: null,
     });
     setSigning(false);
     setShowSignModal(false);
@@ -610,6 +652,27 @@ export default function PublicQuotePage() {
               <p className="text-xs text-gray-500 mt-0.5">חתום כדי לאשר את ההצעה</p>
             </div>
             <div className="p-5 space-y-3">
+              {/* PIN input */}
+              {quote.pin_code && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">🔐 קוד אישור (4 ספרות) *</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    value={pinInput}
+                    onChange={e => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(null); }}
+                    placeholder="••••"
+                    autoComplete="one-time-code"
+                    className="w-full border-2 border-amber-300 rounded-xl px-3 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-500"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1.5">הקוד נשלח לך בהודעה נפרדת מהקישור.</p>
+                  {pinError && (
+                    <p className="text-[12px] text-red-600 font-semibold mt-1.5 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">⚠️ {pinError}</p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">שם מלא *</label>
                 <input value={signerName} onChange={e => setSignerName(e.target.value)}

@@ -218,6 +218,9 @@ export default function QuotePage() {
       return Array.from(arr).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
     })();
 
+    // Generate 4-digit PIN (security code) — sent separately to customer
+    const pinCode = String(Math.floor(1000 + Math.random() * 9000));
+
     await supabase.from("quotes").insert({
       user_id: user.id,
       customer_id: customerMode === "existing" ? selectedCustomer?.id : null,
@@ -239,6 +242,7 @@ export default function QuotePage() {
       quote_year: currentYear,
       quote_seq: nextSeq,
       public_token: publicToken,
+      pin_code: pinCode,
     });
 
     setSaving(false);
