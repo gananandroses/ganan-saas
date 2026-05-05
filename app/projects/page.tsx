@@ -14,7 +14,7 @@ import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-d
 
 // ── Types ─────────────────────────────────────────────────────
 
-type ProjectStatus = "planning" | "active" | "completed" | "on_hold";
+type ProjectStatus = "draft" | "planning" | "active" | "completed" | "on_hold";
 
 interface Material {
   name: string;
@@ -55,11 +55,12 @@ function daysRemaining(endDate: string) {
 }
 
 function statusLabel(s: ProjectStatus) {
-  return { active: "פעיל", planning: "תכנון", completed: "הושלם", on_hold: "בהמתנה" }[s];
+  return { draft: "טיוטה", active: "פעיל", planning: "תכנון", completed: "הושלם", on_hold: "בהמתנה" }[s];
 }
 
 function statusColor(s: ProjectStatus) {
   return {
+    draft:     { badge: "bg-purple-100 text-purple-700", bar: "bg-purple-400", glow: "shadow-purple-100" },
     active:    { badge: "bg-blue-100 text-blue-700",   bar: "bg-blue-500",   glow: "shadow-blue-100" },
     planning:  { badge: "bg-amber-100 text-amber-700", bar: "bg-amber-400",  glow: "shadow-amber-100" },
     completed: { badge: "bg-green-100 text-green-700", bar: "bg-green-500",  glow: "shadow-green-100" },
@@ -228,11 +229,90 @@ function PricerPickerModal({ onClose, onImport }: {
 
 // ── Materials Section ─────────────────────────────────────────
 
+function MaterialAutocomplete({ value, onSelect, onChange: onTextChange }: {
+  value: string;
+  onSelect: (item: PriceItem) => void;
+  onChange: (text: string) => void;
+}) {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+
+  const suggestions = value.trim().length >= 1
+    ? PRICE_LIST.filter(item =>
+        item.name.toLowerCase().includes(value.toLowerCase()) ||
+        item.id.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  return (
+    <div className="relative flex-1">
+      <input
+        placeholder="שם חומר (התחל להקליד לחיפוש מהמחירון)"
+        value={value}
+        onChange={e => {
+          onTextChange(e.target.value);
+          setShowSuggestions(true);
+          setHighlightIdx(0);
+        }}
+        onFocus={() => setShowSuggestions(true)}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+        onKeyDown={e => {
+          if (!showSuggestions || suggestions.length === 0) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHighlightIdx(i => Math.max(i - 1, 0));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            const picked = suggestions[highlightIdx];
+            if (picked) {
+              onSelect(picked);
+              setShowSuggestions(false);
+            }
+          } else if (e.key === "Escape") {
+            setShowSuggestions(false);
+          }
+        }}
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="absolute z-30 top-full mt-1 right-0 left-0 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+          {suggestions.map((item, idx) => (
+            <button
+              key={item.id}
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => { onSelect(item); setShowSuggestions(false); }}
+              className={`w-full text-right px-3 py-2 text-sm hover:bg-blue-50 transition-colors flex items-center justify-between gap-2 ${idx === highlightIdx ? "bg-blue-50" : ""}`}
+            >
+              <span className="text-xs text-gray-400 flex-shrink-0">₪{item.price} / {item.unit}</span>
+              <span className="text-gray-800 truncate flex-1">{item.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MaterialsEditor({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {
   const [showPicker, setShowPicker] = useState(false);
 
   function add() {
     onChange([...materials, { name: "", qty: 1, unit: "יח'", price: 0, vatIncluded: false }]);
+  }
+
+  function pickFromPriceList(i: number, item: PriceItem) {
+    const next = materials.map((m, idx) => idx === i ? {
+      ...m,
+      name: item.name,
+      unit: item.unit,
+      price: item.price,
+      vatIncluded: false, // price list is לפני מע"מ
+    } : m);
+    onChange(next);
   }
 
   function importFromPricer(newMats: Material[]) {
@@ -260,11 +340,10 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
         return (
           <div key={i} className="space-y-1">
             <div className="flex gap-2 items-center">
-              <input
-                placeholder="שם חומר"
+              <MaterialAutocomplete
                 value={m.name}
-                onChange={e => update(i, "name", e.target.value)}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                onChange={(text) => update(i, "name", text)}
+                onSelect={(item) => pickFromPriceList(i, item)}
               />
               <input
                 type="number"
@@ -424,7 +503,7 @@ function ProjectFormModal({
   const budget = budgetRaw;
   const profit = budgetBeforeVat - totalCost;
 
-  async function handleSave() {
+  async function handleSave(asDraft = false) {
     if (!form.name.trim()) { setError("שם הפרויקט חובה"); return; }
     setSaving(true);
     setError("");
@@ -438,7 +517,7 @@ function ProjectFormModal({
       end_date: form.end_date || null,
       budget: parseFloat(form.budget) || 0,
       spent: totalCost,
-      status: form.status,
+      status: asDraft ? ("draft" as ProjectStatus) : form.status,
       tasks,
       materials,
       labor_hours: parseFloat(form.labor_hours) || 0,
@@ -799,11 +878,24 @@ function ProjectFormModal({
 
         {error && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3">{error}</p>}
 
-        <button onClick={handleSave} disabled={saving}
-          className="w-full flex items-center justify-center gap-2 bg-green-600 disabled:opacity-60 text-white font-bold rounded-2xl py-4 text-base">
-          {saving ? <Loader2 size={18} className="animate-spin" /> : null}
-          {saving ? "שומר..." : isEdit ? "שמור שינויים" : "צור פרויקט"}
-        </button>
+        <div className="space-y-2">
+          <button onClick={() => handleSave(false)} disabled={saving}
+            className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-2xl py-4 text-base transition-colors">
+            {saving ? <Loader2 size={18} className="animate-spin" /> : null}
+            {saving ? "שומר..." : isEdit ? "שמור שינויים" : "צור פרויקט"}
+          </button>
+          {!isEdit && (
+            <button onClick={() => handleSave(true)} disabled={saving}
+              className="w-full flex items-center justify-center gap-2 bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 disabled:opacity-60 font-semibold rounded-2xl py-3 text-sm transition-colors">
+              📝 שמור כטיוטה (להמשך עריכה)
+            </button>
+          )}
+          {isEdit && initial?.status === "draft" && (
+            <p className="text-xs text-purple-600 text-center bg-purple-50 rounded-xl px-3 py-2">
+              💡 פרויקט זה כרגע כטיוטה. השמירה תאמת אותו לסטטוס הנבחר ({statusLabel(form.status as ProjectStatus)}).
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -909,7 +1001,7 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">סטטוס</label>
           <div className="grid grid-cols-2 gap-2">
-            {(["planning", "active", "on_hold", "completed"] as ProjectStatus[]).map(s => (
+            {(["draft", "planning", "active", "on_hold", "completed"] as ProjectStatus[]).map(s => (
               <button key={s} onClick={() => {
                 setStatus(s);
                 if (s === "completed") setProgress(100);
@@ -1166,10 +1258,11 @@ export default function ProjectsPage() {
   const activeCount = projects.filter(p => p.status === "active").length;
 
   const kanbanCols: { key: ProjectStatus; label: string; color: string; header: string }[] = [
-    { key: "planning",  label: "תכנון",  color: "bg-amber-50 border-amber-200", header: "bg-amber-400" },
-    { key: "active",    label: "פעיל",   color: "bg-blue-50 border-blue-200",   header: "bg-blue-500" },
-    { key: "on_hold",   label: "בהמתנה", color: "bg-gray-50 border-gray-200",   header: "bg-gray-400" },
-    { key: "completed", label: "הושלם",  color: "bg-green-50 border-green-200", header: "bg-green-500" },
+    { key: "draft",     label: "טיוטות", color: "bg-purple-50 border-purple-200", header: "bg-purple-400" },
+    { key: "planning",  label: "תכנון",  color: "bg-amber-50 border-amber-200",   header: "bg-amber-400" },
+    { key: "active",    label: "פעיל",   color: "bg-blue-50 border-blue-200",     header: "bg-blue-500" },
+    { key: "on_hold",   label: "בהמתנה", color: "bg-gray-50 border-gray-200",     header: "bg-gray-400" },
+    { key: "completed", label: "הושלם",  color: "bg-green-50 border-green-200",   header: "bg-green-500" },
   ];
 
   return (
