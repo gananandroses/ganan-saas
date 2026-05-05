@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, Sparkles, BarChart3, Zap, FolderKanban,
-  Settings, ChevronLeft, Leaf, Bell, LogOut, Camera, ClipboardList,
+  Settings, ChevronLeft, Leaf, Bell, LogOut, Camera, ClipboardList, FileText,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -19,7 +19,8 @@ const navItems = [
   { href: "/projects", label: "פרויקטים", icon: FolderKanban },
   { href: "/portfolio", label: "תיק עבודות", icon: Camera },
   { href: "/plants", label: "עולם הצמחים", icon: Leaf },
-  { href: "/pricer", label: "מחירון + הצעת מחיר", icon: ClipboardList },
+  { href: "/pricer", label: "מחירון גנן", icon: ClipboardList },
+  { href: "/quote", label: "הצעת מחיר ללקוח", icon: FileText },
   { href: "/analytics", label: "אנליטיקה BI", icon: BarChart3 },
   { href: "/ai-tools", label: "כלי AI", icon: Sparkles },
   { href: "/automations", label: "אוטומציות", icon: Zap },
