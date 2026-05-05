@@ -6,7 +6,7 @@ import {
   FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { PRICE_LIST, type PriceItem } from "@/lib/price-list-data";
+import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
 const VAT = 0.18;
 
@@ -107,11 +107,19 @@ export default function QuotePage() {
     return (c.name || "").toLowerCase().includes(q) || (c.address || "").toLowerCase().includes(q);
   });
 
-  // Item picker — categories
+  // Item picker — categories with Hebrew labels
   const categories = useMemo(() => {
     const seen = new Set<string>();
     PRICE_LIST.forEach(p => seen.add(p.category));
-    return ["all", ...Array.from(seen).sort()];
+    // Build list with Hebrew labels from PRICE_CATEGORIES, fallback to key
+    const labelFor = (key: string) => {
+      const c = PRICE_CATEGORIES.find(c => c.key === key);
+      return c ? `${c.emoji} ${c.label}` : key;
+    };
+    return [
+      { key: "all", label: "📋 הכל" },
+      ...Array.from(seen).sort().map(key => ({ key, label: labelFor(key) })),
+    ];
   }, []);
 
   // Filtered price list
@@ -271,36 +279,56 @@ export default function QuotePage() {
           </div>
           {customerMode === "existing" ? (
             <div className="space-y-2 print:hidden">
-              <div className="relative">
-                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" />
-                <input
-                  value={customerSearch}
-                  onChange={e => setCustomerSearch(e.target.value)}
-                  placeholder={`חפש בין ${customers.length} לקוחות...`}
-                  className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-2.5 pr-9 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-              </div>
-              <div className="bg-white border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
-                {filteredCustomers.length === 0 ? (
-                  <p className="px-4 py-3 text-center text-sm text-gray-500">לא נמצא לקוח</p>
-                ) : (
-                  filteredCustomers.map(c => {
-                    const isSelected = selectedCustomer?.id === c.id;
-                    return (
-                      <button key={c.id} onClick={() => setSelectedCustomer(c)}
-                        className={`w-full text-right px-4 py-2 transition-colors border-b border-gray-50 last:border-0 ${isSelected ? "bg-green-50" : "hover:bg-gray-50"}`}>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                            {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
-                          </div>
-                          {isSelected && <span className="text-green-600">✓</span>}
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+              {selectedCustomer ? (
+                /* Selected customer card with change button */
+                <div className="bg-white rounded-xl border-2 border-green-300 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold">
+                      ✓
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{selectedCustomer.name}</p>
+                      {selectedCustomer.address && (
+                        <p className="text-xs text-gray-500">{selectedCustomer.address}</p>
+                      )}
+                      {selectedCustomer.phone && (
+                        <p className="text-xs text-gray-400">{selectedCustomer.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); }}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50">
+                    שנה
+                  </button>
+                </div>
+              ) : (
+                /* Search + list (only when nothing selected) */
+                <>
+                  <div className="relative">
+                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" />
+                    <input
+                      autoFocus
+                      value={customerSearch}
+                      onChange={e => setCustomerSearch(e.target.value)}
+                      placeholder={`חפש בין ${customers.length} לקוחות...`}
+                      className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-2.5 pr-9 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+                    {filteredCustomers.length === 0 ? (
+                      <p className="px-4 py-3 text-center text-sm text-gray-500">לא נמצא לקוח</p>
+                    ) : (
+                      filteredCustomers.map(c => (
+                        <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(""); }}
+                          className="w-full text-right px-4 py-2 transition-colors border-b border-gray-50 last:border-0 hover:bg-green-50">
+                          <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                          {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="space-y-2 print:hidden">
@@ -492,10 +520,10 @@ export default function QuotePage() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
               </div>
               <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {categories.slice(0, 10).map(c => (
-                  <button key={c} onClick={() => setActiveCategory(c)}
-                    className={`text-xs px-2.5 py-1 rounded-lg whitespace-nowrap ${activeCategory === c ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-                    {c === "all" ? "הכל" : c}
+                {categories.map(c => (
+                  <button key={c.key} onClick={() => setActiveCategory(c.key)}
+                    className={`text-xs px-2.5 py-1 rounded-lg whitespace-nowrap ${activeCategory === c.key ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                    {c.label}
                   </button>
                 ))}
               </div>
@@ -504,16 +532,20 @@ export default function QuotePage() {
               {filteredPriceList.length === 0 ? (
                 <p className="text-center py-8 text-gray-400 text-sm">לא נמצא פריט</p>
               ) : (
-                filteredPriceList.slice(0, 100).map(p => (
-                  <button key={p.id} onClick={() => addItem(p)}
-                    className="w-full text-right px-5 py-2.5 hover:bg-green-50 border-b border-gray-50 flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">{p.name}</p>
-                      <p className="text-xs text-gray-400">₪{p.price} / {p.unit} · {p.category}</p>
-                    </div>
-                    <Plus size={18} className="text-green-600 flex-shrink-0" />
-                  </button>
-                ))
+                filteredPriceList.slice(0, 100).map(p => {
+                  const cat = PRICE_CATEGORIES.find(c => c.key === p.category);
+                  const catLabel = cat ? `${cat.emoji} ${cat.label}` : p.category;
+                  return (
+                    <button key={p.id} onClick={() => addItem(p)}
+                      className="w-full text-right px-5 py-2.5 hover:bg-green-50 border-b border-gray-50 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{p.name}</p>
+                        <p className="text-xs text-gray-400">₪{p.price} / {p.unit} · {catLabel}</p>
+                      </div>
+                      <Plus size={18} className="text-green-600 flex-shrink-0" />
+                    </button>
+                  );
+                })
               )}
             </div>
             <div className="px-5 py-3 border-t">
