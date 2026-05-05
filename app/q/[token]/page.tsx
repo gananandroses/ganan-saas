@@ -233,23 +233,33 @@ export default function PublicQuotePage() {
     if (!quote || !signerName.trim() || !hasSignature) return;
     setPinError(null);
 
+    // Re-fetch the quote fresh from DB — to get latest pin_code (it might have been regenerated)
+    const { data: freshQuote } = await supabase
+      .from("quotes")
+      .select("pin_code, pin_attempts, pin_locked_until")
+      .eq("public_token", token)
+      .maybeSingle();
+
+    const currentPin = freshQuote?.pin_code ?? quote.pin_code;
+    const currentAttempts = freshQuote?.pin_attempts ?? quote.pin_attempts ?? 0;
+    const currentLockedUntil = freshQuote?.pin_locked_until ?? quote.pin_locked_until;
+
     // Check PIN lockout
-    if (quote.pin_locked_until && new Date(quote.pin_locked_until) > new Date()) {
-      setPinError(`הקוד ננעל. נסה שוב לאחר ${new Date(quote.pin_locked_until).toLocaleTimeString("he-IL")}`);
+    if (currentLockedUntil && new Date(currentLockedUntil) > new Date()) {
+      setPinError(`הקוד ננעל. נסה שוב לאחר ${new Date(currentLockedUntil).toLocaleTimeString("he-IL")}`);
       return;
     }
 
     // Verify PIN
-    if (quote.pin_code) {
+    if (currentPin) {
       if (!pinInput || pinInput.length !== 4) {
         setPinError("הזן קוד 4 ספרות");
         return;
       }
-      if (pinInput !== quote.pin_code) {
-        const newAttempts = (quote.pin_attempts ?? 0) + 1;
+      if (pinInput.trim() !== String(currentPin).trim()) {
+        const newAttempts = currentAttempts + 1;
         const updates: Record<string, unknown> = { pin_attempts: newAttempts };
         if (newAttempts >= 3) {
-          // Lock for 15 minutes
           const lockUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
           updates.pin_locked_until = lockUntil;
           await supabase.from("quotes").update(updates).eq("public_token", token);
