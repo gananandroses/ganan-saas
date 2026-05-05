@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, CheckCircle2, Phone, MapPin, FileText, Printer } from "lucide-react";
+import { Loader2, CheckCircle2, Phone, MapPin, FileText, Printer, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 interface QuoteItemDB {
@@ -42,6 +42,10 @@ interface QuoteData {
   pin_code: string | null;
   pin_attempts: number | null;
   pin_locked_until: string | null;
+  deposit_percent: number | null;
+  deposit_amount: number | null;
+  payment_status: "unpaid" | "pending_verification" | "deposit_paid" | "fully_paid" | null;
+  payment_method: string | null;
 }
 
 interface Testimonial { customer_name: string; rating: number; text: string; location?: string }
@@ -64,6 +68,9 @@ interface PublicProfile {
   testimonials: Testimonial[];
   trust_badges: TrustBadge[];
   hero_image_url: string;
+  payment_gateway: "none" | "meshulam" | "cardcom" | "tranzila" | "payplus" | null;
+  payment_gateway_user_id: string | null;
+  payment_gateway_page_code: string | null;
 }
 
 function fmt(n: number) {
@@ -90,6 +97,11 @@ export default function PublicQuotePage() {
   const [countdown, setCountdown] = useState<{ days: number; hours: number; minutes: number; expired: boolean } | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
+
+  // Payment flow
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pinVerified, setPinVerified] = useState(false);
+  const [paymentMarking, setPaymentMarking] = useState(false);
 
   // Countdown timer for valid_until
   useEffect(() => {
@@ -139,7 +151,7 @@ export default function PublicQuotePage() {
         // Fetch business profile (public read of selected fields)
         const { data: p } = await supabase
           .from("user_profile")
-          .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_title_label, quote_intro_text, quote_default_footer, testimonials, trust_badges, hero_image_url")
+          .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_title_label, quote_intro_text, quote_default_footer, testimonials, trust_badges, hero_image_url, payment_gateway, payment_gateway_user_id, payment_gateway_page_code")
           .eq("user_id", q.user_id)
           .maybeSingle();
         if (p) setProfile(p as PublicProfile);
@@ -229,41 +241,29 @@ export default function PublicQuotePage() {
     setHasSignature(false);
   }
 
-  async function handleSign() {
-    if (!quote || !signerName.trim() || !hasSignature) return;
+  async function verifyPin(): Promise<boolean> {
+    if (!quote) return false;
     setPinError(null);
 
-    // Re-fetch the quote fresh from DB — to get latest pin_code (it might have been regenerated)
-    const { data: freshQuote, error: fetchErr } = await supabase
+    const { data: freshQuote } = await supabase
       .from("quotes")
       .select("pin_code, pin_attempts, pin_locked_until")
       .eq("public_token", token)
       .maybeSingle();
 
-    console.log("[PIN Debug]", {
-      typedPin: pinInput,
-      typedPinLength: pinInput.length,
-      freshQuotePin: freshQuote?.pin_code,
-      freshQuotePinType: typeof freshQuote?.pin_code,
-      fetchError: fetchErr,
-      tokenInUrl: token,
-    });
-
     const currentPin = freshQuote?.pin_code ?? quote.pin_code;
     const currentAttempts = freshQuote?.pin_attempts ?? quote.pin_attempts ?? 0;
     const currentLockedUntil = freshQuote?.pin_locked_until ?? quote.pin_locked_until;
 
-    // Check PIN lockout
     if (currentLockedUntil && new Date(currentLockedUntil) > new Date()) {
       setPinError(`הקוד ננעל. נסה שוב לאחר ${new Date(currentLockedUntil).toLocaleTimeString("he-IL")}`);
-      return;
+      return false;
     }
 
-    // Verify PIN
     if (currentPin) {
       if (!pinInput || pinInput.length !== 4) {
         setPinError("הזן קוד 4 ספרות");
-        return;
+        return false;
       }
       if (pinInput.trim() !== String(currentPin).trim()) {
         const newAttempts = currentAttempts + 1;
@@ -274,14 +274,41 @@ export default function PublicQuotePage() {
           await supabase.from("quotes").update(updates).eq("public_token", token);
           setQuote({ ...quote, pin_attempts: newAttempts, pin_locked_until: lockUntil });
           setPinError(`קוד שגוי. נחסם ל-15 דקות. צור קשר עם השולח לקבלת קוד חדש.`);
-          return;
+          return false;
         }
         await supabase.from("quotes").update(updates).eq("public_token", token);
         setQuote({ ...quote, pin_attempts: newAttempts });
         setPinError(`קוד שגוי. נשארו ${3 - newAttempts} ניסיונות.`);
-        return;
+        return false;
       }
     }
+    return true;
+  }
+
+  // Mark payment as paid (manual confirmation by customer)
+  async function markPaymentReceived(method: string) {
+    if (!quote) return;
+    setPaymentMarking(true);
+    await supabase.from("quotes").update({
+      payment_status: "pending_verification",
+      payment_method: method,
+      payment_marked_at: new Date().toISOString(),
+    }).eq("public_token", token);
+    setQuote({
+      ...quote,
+      payment_status: "pending_verification",
+      payment_method: method,
+    });
+    setPaymentMarking(false);
+    setShowPaymentModal(false);
+    setShowSignModal(true); // proceed to signature
+  }
+
+  async function handleSign() {
+    if (!quote || !signerName.trim() || !hasSignature) return;
+    setPinError(null);
+    const ok = await verifyPin();
+    if (!ok) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -362,7 +389,14 @@ export default function PublicQuotePage() {
               <Printer size={13} /> הדפס
             </button>
             {!isAccepted && (
-              <button onClick={() => setShowSignModal(true)}
+              <button onClick={() => {
+                  // If deposit > 0, show payment modal first; else go straight to signature
+                  if ((quote.deposit_amount ?? 0) > 0 && quote.payment_status === "unpaid") {
+                    setShowPaymentModal(true);
+                  } else {
+                    setShowSignModal(true);
+                  }
+                }}
                 className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">
                 <CheckCircle2 size={14} /> אשר ההצעה
               </button>
@@ -556,7 +590,14 @@ export default function PublicQuotePage() {
             {!isAccepted && (
               <div className="no-print mt-6 bg-gradient-to-l from-green-500 to-emerald-600 rounded-2xl p-5 text-white text-center shadow-lg">
                 <p className="text-sm font-semibold mb-3">מאשר את ההצעה?</p>
-                <button onClick={() => setShowSignModal(true)}
+                <button onClick={() => {
+                  // If deposit > 0, show payment modal first; else go straight to signature
+                  if ((quote.deposit_amount ?? 0) > 0 && quote.payment_status === "unpaid") {
+                    setShowPaymentModal(true);
+                  } else {
+                    setShowSignModal(true);
+                  }
+                }}
                   className="bg-white text-green-700 hover:bg-green-50 font-black px-8 py-3 rounded-xl text-base shadow-md inline-flex items-center gap-2">
                   <CheckCircle2 size={18} /> חתום ואשר עכשיו
                 </button>
@@ -663,6 +704,147 @@ export default function PublicQuotePage() {
       </div>
 
       {/* Signature modal */}
+      {/* Payment Modal */}
+      {showPaymentModal && quote.deposit_amount && (() => {
+        const depositAmount = quote.deposit_amount || 0;
+        const depositPercent = quote.deposit_percent || 50;
+        const allowBit = depositAmount <= 3000 && profile?.bit_phone;
+        const allowPayBox = depositAmount <= 3000 && profile?.paybox_phone;
+        const allowMeshulam = profile?.payment_gateway === "meshulam" && profile?.payment_gateway_user_id;
+        const allowBank = profile?.bank_name || profile?.bank_account;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowPaymentModal(false)}>
+            <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-xl">💰</div>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">מקדמה לאישור ההצעה</h3>
+                    <p className="text-xs text-gray-500">{depositPercent}% מסכום ההצעה</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Step 1: PIN */}
+              {!pinVerified && (
+                <div className="p-5 space-y-3 overflow-y-auto flex-1">
+                  <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 text-center">
+                    <p className="text-xs uppercase tracking-widest text-emerald-700 font-semibold">סכום מקדמה</p>
+                    <p className="text-3xl font-black text-emerald-700 mt-1">{fmt(depositAmount)}</p>
+                    <p className="text-xs text-emerald-600 mt-0.5">מתוך סה״כ {fmt(quote.total_with_vat)}</p>
+                  </div>
+
+                  {quote.pin_code && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">🔐 קוד אישור (4 ספרות) *</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        value={pinInput}
+                        onChange={e => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(null); }}
+                        placeholder="••••"
+                        autoComplete="one-time-code"
+                        className="w-full border-2 border-amber-300 rounded-xl px-3 py-3 text-center text-2xl font-mono tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+                      <p className="text-[11px] text-gray-500 mt-1.5">הקוד נשלח לך בהודעה נפרדת מהקישור.</p>
+                      {pinError && (
+                        <p className="text-[12px] text-red-600 font-semibold mt-1.5 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">⚠️ {pinError}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={async () => {
+                      const ok = await verifyPin();
+                      if (ok) setPinVerified(true);
+                    }}
+                    className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold"
+                  >
+                    אמת קוד והמשך לתשלום
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2: Payment options */}
+              {pinVerified && (
+                <div className="p-5 space-y-2.5 overflow-y-auto flex-1">
+                  <p className="text-sm font-semibold text-gray-800 mb-1">בחר אופציית תשלום:</p>
+
+                  {allowMeshulam && (
+                    <button onClick={() => alert("חיבור משולם יושלם בקרוב")}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-emerald-200 hover:bg-emerald-50 rounded-2xl text-right transition-colors">
+                      <div className="text-3xl">💳</div>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900 text-sm">תשלום בכרטיס אשראי</p>
+                        <p className="text-xs text-gray-500">סליקה מאובטחת — {fmt(depositAmount)}</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {allowBit && (
+                    <button onClick={() => markPaymentReceived("bit")}
+                      disabled={paymentMarking}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-blue-200 hover:bg-blue-50 rounded-2xl text-right transition-colors disabled:opacity-50">
+                      <div className="text-3xl">💸</div>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900 text-sm">Bit</p>
+                        <p className="text-xs text-gray-500">שלח Bit ל-{profile?.bit_phone} · {fmt(depositAmount)}</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {allowPayBox && (
+                    <button onClick={() => markPaymentReceived("paybox")}
+                      disabled={paymentMarking}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-purple-200 hover:bg-purple-50 rounded-2xl text-right transition-colors disabled:opacity-50">
+                      <div className="text-3xl">📱</div>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900 text-sm">PayBox</p>
+                        <p className="text-xs text-gray-500">שלח PayBox ל-{profile?.paybox_phone} · {fmt(depositAmount)}</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {allowBank && (
+                    <button onClick={() => markPaymentReceived("bank")}
+                      disabled={paymentMarking}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-gray-200 hover:bg-gray-50 rounded-2xl text-right transition-colors disabled:opacity-50">
+                      <div className="text-3xl">🏦</div>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-900 text-sm">העברה בנקאית</p>
+                        <p className="text-xs text-gray-500">{profile?.bank_name}{profile?.bank_branch ? ` · סניף ${profile.bank_branch}` : ""}{profile?.bank_account ? ` · חשבון ${profile.bank_account}` : ""}</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {!allowBit && !allowPayBox && !allowMeshulam && !allowBank && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                      ⚠️ הספק לא הגדיר אופציות תשלום. צור איתו קשר ישירות.
+                    </div>
+                  )}
+
+                  {depositAmount > 3000 && (
+                    <p className="text-[11px] text-gray-400 mt-2">
+                      ⓘ Bit/PayBox מוגבלים ל-₪3,000 לפי החוק. לסכומים גבוהים — כרטיס אשראי או העברה בנקאית.
+                    </p>
+                  )}
+
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 mt-3">
+                    💡 לאחר ביצוע התשלום, לחץ על השיטה שבחרת וחתום על ההצעה.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {showSignModal && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowSignModal(false)}>
           <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" dir="rtl">

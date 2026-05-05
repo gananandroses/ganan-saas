@@ -47,6 +47,12 @@ interface QuoteData {
   pin_code: string | null;
   pin_attempts: number | null;
   pin_locked_until: string | null;
+  deposit_percent: number | null;
+  deposit_amount: number | null;
+  payment_status: "unpaid" | "pending_verification" | "deposit_paid" | "fully_paid" | null;
+  payment_method: string | null;
+  payment_marked_at: string | null;
+  payment_verified_at: string | null;
 }
 
 interface PaymentSettings {
@@ -274,6 +280,21 @@ export default function QuoteViewPage() {
     }
   }
 
+  async function verifyPayment() {
+    if (!quote) return;
+    if (!confirm("מאשר שקיבלת את התשלום? פעולה זו לא ניתנת לביטול.")) return;
+    await supabase.from("quotes").update({
+      payment_status: "deposit_paid",
+      payment_verified_at: new Date().toISOString(),
+    }).eq("id", quote.id);
+    setQuote({
+      ...quote,
+      payment_status: "deposit_paid",
+      payment_verified_at: new Date().toISOString(),
+    });
+    showToast("✅ התשלום אומת");
+  }
+
   async function copyBothLinkAndPin() {
     if (!quote?.public_token || !quote.pin_code) return;
     const url = `${window.location.origin}/q/${quote.public_token}`;
@@ -417,6 +438,50 @@ export default function QuoteViewPage() {
           </div>
         </div>
       </div>
+
+      {/* Payment status panel */}
+      {(quote.deposit_amount ?? 0) > 0 && (
+        <div className="no-print bg-white border-b border-gray-200 px-4 py-3">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">💰</div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">מקדמה ({quote.deposit_percent || 50}%)</p>
+                <p className="text-lg font-black text-gray-900">{fmt(quote.deposit_amount || 0)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {quote.payment_status === "unpaid" && (
+                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600">⏳ ממתין לתשלום</span>
+              )}
+              {quote.payment_status === "pending_verification" && (
+                <>
+                  <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700">
+                    🔔 הלקוח סימן ששילם · אמת בבנק
+                  </span>
+                  <button onClick={verifyPayment}
+                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                    ✓ אמת תשלום
+                  </button>
+                </>
+              )}
+              {quote.payment_status === "deposit_paid" && (
+                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-100 text-green-700">✅ מקדמה שולמה</span>
+              )}
+              {quote.payment_status === "fully_paid" && (
+                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-200 text-green-800">✅ שולם במלואו</span>
+              )}
+            </div>
+          </div>
+          {quote.payment_method && quote.payment_marked_at && (
+            <p className="text-[11px] text-gray-500 mt-1.5 max-w-3xl mx-auto">
+              שיטת תשלום: {quote.payment_method === "bit" ? "💸 Bit" : quote.payment_method === "paybox" ? "📱 PayBox" : quote.payment_method === "bank" ? "🏦 העברה בנקאית" : quote.payment_method === "meshulam" ? "💳 משולם" : quote.payment_method}
+              · סומן בתאריך {formatDate(quote.payment_marked_at)}
+              {quote.payment_verified_at && ` · אומת בתאריך ${formatDate(quote.payment_verified_at)}`}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* PIN security panel — visible only to seller */}
       {quote.pin_code && !quote.signed_at && (

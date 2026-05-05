@@ -42,6 +42,10 @@ export default function SettingsPage() {
     quoteIntroText: "",
     testimonials: [] as { customer_name: string; rating: number; text: string; location?: string }[],
     trustBadges: [] as { icon: string; text: string }[],
+    paymentGateway: "none" as "none" | "meshulam" | "cardcom" | "tranzila" | "payplus",
+    paymentGatewayUserId: "",
+    paymentGatewayPageCode: "",
+    paymentGatewayApiKey: "",
   });
   const [logoUploading, setLogoUploading] = useState(false);
 
@@ -77,7 +81,7 @@ export default function SettingsPage() {
       // Load business profile from Supabase
       const { data: profile } = await supabase
         .from("user_profile")
-        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_default_validity_days, quote_default_markup, quote_title_label, quote_default_notes, quote_default_footer, quote_intro_text, testimonials, trust_badges")
+        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_default_validity_days, quote_default_markup, quote_title_label, quote_default_notes, quote_default_footer, quote_intro_text, testimonials, trust_badges, payment_gateway, payment_gateway_user_id, payment_gateway_page_code, payment_gateway_api_key")
         .eq("user_id", uid)
         .single();
 
@@ -102,6 +106,10 @@ export default function SettingsPage() {
           quoteIntroText: profile.quote_intro_text ?? "",
           testimonials: (profile.testimonials as { customer_name: string; rating: number; text: string; location?: string }[]) ?? [],
           trustBadges: (profile.trust_badges as { icon: string; text: string }[]) ?? [],
+          paymentGateway: (profile.payment_gateway as "none" | "meshulam" | "cardcom" | "tranzila" | "payplus") ?? "none",
+          paymentGatewayUserId: profile.payment_gateway_user_id ?? "",
+          paymentGatewayPageCode: profile.payment_gateway_page_code ?? "",
+          paymentGatewayApiKey: profile.payment_gateway_api_key ?? "",
         });
       } else {
         // Migrate from localStorage if exists
@@ -129,6 +137,10 @@ export default function SettingsPage() {
               quoteIntroText: "",
               testimonials: [],
               trustBadges: [],
+              paymentGateway: "none",
+              paymentGatewayUserId: "",
+              paymentGatewayPageCode: "",
+              paymentGatewayApiKey: "",
             });
           } catch {}
         } else {
@@ -256,6 +268,10 @@ export default function SettingsPage() {
       quote_intro_text: form.quoteIntroText,
       testimonials: form.testimonials,
       trust_badges: form.trustBadges,
+      payment_gateway: form.paymentGateway,
+      payment_gateway_user_id: form.paymentGatewayUserId,
+      payment_gateway_page_code: form.paymentGatewayPageCode,
+      payment_gateway_api_key: form.paymentGatewayApiKey,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     setSaving(false);
@@ -672,6 +688,81 @@ export default function SettingsPage() {
             className="w-full py-2 border-2 border-dashed border-amber-200 text-amber-700 hover:bg-amber-50 rounded-xl text-sm font-semibold">
             + הוסף עדות לקוח
           </button>
+        </div>
+      </div>
+
+      {/* Payment Gateway */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+            <FileText className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">💳 סליקה אוטומטית (אופציונלי)</h2>
+            <p className="text-xs text-gray-500">חבר ספק סליקה לתשלום בכרטיס אשראי בעמוד ההצעה</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ספק סליקה</label>
+            <select
+              value={form.paymentGateway}
+              onChange={e => setForm(f => ({ ...f, paymentGateway: e.target.value as "none" | "meshulam" | "cardcom" | "tranzila" | "payplus" }))}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            >
+              <option value="none">לא מחובר — שימוש ב-Bit/PayBox/בנק בלבד</option>
+              <option value="meshulam">משולם</option>
+              <option value="cardcom">Cardcom (יתחבר בעתיד)</option>
+              <option value="tranzila">Tranzila (יתחבר בעתיד)</option>
+              <option value="payplus">PayPlus (יתחבר בעתיד)</option>
+            </select>
+          </div>
+
+          {form.paymentGateway === "meshulam" && (
+            <>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs text-emerald-800 leading-relaxed space-y-1">
+                <p className="font-semibold">📋 איך לקבל את ה-credentials של משולם:</p>
+                <p>1. כנס ל-meshulam.co.il → התחבר</p>
+                <p>2. תפריט → API → צור מפתח API</p>
+                <p>3. העתק את User ID, Page Code ו-API Key</p>
+                <p>4. הדבק אותם פה</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
+                <input
+                  type="text"
+                  placeholder="לדוגמה: 1234"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  value={form.paymentGatewayUserId}
+                  onChange={e => setForm(f => ({ ...f, paymentGatewayUserId: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Page Code</label>
+                <input
+                  type="text"
+                  placeholder="לדוגמה: abc123def"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  value={form.paymentGatewayPageCode}
+                  onChange={e => setForm(f => ({ ...f, paymentGatewayPageCode: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <input
+                  type="password"
+                  placeholder="••••••••••••••••"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  value={form.paymentGatewayApiKey}
+                  onChange={e => setForm(f => ({ ...f, paymentGatewayApiKey: e.target.value }))}
+                />
+              </div>
+            </>
+          )}
+
+          <p className="text-xs text-gray-400">
+            ⓘ ללא חיבור סליקה — לקוחות יוכלו לשלם רק דרך Bit / PayBox / העברה בנקאית. החיבור הוא תוספת שמאפשרת תשלום בכרטיס אשראי ישירות בעמוד ההצעה.
+          </p>
         </div>
       </div>
 

@@ -52,6 +52,7 @@ export default function QuoteEditPage() {
   const [notes, setNotes] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
+  const [depositPercent, setDepositPercent] = useState(50);
 
   // Customer
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
@@ -110,6 +111,7 @@ export default function QuoteEditPage() {
         setOriginalStatus(q.status ?? "draft");
         setDiscountAmount(Number(q.discount_amount ?? 0));
         setDiscountType((q.discount_type as "amount" | "percent") ?? "amount");
+        setDepositPercent(Number(q.deposit_percent ?? 50));
 
         // Customer
         if (q.customer_id) {
@@ -252,6 +254,8 @@ export default function QuoteEditPage() {
       total_with_vat: totalWithVat,
       discount_amount: discountAmount,
       discount_type: discountType,
+      deposit_percent: depositPercent,
+      deposit_amount: Math.round((totalWithVat * depositPercent) / 100),
       status: newStatus,
       valid_until: validUntil || null,
       notes: notes.trim() || null,

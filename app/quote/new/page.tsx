@@ -50,6 +50,7 @@ export default function QuotePage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [groupByCategory, setGroupByCategory] = useState(false);
+  const [depositPercent, setDepositPercent] = useState(50);
 
   // Customer
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
@@ -243,6 +244,9 @@ export default function QuotePage() {
       quote_seq: nextSeq,
       public_token: publicToken,
       pin_code: pinCode,
+      deposit_percent: depositPercent,
+      deposit_amount: Math.round((totalWithVat * depositPercent) / 100),
+      payment_status: "unpaid",
     });
 
     setSaving(false);
@@ -570,6 +574,37 @@ export default function QuotePage() {
                   <span className="font-bold text-gray-900">סה״כ לתשלום</span>
                   <span className="font-black text-green-700 text-lg">{fmt(totalWithVat)}</span>
                 </div>
+              </div>
+
+              {/* Deposit % */}
+              <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-violet-900">💰 מקדמה לאישור הצעה</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" min={0} max={100} step={5} value={depositPercent}
+                      onChange={e => setDepositPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                      className="w-16 border border-violet-300 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                    <span className="text-sm font-bold text-violet-700">%</span>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {[0, 25, 50, 100].map(v => (
+                    <button key={v} type="button" onClick={() => setDepositPercent(v)}
+                      className={`flex-1 text-xs py-1 rounded-lg font-bold transition-colors ${depositPercent === v ? "bg-violet-500 text-white" : "bg-white text-violet-700 border border-violet-200"}`}>
+                      {v === 0 ? "ללא" : v === 100 ? "מלא" : `${v}%`}
+                    </button>
+                  ))}
+                </div>
+                {depositPercent > 0 && (
+                  <p className="text-xs text-violet-700">
+                    הלקוח ידרש לשלם <strong>{fmt(Math.round((totalWithVat * depositPercent) / 100))}</strong> ({depositPercent}%) לפני אישור ההצעה.
+                  </p>
+                )}
+                {depositPercent === 0 && (
+                  <p className="text-xs text-gray-500">
+                    אין מקדמה — הלקוח חותם בלי תשלום. תוכל לבקש תשלום אחרי החתימה.
+                  </p>
+                )}
               </div>
             </>
           )}
