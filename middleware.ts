@@ -11,7 +11,8 @@ export async function middleware(request: NextRequest) {
     PUBLIC_ROUTES.some(route => pathname === route) ||
     pathname.startsWith('/subscribe') ||
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api')
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/q/')   // Public quote share links
   ) {
     return NextResponse.next()
   }
