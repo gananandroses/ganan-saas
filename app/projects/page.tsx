@@ -598,17 +598,21 @@ function ProjectFormModal({
         {/* Basic info */}
         <section className="space-y-3">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide">פרטים כלליים</h3>
-          <input name="name" value={form.name} onChange={handleChange} placeholder="שם הפרויקט *"
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">שם הפרויקט <span className="text-red-500">*</span></label>
+            <input name="name" value={form.name} onChange={handleChange} placeholder="לדוגמה: הקמת אדניות, גיזום עצים..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+            <p className="text-[11px] text-gray-400 mt-1">שם של ה<strong>פרויקט</strong> — לא של הלקוח</p>
+          </div>
           {/* Customer selector */}
           <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">לקוח</label>
             <div className="flex gap-2 mb-2">
               <button type="button" onClick={() => setCustomerMode("existing")}
                 className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "existing" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
                 👤 לקוח קיים
               </button>
               <button type="button" onClick={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: "" })); setCustomerSearch(""); }}
-
                 className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "new" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
                 ✨ לקוח חדש
               </button>
