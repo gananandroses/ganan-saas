@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, CheckCircle2, Phone, MapPin, FileText, Printer, X } from "lucide-react";
+import { Loader2, CheckCircle2, Phone, MapPin, FileText, Printer, X, Copy, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 interface QuoteItemDB {
@@ -167,77 +167,95 @@ export default function PublicQuotePage() {
     })();
   }, [token]);
 
-  // Setup canvas for signature
+  // Setup canvas for signature — works for BOTH the signature modal AND payment modal step 3
+  const canvasVisible =
+    showSignModal || (showPaymentModal && pinVerified && !!selectedMethod);
+
   useEffect(() => {
-    if (!showSignModal) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!canvasVisible) return;
+    // Defer until DOM is rendered
+    const t = setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    let drawing = false;
-    let lastX = 0;
-    let lastY = 0;
+      // Reset canvas size in case it was just mounted
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    function getPos(e: MouseEvent | TouchEvent): { x: number; y: number } {
-      const rect = canvas!.getBoundingClientRect();
-      let clientX = 0, clientY = 0;
-      if ("touches" in e && e.touches.length) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else if ("clientX" in e) {
-        clientX = (e as MouseEvent).clientX;
-        clientY = (e as MouseEvent).clientY;
+      let drawing = false;
+      let lastX = 0;
+      let lastY = 0;
+
+      function getPos(e: MouseEvent | TouchEvent): { x: number; y: number } {
+        const rect = canvas!.getBoundingClientRect();
+        let clientX = 0, clientY = 0;
+        if ("touches" in e && e.touches.length) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else if ("clientX" in e) {
+          clientX = (e as MouseEvent).clientX;
+          clientY = (e as MouseEvent).clientY;
+        }
+        return {
+          x: (clientX - rect.left) * (canvas!.width / rect.width),
+          y: (clientY - rect.top) * (canvas!.height / rect.height),
+        };
       }
-      return {
-        x: (clientX - rect.left) * (canvas!.width / rect.width),
-        y: (clientY - rect.top) * (canvas!.height / rect.height),
+
+      function start(e: MouseEvent | TouchEvent) {
+        e.preventDefault();
+        drawing = true;
+        const { x, y } = getPos(e);
+        lastX = x;
+        lastY = y;
+      }
+      function move(e: MouseEvent | TouchEvent) {
+        if (!drawing) return;
+        e.preventDefault();
+        const { x, y } = getPos(e);
+        ctx!.strokeStyle = "#0f172a";
+        ctx!.lineWidth = 2.5;
+        ctx!.lineCap = "round";
+        ctx!.lineJoin = "round";
+        ctx!.beginPath();
+        ctx!.moveTo(lastX, lastY);
+        ctx!.lineTo(x, y);
+        ctx!.stroke();
+        lastX = x;
+        lastY = y;
+        setHasSignature(true);
+      }
+      function end() { drawing = false; }
+
+      canvas.addEventListener("mousedown", start);
+      canvas.addEventListener("mousemove", move);
+      canvas.addEventListener("mouseup", end);
+      canvas.addEventListener("mouseleave", end);
+      canvas.addEventListener("touchstart", start, { passive: false });
+      canvas.addEventListener("touchmove", move, { passive: false });
+      canvas.addEventListener("touchend", end);
+
+      // Cleanup attached to the ref so we can remove on next effect
+      (canvas as HTMLCanvasElement & { _cleanup?: () => void })._cleanup = () => {
+        canvas.removeEventListener("mousedown", start);
+        canvas.removeEventListener("mousemove", move);
+        canvas.removeEventListener("mouseup", end);
+        canvas.removeEventListener("mouseleave", end);
+        canvas.removeEventListener("touchstart", start);
+        canvas.removeEventListener("touchmove", move);
+        canvas.removeEventListener("touchend", end);
       };
-    }
-
-    function start(e: MouseEvent | TouchEvent) {
-      e.preventDefault();
-      drawing = true;
-      const { x, y } = getPos(e);
-      lastX = x;
-      lastY = y;
-    }
-    function move(e: MouseEvent | TouchEvent) {
-      if (!drawing) return;
-      e.preventDefault();
-      const { x, y } = getPos(e);
-      ctx!.strokeStyle = "#0f172a";
-      ctx!.lineWidth = 2.5;
-      ctx!.lineCap = "round";
-      ctx!.lineJoin = "round";
-      ctx!.beginPath();
-      ctx!.moveTo(lastX, lastY);
-      ctx!.lineTo(x, y);
-      ctx!.stroke();
-      lastX = x;
-      lastY = y;
-      setHasSignature(true);
-    }
-    function end() { drawing = false; }
-
-    canvas.addEventListener("mousedown", start);
-    canvas.addEventListener("mousemove", move);
-    canvas.addEventListener("mouseup", end);
-    canvas.addEventListener("mouseleave", end);
-    canvas.addEventListener("touchstart", start, { passive: false });
-    canvas.addEventListener("touchmove", move, { passive: false });
-    canvas.addEventListener("touchend", end);
+    }, 50);
 
     return () => {
-      canvas.removeEventListener("mousedown", start);
-      canvas.removeEventListener("mousemove", move);
-      canvas.removeEventListener("mouseup", end);
-      canvas.removeEventListener("mouseleave", end);
-      canvas.removeEventListener("touchstart", start);
-      canvas.removeEventListener("touchmove", move);
-      canvas.removeEventListener("touchend", end);
+      clearTimeout(t);
+      const canvas = canvasRef.current as
+        | (HTMLCanvasElement & { _cleanup?: () => void })
+        | null;
+      if (canvas?._cleanup) canvas._cleanup();
     };
-  }, [showSignModal]);
+  }, [canvasVisible]);
 
   function clearSignature() {
     const canvas = canvasRef.current;
@@ -297,16 +315,86 @@ export default function PublicQuotePage() {
     setSelectedMethod(method);
   }
 
+  // Copy-to-clipboard with toast feedback
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  async function copyToClipboard(text: string, fieldId: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch {
+      // Fallback for older browsers
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch {}
+      document.body.removeChild(ta);
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 1500);
+    }
+  }
+
+  // Build deep links for Bit / PayBox apps
+  function buildBitLink(phone: string, amount: number, desc: string) {
+    const cleanPhone = phone.replace(/\D/g, "");
+    // Bit's official share-link format — opens the app on mobile, web fallback otherwise
+    return `https://www.bitpay.co.il/app/share-link?bituname=${encodeURIComponent(cleanPhone)}&amount=${amount}&description=${encodeURIComponent(desc)}`;
+  }
+  function buildPayBoxLink(phone: string) {
+    const cleanPhone = phone.replace(/\D/g, "");
+    // PayBox doesn't expose a stable P2P deep link with amount;
+    // open the app's universal link (will open the app if installed).
+    return `https://link.payboxapp.com/?phone=${encodeURIComponent(cleanPhone)}`;
+  }
+
   function handleProofChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("הקובץ גדול מדי. מקסימום 5MB.");
+
+    // 1) Validate it's an image (JPG/PNG/HEIC/WEBP)
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/heic", "image/webp"];
+    const isImageType = allowedTypes.includes(file.type) || file.type.startsWith("image/");
+    if (!isImageType) {
+      alert("יש להעלות תמונה בלבד (JPG / PNG / HEIC).");
+      e.target.value = "";
       return;
     }
-    setProofFile(file);
+
+    // 2) Validate size — minimum 10KB (rule out empty/blank), maximum 5MB
+    if (file.size < 10 * 1024) {
+      alert("הקובץ קטן מדי. ודא שזה צילום מסך אמיתי של אישור התשלום.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("הקובץ גדול מדי. מקסימום 5MB.");
+      e.target.value = "";
+      return;
+    }
+
+    // 3) Validate by actually loading as image (catches files with image extension but bad content)
     const reader = new FileReader();
-    reader.onload = (ev) => setProofPreview(ev.target?.result as string);
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      const testImg = new window.Image();
+      testImg.onload = () => {
+        // Reject suspicious dimensions (too small to be a payment screenshot)
+        if (testImg.width < 200 || testImg.height < 200) {
+          alert("התמונה קטנה מדי. ודא שזה צילום מסך מלא של האישור.");
+          return;
+        }
+        setProofFile(file);
+        setProofPreview(dataUrl);
+      };
+      testImg.onerror = () => {
+        alert("הקובץ אינו תמונה תקינה. נסה צילום מסך אחר.");
+        e.target.value = "";
+      };
+      testImg.src = dataUrl;
+    };
     reader.readAsDataURL(file);
   }
 
@@ -954,41 +1042,129 @@ export default function PublicQuotePage() {
                   </button>
 
                   {/* Payment instructions per method */}
-                  {selectedMethod === "bit" && (
-                    <div className="bg-gradient-to-l from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl p-4 text-center space-y-2">
+                  {selectedMethod === "bit" && profile?.bit_phone && (
+                    <div className="bg-gradient-to-l from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl p-4 text-center space-y-3">
                       <div className="text-4xl">💸</div>
                       <p className="text-sm font-bold text-blue-900">שלח Bit עכשיו</p>
-                      <div className="bg-white rounded-xl p-3 mt-2">
-                        <p className="text-xs text-gray-500">לטלפון:</p>
-                        <p className="text-2xl font-black text-blue-700 tracking-wide">{profile?.bit_phone}</p>
-                        <p className="text-xs text-gray-500 mt-2">סכום:</p>
-                        <p className="text-2xl font-black text-blue-700">{fmt(depositAmount)}</p>
+                      <div className="bg-white rounded-xl p-3 mt-2 space-y-2">
+                        <div>
+                          <p className="text-[11px] text-gray-500">לטלפון:</p>
+                          <div className="flex items-center justify-center gap-2 mt-0.5">
+                            <p className="text-xl font-black text-blue-700 tracking-wide ltr-num" dir="ltr">{profile.bit_phone}</p>
+                            <button onClick={() => copyToClipboard(profile.bit_phone, "bit-phone")}
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1">
+                              {copiedField === "bit-phone" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק</>}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-100 pt-2">
+                          <p className="text-[11px] text-gray-500">סכום:</p>
+                          <p className="text-2xl font-black text-blue-700">{fmt(depositAmount)}</p>
+                        </div>
                       </div>
+                      <a href={buildBitLink(profile.bit_phone, depositAmount, `מקדמה ${quote.quote_number ? "#" + quote.quote_number : ""}`)}
+                        target="_blank" rel="noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md text-sm">
+                        <ExternalLink size={16}/> פתח את אפליקציית Bit
+                      </a>
+                      <p className="text-[10px] text-blue-700/70">אם האפליקציה לא נפתחת — שלח ידנית למספר למעלה</p>
                     </div>
                   )}
-                  {selectedMethod === "paybox" && (
-                    <div className="bg-gradient-to-l from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 text-center space-y-2">
+                  {selectedMethod === "paybox" && profile?.paybox_phone && (
+                    <div className="bg-gradient-to-l from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 text-center space-y-3">
                       <div className="text-4xl">📱</div>
                       <p className="text-sm font-bold text-purple-900">שלח PayBox עכשיו</p>
-                      <div className="bg-white rounded-xl p-3 mt-2">
-                        <p className="text-xs text-gray-500">לטלפון:</p>
-                        <p className="text-2xl font-black text-purple-700 tracking-wide">{profile?.paybox_phone}</p>
-                        <p className="text-xs text-gray-500 mt-2">סכום:</p>
-                        <p className="text-2xl font-black text-purple-700">{fmt(depositAmount)}</p>
+                      <div className="bg-white rounded-xl p-3 mt-2 space-y-2">
+                        <div>
+                          <p className="text-[11px] text-gray-500">לטלפון:</p>
+                          <div className="flex items-center justify-center gap-2 mt-0.5">
+                            <p className="text-xl font-black text-purple-700 tracking-wide ltr-num" dir="ltr">{profile.paybox_phone}</p>
+                            <button onClick={() => copyToClipboard(profile.paybox_phone, "paybox-phone")}
+                              className="bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1">
+                              {copiedField === "paybox-phone" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק</>}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-100 pt-2">
+                          <p className="text-[11px] text-gray-500">סכום:</p>
+                          <p className="text-2xl font-black text-purple-700">{fmt(depositAmount)}</p>
+                        </div>
                       </div>
+                      <a href={buildPayBoxLink(profile.paybox_phone)}
+                        target="_blank" rel="noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl shadow-md text-sm">
+                        <ExternalLink size={16}/> פתח את אפליקציית PayBox
+                      </a>
+                      <p className="text-[10px] text-purple-700/70">לאחר פתיחת PayBox — חפש את המספר וטען את הסכום ידנית</p>
                     </div>
                   )}
                   {selectedMethod === "bank" && (
-                    <div className="bg-gradient-to-l from-gray-50 to-slate-100 border-2 border-gray-300 rounded-2xl p-4 text-center space-y-2">
-                      <div className="text-4xl">🏦</div>
-                      <p className="text-sm font-bold text-gray-900">בצע העברה בנקאית</p>
-                      <div className="bg-white rounded-xl p-3 mt-2 text-right space-y-1">
-                        {profile?.bank_name && <p className="text-sm"><span className="text-gray-500">בנק:</span> <strong>{profile.bank_name}</strong></p>}
-                        {profile?.bank_branch && <p className="text-sm"><span className="text-gray-500">סניף:</span> <strong>{profile.bank_branch}</strong></p>}
-                        {profile?.bank_account && <p className="text-sm"><span className="text-gray-500">חשבון:</span> <strong>{profile.bank_account}</strong></p>}
-                        {profile?.business_name && <p className="text-sm"><span className="text-gray-500">לפקודת:</span> <strong>{profile.business_name}</strong></p>}
-                        <p className="text-sm pt-2 border-t border-gray-100"><span className="text-gray-500">סכום:</span> <strong className="text-lg text-gray-900">{fmt(depositAmount)}</strong></p>
+                    <div className="bg-gradient-to-l from-gray-50 to-slate-100 border-2 border-gray-300 rounded-2xl p-4 space-y-2">
+                      <div className="text-center">
+                        <div className="text-4xl">🏦</div>
+                        <p className="text-sm font-bold text-gray-900 mt-1">בצע העברה בנקאית</p>
                       </div>
+                      <div className="bg-white rounded-xl p-3 mt-2 space-y-2">
+                        {profile?.bank_name && (
+                          <div className="flex items-center justify-between gap-2 text-right">
+                            <div>
+                              <p className="text-[11px] text-gray-500">בנק:</p>
+                              <p className="text-sm font-bold text-gray-900">{profile.bank_name}</p>
+                            </div>
+                            <button onClick={() => copyToClipboard(profile.bank_name, "bank-name")}
+                              className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                              {copiedField === "bank-name" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק</>}
+                            </button>
+                          </div>
+                        )}
+                        {profile?.bank_branch && (
+                          <div className="flex items-center justify-between gap-2 text-right border-t border-gray-100 pt-2">
+                            <div>
+                              <p className="text-[11px] text-gray-500">מספר סניף:</p>
+                              <p className="text-base font-black text-gray-900 ltr-num" dir="ltr">{profile.bank_branch}</p>
+                            </div>
+                            <button onClick={() => copyToClipboard(profile.bank_branch, "bank-branch")}
+                              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                              {copiedField === "bank-branch" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק סניף</>}
+                            </button>
+                          </div>
+                        )}
+                        {profile?.bank_account && (
+                          <div className="flex items-center justify-between gap-2 text-right border-t border-gray-100 pt-2">
+                            <div>
+                              <p className="text-[11px] text-gray-500">מספר חשבון:</p>
+                              <p className="text-base font-black text-gray-900 ltr-num" dir="ltr">{profile.bank_account}</p>
+                            </div>
+                            <button onClick={() => copyToClipboard(profile.bank_account, "bank-account")}
+                              className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                              {copiedField === "bank-account" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק חשבון</>}
+                            </button>
+                          </div>
+                        )}
+                        {profile?.business_name && (
+                          <div className="flex items-center justify-between gap-2 text-right border-t border-gray-100 pt-2">
+                            <div>
+                              <p className="text-[11px] text-gray-500">לפקודת:</p>
+                              <p className="text-sm font-bold text-gray-900">{profile.business_name}</p>
+                            </div>
+                            <button onClick={() => copyToClipboard(profile.business_name, "biz-name")}
+                              className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                              {copiedField === "biz-name" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק</>}
+                            </button>
+                          </div>
+                        )}
+                        <div className="border-t-2 border-gray-200 pt-2 flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-[11px] text-gray-500">סכום להעברה:</p>
+                            <p className="text-xl font-black text-emerald-700">{fmt(depositAmount)}</p>
+                          </div>
+                          <button onClick={() => copyToClipboard(String(depositAmount), "amount")}
+                            className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg px-2.5 py-1 text-[11px] font-bold flex items-center gap-1 flex-shrink-0">
+                            {copiedField === "amount" ? <><CheckCircle2 size={12}/> הועתק</> : <><Copy size={12}/> העתק סכום</>}
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-gray-500 text-center">העתק את הפרטים והדבק באפליקציית הבנק שלך</p>
                     </div>
                   )}
 
