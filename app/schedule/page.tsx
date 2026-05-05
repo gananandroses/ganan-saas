@@ -265,8 +265,13 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
     setCompleting(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
-    if (!error && user?.id) {
-      // Create income transaction automatically
+
+    // SKIP transaction creation if this job belongs to a project — the project will handle the transactions
+    // (Detection: notes start with "פרויקט:")
+    const isProjectJob = job.notes?.startsWith("פרויקט:") ?? false;
+
+    if (!error && user?.id && !isProjectJob) {
+      // Create income transaction automatically (only for standalone jobs)
       const priceBefore = job.priceBeforeVat ? job.price : Math.round(job.price / 1.18);
       const totalWithVat = Math.round(priceBefore * 1.18);
       const vatAmount = totalWithVat - priceBefore;
