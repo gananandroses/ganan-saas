@@ -755,11 +755,11 @@ function QuotePanel({
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  // Effective price: if user overrode → use override AS-IS. Otherwise base × (1 + markup/100)
+  // Effective price: base (overridden if set) × (1 + markup/100). Markup ALWAYS applies.
   const markupMultiplier = 1 + (globalMarkup / 100);
   function ep(item: PriceItem) {
-    if (overridePrices[item.id] !== undefined) return overridePrices[item.id];
-    return Math.round(item.price * markupMultiplier);
+    const base = overridePrices[item.id] ?? item.price;
+    return Math.round(base * markupMultiplier);
   }
   function basePrice(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
@@ -847,13 +847,15 @@ function QuotePanel({
                         {isVat && (
                           <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 whitespace-nowrap">+מע"מ</span>
                         )}
-                        {globalMarkup > 0 && overridePrices[item.id] === undefined && (
+                        {globalMarkup > 0 && (
                           <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 whitespace-nowrap">+{globalMarkup}%</span>
                         )}
                         <div className="flex-1 min-w-0 flex flex-col">
                           <span className="text-[11px] text-gray-400 leading-tight">{formatPrice(p)} / {eu(item)}</span>
-                          {globalMarkup > 0 && overridePrices[item.id] === undefined && (
-                            <span className="text-[11px] text-amber-600 font-medium leading-tight">מחירון: {formatPrice(item.price)}</span>
+                          {globalMarkup > 0 && (
+                            <span className="text-[11px] text-amber-600 font-medium leading-tight">
+                              עלות: {formatPrice(basePrice(item))}{overridePrices[item.id] !== undefined && " (מותאם)"}
+                            </span>
                           )}
                           {isVat && (
                             <span className="text-[11px] text-blue-500 font-medium leading-tight">לפני מע"מ: {formatPrice(ep(item))}</span>
