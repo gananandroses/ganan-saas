@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Search, X, Sun, Droplets, Ruler, Calendar, Lightbulb } from "lucide-react";
 import { PLANTS, PLANT_CATEGORIES, type Plant } from "@/lib/plants-data";
+import BackButton from "@/components/BackButton";
 
 const SUN_LABELS: Record<string, string> = {
   full: "שמש מלאה",
@@ -270,8 +271,13 @@ export default function PlantsPage() {
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-0.5">🌿 עולם הצמחים</h1>
-        <p className="text-gray-500 text-sm">{PLANTS.length} צמחים במאגר · {filtered.length} מוצגים</p>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-0.5">🌿 עולם הצמחים</h1>
+            <p className="text-gray-500 text-sm">{PLANTS.length} צמחים במאגר · {filtered.length} מוצגים</p>
+          </div>
+        </div>
 
         {/* Search */}
         <div className="mt-4 relative">

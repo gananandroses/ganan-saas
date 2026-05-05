@@ -3,11 +3,13 @@ import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar } fr
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import BackButton from "@/components/BackButton";
 
 interface HeaderProps {
   title: string;
   subtitle?: string;
   action?: { label: string; onClick: () => void };
+  showBack?: boolean;
 }
 
 interface Notif {
@@ -17,7 +19,7 @@ interface Notif {
   href?: string;
 }
 
-export default function Header({ title, subtitle, action }: HeaderProps) {
+export default function Header({ title, subtitle, action, showBack = false }: HeaderProps) {
   const router = useRouter();
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);
@@ -106,6 +108,7 @@ export default function Header({ title, subtitle, action }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white border-b border-gray-100 flex items-center px-6 gap-4 sticky top-0 z-30">
+      {showBack && <BackButton />}
       {/* Title */}
       <div className="flex-1">
         <h2 className="text-lg font-bold text-gray-900 leading-tight">{title}</h2>

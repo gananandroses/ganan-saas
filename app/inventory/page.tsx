@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import BackButton from "@/components/BackButton";
 import {
   AlertTriangle,
   Plus,
@@ -781,9 +782,12 @@ export default function InventoryPage() {
     <div dir="rtl" className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* ===== HEADER ===== */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">ציוד ומלאי</h1>
-          <p className="text-sm text-gray-500 mt-0.5">ניהול מלאי, ציוד ותחזוקה</p>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">ציוד ומלאי</h1>
+            <p className="text-sm text-gray-500 mt-0.5">ניהול מלאי, ציוד ותחזוקה</p>
+          </div>
         </div>
         <button
           onClick={() => setShowNewItemModal(true)}

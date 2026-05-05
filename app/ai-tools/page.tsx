@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import BackButton from "@/components/BackButton";
 import {
   Camera,
   Upload,
@@ -1019,6 +1020,7 @@ export default function AIToolsPage() {
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
+          <BackButton />
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-200">
             <Sparkles className="w-6 h-6 text-white" />
           </div>

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import type { Customer, CustomerStatus } from "@/lib/mock-data";
+import BackButton from "@/components/BackButton";
 
 // ===== HELPERS =====
 
@@ -1242,11 +1243,14 @@ export default function CustomersPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* ===== HEADER ===== */}
         <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">ניהול לקוחות</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
-              {activeCount} לקוחות פעילים
-            </p>
+          <div className="flex items-center gap-3">
+            <BackButton />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">ניהול לקוחות</h1>
+              <p className="text-gray-500 text-sm mt-0.5">
+                {activeCount} לקוחות פעילים
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button

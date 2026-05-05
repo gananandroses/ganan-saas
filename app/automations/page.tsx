@@ -595,7 +595,7 @@ export default function AutomationsPage() {
 
   return (
     <div dir="rtl">
-      <Header title="אוטומציות" subtitle="תור פעולות יומי — לחץ לבצע" />
+      <Header title="אוטומציות" subtitle="תור פעולות יומי — לחץ לבצע" showBack />
 
       <div className="p-6 space-y-6 max-w-4xl mx-auto">
         {/* Hero */}

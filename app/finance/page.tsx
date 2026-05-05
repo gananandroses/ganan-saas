@@ -824,7 +824,7 @@ export default function FinancePage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50">
-      <Header title="פיננסים וחיובים" subtitle="ניהול הכנסות, הוצאות וחשבוניות" />
+      <Header title="פיננסים וחיובים" subtitle="ניהול הכנסות, הוצאות וחשבוניות" showBack />
 
       {showInvoice && <InvoicePanel onClose={() => setShowInvoice(false)} customers={dbCustomers} />}
 

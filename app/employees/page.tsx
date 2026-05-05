@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import BackButton from "@/components/BackButton";
 
 // ===== TYPES =====
 
@@ -1071,11 +1072,14 @@ export default function EmployeesPage() {
     <div className="p-6 max-w-screen-xl mx-auto" dir="rtl">
       {/* ===== HEADER ===== */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">ניהול עובדים</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            מעקב GPS, ביצועים וניהול שכר
-          </p>
+        <div className="flex items-center gap-3">
+          <BackButton />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">ניהול עובדים</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              מעקב GPS, ביצועים וניהול שכר
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setShowNewModal(true)}

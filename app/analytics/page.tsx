@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import BackButton from "@/components/BackButton";
 import {
   LineChart,
   Line,
@@ -876,7 +877,8 @@ export default function AnalyticsPage() {
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
+          <BackButton />
           <div>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
               <BarChart2 className="text-green-600" size={26} />

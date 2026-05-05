@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
+import BackButton from "@/components/BackButton";
 import {
   Leaf, CheckCircle, Clock, CreditCard, Shield,
   Loader2, LogOut, Star, Zap, Users, TrendingUp,
@@ -74,6 +75,10 @@ export default function SubscribePage() {
       dir="rtl"
     >
       <div className="w-full max-w-lg">
+
+        <div className="mb-4">
+          <BackButton />
+        </div>
 
         {/* Logo */}
         <div className="text-center mb-8">
