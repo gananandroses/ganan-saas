@@ -1015,7 +1015,6 @@ export default function FinancePage() {
                     <p className="text-xs text-gray-500 mt-0.5 truncate">{tx.description || "—"}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <p className="text-xs text-gray-400">{tx.date ? `${tx.date.slice(8,10)}/${tx.date.slice(5,7)}/${tx.date.slice(0,4)}` : ""}</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${METHOD_COLORS[tx.method] ?? "bg-gray-100 text-gray-600"}`}>{METHOD_LABELS[tx.method]}</span>
                     </div>
                   </div>
                   <div className="text-left flex-shrink-0">
@@ -1353,7 +1352,6 @@ export default function FinancePage() {
                       <th className="text-right py-3 px-4 font-medium">לקוח</th>
                       <th className="text-right py-3 px-4 font-medium">תיאור</th>
                       <th className="text-right py-3 px-4 font-medium">סכום</th>
-                      <th className="text-right py-3 px-4 font-medium">אמצעי תשלום</th>
                       <th className="text-right py-3 px-4 font-medium">סטטוס</th>
                       <th className="py-3 px-4" />
                     </tr>
@@ -1377,15 +1375,6 @@ export default function FinancePage() {
                             }`}
                           >
                             {tx.type === "income" ? "+" : "-"}₪{tx.amount.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                              METHOD_COLORS[tx.method] ?? "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {METHOD_LABELS[tx.method] ?? tx.method}
                           </span>
                         </td>
                         <td className="py-3 px-4">
