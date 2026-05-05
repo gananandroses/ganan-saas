@@ -314,15 +314,30 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   async function handleCancel(reason: "no_show" | "force_majeure") {
     setDeleting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("jobs")
+    const { error } = await supabase.from("jobs")
       .update({ status: "cancelled", cancellation_reason: reason })
       .eq("id", job.id).eq("user_id", user?.id);
     setDeleting(false);
     setShowCancelModal(false);
-    // Use onDeleted to remove from list (the job still exists in DB but is "cancelled")
+
+    if (error) {
+      // Most likely the cancellation_reason column doesn't exist yet
+      const isMissingCol = error.message?.toLowerCase().includes("cancellation_reason") || error.message?.toLowerCase().includes("column");
+      if (isMissingCol) {
+        alert(
+          `⚠️ שגיאה: העמודה cancellation_reason חסרה ב-DB.\n\n` +
+          `כדי שזה יעבוד צריך להריץ ב-Supabase SQL Editor:\n\n` +
+          `alter table jobs add column if not exists cancellation_reason text;\n\n` +
+          `אחרי שתריץ — נסה שוב.`
+        );
+      } else {
+        alert(`שגיאה בשמירה: ${error.message}`);
+      }
+      return;
+    }
+
     onDeleted(job.id);
     onClose();
-    // Show toast/alert
     const reasonLabel = reason === "no_show" ? "לא הופיע" : "בלת״מ";
     alert(`✅ העבודה של ${job.customerName} סומנה כ"${reasonLabel}".\nהלקוח יופיע בתור הפעולות לתיאום מחדש.`);
   }

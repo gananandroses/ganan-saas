@@ -299,7 +299,7 @@ export default function AutomationsPage() {
     if (!user) { setLoading(false); return; }
 
     const [jobsRes, txRes, custRes, profileRes] = await Promise.all([
-      supabase.from("jobs").select("id, customer_id, customer_name, job_date, job_time, status, type, address, price, price_before_vat").eq("user_id", user.id),
+      supabase.from("jobs").select("id, customer_id, customer_name, job_date, job_time, status, type, address, price, price_before_vat, cancellation_reason").eq("user_id", user.id),
       supabase.from("transactions").select("id, customer_id, customer_name, amount, status, type, description, transaction_date").eq("user_id", user.id),
       supabase.from("customers").select("id, name, phone, last_visit").eq("user_id", user.id),
       supabase.from("user_profile").select("business_name, bit_phone, paybox_phone, bank_name, bank_branch, bank_account").eq("user_id", user.id).single(),
