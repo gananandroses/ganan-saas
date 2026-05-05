@@ -264,7 +264,7 @@ export default function QuotePage() {
         {/* Header */}
         <div className="flex items-center justify-between print:hidden">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100">
+            <button onClick={() => router.push("/quote")} className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100" title="חזרה לרשימת הצעות">
               <ChevronRight className="w-5 h-5 text-gray-500" />
             </button>
             <div>
