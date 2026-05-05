@@ -44,6 +44,9 @@ interface PaymentSettings {
   phone: string;
   city: string;
   logoUrl: string;
+  quoteTitleLabel: string;
+  quoteIntroText: string;
+  quoteDefaultFooter: string;
 }
 
 const STATUS_CONFIG: Record<QuoteData["status"], { label: string; bg: string; text: string }> = {
@@ -72,6 +75,8 @@ export default function QuoteViewPage() {
   const [settings, setSettings] = useState<PaymentSettings>({
     bitPhone: "", payboxPhone: "", bankName: "", bankBranch: "", bankAccount: "",
     businessName: "", ownerName: "", phone: "", city: "", logoUrl: "",
+    quoteTitleLabel: "הצעת מחיר", quoteIntroText: "",
+    quoteDefaultFooter: "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
   });
   const [updating, setUpdating] = useState(false);
 
@@ -84,7 +89,7 @@ export default function QuoteViewPage() {
 
       const [quoteRes, profileRes] = await Promise.all([
         supabase.from("quotes").select("*").eq("id", id).eq("user_id", user.id).single(),
-        supabase.from("user_profile").select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url").eq("user_id", user.id).single(),
+        supabase.from("user_profile").select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_title_label, quote_intro_text, quote_default_footer").eq("user_id", user.id).single(),
       ]);
 
       if (quoteRes.data) setQuote(quoteRes.data as QuoteData);
@@ -100,6 +105,9 @@ export default function QuoteViewPage() {
           bankBranch: profileRes.data.bank_branch ?? "",
           bankAccount: profileRes.data.bank_account ?? "",
           logoUrl: profileRes.data.business_logo_url ?? "",
+          quoteTitleLabel: profileRes.data.quote_title_label ?? "הצעת מחיר",
+          quoteIntroText: profileRes.data.quote_intro_text ?? "",
+          quoteDefaultFooter: profileRes.data.quote_default_footer ?? "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
         });
       }
       setLoading(false);
@@ -259,7 +267,7 @@ export default function QuoteViewPage() {
                 )}
                 <div>
                   <p className="text-xs uppercase tracking-widest text-green-100 font-semibold">{settings.businessName || "העסק שלי"}</p>
-                  <h1 className="text-2xl sm:text-3xl font-black mt-1">הצעת מחיר</h1>
+                  <h1 className="text-2xl sm:text-3xl font-black mt-1">{settings.quoteTitleLabel || "הצעת מחיר"}</h1>
                   {settings.ownerName && <p className="text-sm text-green-50 mt-0.5">{settings.ownerName}</p>}
                 </div>
               </div>
@@ -309,6 +317,13 @@ export default function QuoteViewPage() {
             <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">פרויקט</p>
             <h2 className="text-xl font-bold text-gray-900 mt-1">{quote.title}</h2>
           </div>
+
+          {/* Intro text from template */}
+          {settings.quoteIntroText && (
+            <div className="px-8 py-4 bg-white border-b border-gray-100">
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{settings.quoteIntroText}</p>
+            </div>
+          )}
 
           {/* Items table */}
           <div className="px-5 sm:px-8 py-6">
@@ -388,9 +403,8 @@ export default function QuoteViewPage() {
 
           {/* Footer / signature line */}
           <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500 mb-3">
-              ההצעה תקפה {quote.valid_until ? `עד ${formatDate(quote.valid_until)}` : "ל-30 ימים מהיום"}.
-              חתימה על ההצעה מהווה אישור לביצוע העבודה.
+            <p className="text-xs text-gray-500 mb-3 whitespace-pre-wrap">
+              {settings.quoteDefaultFooter || `ההצעה תקפה ${quote.valid_until ? `עד ${formatDate(quote.valid_until)}` : "ל-30 ימים מהיום"}. חתימה על ההצעה מהווה אישור לביצוע העבודה.`}
             </p>
             {settings.businessName && (
               <p className="text-sm font-bold text-gray-700">{settings.businessName}</p>

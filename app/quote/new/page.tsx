@@ -72,7 +72,7 @@ export default function QuotePage() {
 
       const [custRes, profileRes] = await Promise.all([
         supabase.from("customers").select("id, name, address, phone").eq("user_id", user.id).order("name"),
-        supabase.from("user_profile").select("business_name, bit_phone, paybox_phone, bank_name, bank_branch, bank_account").eq("user_id", user.id).single(),
+        supabase.from("user_profile").select("business_name, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, quote_default_validity_days, quote_default_markup, quote_default_notes").eq("user_id", user.id).single(),
       ]);
 
       if (custRes.data) {
@@ -80,6 +80,8 @@ export default function QuotePage() {
           id: String(c.id), name: c.name ?? "", address: c.address ?? "", phone: c.phone ?? "",
         })));
       }
+
+      let validityDays = 30;
       if (profileRes.data) {
         setSettings({
           businessName: profileRes.data.business_name ?? "",
@@ -89,11 +91,19 @@ export default function QuotePage() {
           bankBranch: profileRes.data.bank_branch ?? "",
           bankAccount: profileRes.data.bank_account ?? "",
         });
+        // Apply template defaults
+        validityDays = Number(profileRes.data.quote_default_validity_days ?? 30);
+        if (profileRes.data.quote_default_markup !== null && profileRes.data.quote_default_markup !== undefined) {
+          setMarkup(Number(profileRes.data.quote_default_markup));
+        }
+        if (profileRes.data.quote_default_notes) {
+          setNotes(profileRes.data.quote_default_notes);
+        }
       }
 
-      // Default valid_until = +30 days
+      // Default valid_until = +N days from template
       const d = new Date();
-      d.setDate(d.getDate() + 30);
+      d.setDate(d.getDate() + validityDays);
       setValidUntil(d.toISOString().slice(0, 10));
 
       setLoading(false);

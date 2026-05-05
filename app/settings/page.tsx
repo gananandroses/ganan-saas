@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X } from "lucide-react";
+import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
@@ -34,6 +34,12 @@ export default function SettingsPage() {
     bankBranch: "",
     bankAccount: "",
     businessLogoUrl: "",
+    quoteDefaultValidityDays: 30,
+    quoteDefaultMarkup: 100,
+    quoteTitleLabel: "הצעת מחיר",
+    quoteDefaultNotes: "",
+    quoteDefaultFooter: "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
+    quoteIntroText: "",
   });
   const [logoUploading, setLogoUploading] = useState(false);
 
@@ -69,7 +75,7 @@ export default function SettingsPage() {
       // Load business profile from Supabase
       const { data: profile } = await supabase
         .from("user_profile")
-        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url")
+        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_default_validity_days, quote_default_markup, quote_title_label, quote_default_notes, quote_default_footer, quote_intro_text")
         .eq("user_id", uid)
         .single();
 
@@ -86,6 +92,12 @@ export default function SettingsPage() {
           bankBranch: profile.bank_branch ?? "",
           bankAccount: profile.bank_account ?? "",
           businessLogoUrl: profile.business_logo_url ?? "",
+          quoteDefaultValidityDays: Number(profile.quote_default_validity_days ?? 30),
+          quoteDefaultMarkup: Number(profile.quote_default_markup ?? 100),
+          quoteTitleLabel: profile.quote_title_label ?? "הצעת מחיר",
+          quoteDefaultNotes: profile.quote_default_notes ?? "",
+          quoteDefaultFooter: profile.quote_default_footer ?? "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
+          quoteIntroText: profile.quote_intro_text ?? "",
         });
       } else {
         // Migrate from localStorage if exists
@@ -105,6 +117,12 @@ export default function SettingsPage() {
               bankBranch: parsed.bankBranch ?? "",
               bankAccount: parsed.bankAccount ?? "",
               businessLogoUrl: parsed.businessLogoUrl ?? "",
+              quoteDefaultValidityDays: 30,
+              quoteDefaultMarkup: 100,
+              quoteTitleLabel: "הצעת מחיר",
+              quoteDefaultNotes: "",
+              quoteDefaultFooter: "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
+              quoteIntroText: "",
             });
           } catch {}
         } else {
@@ -224,6 +242,12 @@ export default function SettingsPage() {
       bank_branch: form.bankBranch,
       bank_account: form.bankAccount,
       business_logo_url: form.businessLogoUrl,
+      quote_default_validity_days: form.quoteDefaultValidityDays,
+      quote_default_markup: form.quoteDefaultMarkup,
+      quote_title_label: form.quoteTitleLabel,
+      quote_default_notes: form.quoteDefaultNotes,
+      quote_default_footer: form.quoteDefaultFooter,
+      quote_intro_text: form.quoteIntroText,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     setSaving(false);
@@ -453,6 +477,96 @@ export default function SettingsPage() {
           <p className="text-xs text-gray-400">
             ⓘ פרטים אלו יתווספו אוטומטית להודעת תזכורת WhatsApp ללקוחות עם חוב פתוח. ריקים — לא יוצגו.
           </p>
+        </div>
+      </div>
+
+      {/* Quote Template */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+            <FileText className="w-4 h-4 text-amber-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">תבנית הצעת מחיר</h2>
+            <p className="text-xs text-gray-500">ברירות מחדל שיופיעו בכל הצעת מחיר חדשה</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">כותרת המסמך</label>
+              <input
+                type="text"
+                placeholder="הצעת מחיר"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                value={form.quoteTitleLabel}
+                onChange={e => setForm(f => ({ ...f, quoteTitleLabel: e.target.value }))}
+              />
+              <p className="text-[11px] text-gray-400 mt-1">לדוגמה: &quot;הצעת מחיר ושירותים&quot;</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">תוקף ברירת מחדל (ימים)</label>
+              <input
+                type="number"
+                min={1}
+                max={365}
+                placeholder="30"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+                value={form.quoteDefaultValidityDays}
+                onChange={e => setForm(f => ({ ...f, quoteDefaultValidityDays: parseInt(e.target.value) || 30 }))}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">אחוז ייקור ברירת מחדל (%)</label>
+            <input
+              type="number"
+              min={0}
+              max={500}
+              step={5}
+              placeholder="100"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
+              value={form.quoteDefaultMarkup}
+              onChange={e => setForm(f => ({ ...f, quoteDefaultMarkup: parseFloat(e.target.value) || 0 }))}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">יוחל אוטומטית בכל הצעה חדשה. ניתן לשנות לכל הצעה בנפרד.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">טקסט פתיחה (אופציונלי)</label>
+            <textarea
+              rows={2}
+              placeholder="לדוגמה: 'תודה שפנית אלינו! להלן הצעת המחיר המבוקשת...'"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
+              value={form.quoteIntroText}
+              onChange={e => setForm(f => ({ ...f, quoteIntroText: e.target.value }))}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">מופיע בתחילת ההצעה (אם הוזן)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">הערות סטנדרטיות (אופציונלי)</label>
+            <textarea
+              rows={3}
+              placeholder="לדוגמה: 'התשלום בסיום העבודה. זמני אספקה: 7 ימי עסקים...'"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
+              value={form.quoteDefaultNotes}
+              onChange={e => setForm(f => ({ ...f, quoteDefaultNotes: e.target.value }))}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">יופיע אוטומטית בשדה ההערות של כל הצעה חדשה</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">טקסט תחתית</label>
+            <textarea
+              rows={2}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
+              value={form.quoteDefaultFooter}
+              onChange={e => setForm(f => ({ ...f, quoteDefaultFooter: e.target.value }))}
+            />
+            <p className="text-[11px] text-gray-400 mt-1">מופיע בתחתית כל הצעת מחיר. לדוגמה תנאי שימוש, אחריות וכו&apos;.</p>
+          </div>
         </div>
       </div>
 
