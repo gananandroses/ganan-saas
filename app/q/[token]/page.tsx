@@ -824,8 +824,28 @@ export default function PublicQuotePage() {
                   )}
 
                   {!allowBit && !allowPayBox && !allowMeshulam && !allowBank && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
-                      ⚠️ הספק לא הגדיר אופציות תשלום. צור איתו קשר ישירות.
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 space-y-3 text-center">
+                      <div className="text-3xl">📞</div>
+                      <p className="text-sm font-bold text-amber-900">לתיאום תשלום — צור קשר ישירות</p>
+                      <p className="text-xs text-amber-700">הספק יספק לך פרטי תשלום בשיחה</p>
+                      {profile?.phone && (
+                        <div className="flex flex-col gap-2 pt-1">
+                          <a href={`tel:${profile.phone.replace(/\D/g, "")}`}
+                            className="bg-white border-2 border-amber-300 hover:bg-amber-100 text-amber-800 text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                            <Phone size={14} /> התקשר עכשיו: {profile.phone}
+                          </a>
+                          <a href={`https://api.whatsapp.com/send?phone=${(() => {
+                            const p = profile.phone.replace(/\D/g, "");
+                            if (p.startsWith("0")) return "972" + p.slice(1);
+                            if (p.startsWith("972")) return p;
+                            return p;
+                          })()}&text=${encodeURIComponent(`היי, רוצה לבצע תשלום על הצעה ${quote.quote_number ? `#${quote.quote_number}` : ""}`)}`}
+                            target="_blank" rel="noreferrer"
+                            className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                            💬 שלח WhatsApp
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
 
