@@ -33,7 +33,9 @@ export default function SettingsPage() {
     bankName: "",
     bankBranch: "",
     bankAccount: "",
+    businessLogoUrl: "",
   });
+  const [logoUploading, setLogoUploading] = useState(false);
 
   // Notification prefs (saved to Supabase)
   const [emailEnabled, setEmailEnabled] = useState(true);
@@ -67,7 +69,7 @@ export default function SettingsPage() {
       // Load business profile from Supabase
       const { data: profile } = await supabase
         .from("user_profile")
-        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account")
+        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url")
         .eq("user_id", uid)
         .single();
 
@@ -83,6 +85,7 @@ export default function SettingsPage() {
           bankName: profile.bank_name ?? "",
           bankBranch: profile.bank_branch ?? "",
           bankAccount: profile.bank_account ?? "",
+          businessLogoUrl: profile.business_logo_url ?? "",
         });
       } else {
         // Migrate from localStorage if exists
@@ -101,6 +104,7 @@ export default function SettingsPage() {
               bankName: parsed.bankName ?? "",
               bankBranch: parsed.bankBranch ?? "",
               bankAccount: parsed.bankAccount ?? "",
+              businessLogoUrl: parsed.businessLogoUrl ?? "",
             });
           } catch {}
         } else {
@@ -219,11 +223,66 @@ export default function SettingsPage() {
       bank_name: form.bankName,
       bank_branch: form.bankBranch,
       bank_account: form.bankAccount,
+      business_logo_url: form.businessLogoUrl,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  }
+
+  // ── Logo upload ──────────────────────────────────────────────────────────
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("הקובץ גדול מדי. מקסימום 2MB.");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      alert("חובה להעלות קובץ תמונה (PNG, JPG, SVG).");
+      return;
+    }
+
+    setLogoUploading(true);
+    const ext = file.name.split(".").pop() || "png";
+    const path = `${userId}/logo-${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from("business-assets")
+      .upload(path, file, { upsert: true, cacheControl: "3600" });
+
+    if (upErr) {
+      alert(`שגיאה בהעלאה: ${upErr.message}`);
+      setLogoUploading(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(path);
+
+    const url = urlData.publicUrl;
+    setForm(f => ({ ...f, businessLogoUrl: url }));
+
+    // Auto-save to DB
+    await supabase.from("user_profile").upsert({
+      user_id: userId,
+      business_logo_url: url,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+
+    setLogoUploading(false);
+  }
+
+  async function handleLogoRemove() {
+    if (!confirm("להסיר את הלוגו?")) return;
+    setForm(f => ({ ...f, businessLogoUrl: "" }));
+    await supabase.from("user_profile").upsert({
+      user_id: userId,
+      business_logo_url: null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
   }
 
   return (
@@ -251,6 +310,35 @@ export default function SettingsPage() {
           <h2 className="font-bold text-gray-900">פרטי העסק</h2>
         </div>
         <div className="p-6 space-y-4">
+          {/* Logo upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">לוגו העסק</label>
+            <div className="flex items-center gap-4">
+              <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+                {form.businessLogoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={form.businessLogoUrl} alt="לוגו" className="w-full h-full object-contain" />
+                ) : (
+                  <Building className="w-8 h-8 text-gray-300" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-colors ${logoUploading ? "bg-gray-200 text-gray-400" : "bg-green-600 hover:bg-green-700 text-white"}`}>
+                  {logoUploading ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {logoUploading ? "מעלה..." : (form.businessLogoUrl ? "החלף לוגו" : "העלה לוגו")}
+                  <input type="file" accept="image/*" onChange={handleLogoUpload} disabled={logoUploading} className="hidden" />
+                </label>
+                {form.businessLogoUrl && (
+                  <button type="button" onClick={handleLogoRemove}
+                    className="block text-xs font-medium text-red-500 hover:text-red-700">
+                    הסר לוגו
+                  </button>
+                )}
+                <p className="text-xs text-gray-400">PNG, JPG או SVG. מקסימום 2MB. הלוגו יופיע בהצעות מחיר ובמסמכים.</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">שם העסק</label>
