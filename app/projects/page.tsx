@@ -480,10 +480,13 @@ function ProjectFormModal({
     setCustomerSearch(c.name);
   }
 
-  const filteredCustomers = existingCustomers.filter(c =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.address.toLowerCase().includes(customerSearch.toLowerCase())
-  );
+  const filteredCustomers = existingCustomers.filter(c => {
+    const q = (customerSearch || "").trim().toLowerCase();
+    if (!q) return true; // show all when empty
+    const name = (c.name || "").toLowerCase();
+    const address = (c.address || "").toLowerCase();
+    return name.includes(q) || address.includes(q);
+  });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     setForm(p => ({ ...p, [e.target.name]: e.target.value }));
