@@ -143,6 +143,16 @@ export default function QuotesListPage() {
   const totalAccepted = quotes.filter(q => q.status === "accepted").reduce((s, q) => s + (q.total_with_vat || 0), 0);
   const totalSent = quotes.filter(q => q.status === "sent").reduce((s, q) => s + (q.total_with_vat || 0), 0);
 
+  // Conversion analytics
+  const decidedQuotes = totals.accepted + totals.rejected;
+  const conversionRate = decidedQuotes > 0 ? Math.round((totals.accepted / decidedQuotes) * 100) : 0;
+  const avgQuoteValue = quotes.length > 0
+    ? Math.round(quotes.reduce((s, q) => s + (q.total_with_vat || 0), 0) / quotes.length)
+    : 0;
+  const avgAcceptedValue = totals.accepted > 0
+    ? Math.round(totalAccepted / totals.accepted)
+    : 0;
+
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50">
       <div className="px-4 py-5 max-w-4xl mx-auto space-y-4 pb-24">
@@ -163,6 +173,34 @@ export default function QuotesListPage() {
             <Plus size={16} /> הצעה חדשה
           </button>
         </div>
+
+        {/* Conversion analytics dashboard */}
+        {decidedQuotes > 0 && (
+          <div className="bg-gradient-to-l from-violet-100 via-indigo-100 to-blue-100 border border-indigo-200 rounded-2xl p-4 sm:p-5">
+            <p className="text-[10px] uppercase tracking-widest text-indigo-700 font-bold mb-2">📊 ביצועי הצעות</p>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div>
+                <p className="text-3xl sm:text-4xl font-black text-indigo-900">{conversionRate}%</p>
+                <p className="text-xs text-indigo-700 font-medium mt-0.5">אחוז המרה</p>
+                <p className="text-[10px] text-indigo-500 mt-0.5">{totals.accepted} מתוך {decidedQuotes}</p>
+              </div>
+              <div>
+                <p className="text-2xl sm:text-3xl font-black text-indigo-900">{fmt(avgAcceptedValue)}</p>
+                <p className="text-xs text-indigo-700 font-medium mt-0.5">ערך ממוצע (אושרו)</p>
+              </div>
+              <div>
+                <p className="text-2xl sm:text-3xl font-black text-indigo-900">{fmt(avgQuoteValue)}</p>
+                <p className="text-xs text-indigo-700 font-medium mt-0.5">ערך ממוצע (כל)</p>
+              </div>
+            </div>
+            {conversionRate >= 70 && (
+              <p className="text-xs text-green-700 mt-2 font-semibold">🔥 שיעור המרה מצוין — אתה סוגר עסקאות יפה!</p>
+            )}
+            {conversionRate < 30 && totals.rejected > 1 && (
+              <p className="text-xs text-amber-700 mt-2 font-semibold">⚠️ שווה לבדוק למה ההצעות נדחות — אולי מחירון יקר מדי?</p>
+            )}
+          </div>
+        )}
 
         {/* Stats cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

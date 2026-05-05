@@ -40,6 +40,8 @@ export default function SettingsPage() {
     quoteDefaultNotes: "",
     quoteDefaultFooter: "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
     quoteIntroText: "",
+    testimonials: [] as { customer_name: string; rating: number; text: string; location?: string }[],
+    trustBadges: [] as { icon: string; text: string }[],
   });
   const [logoUploading, setLogoUploading] = useState(false);
 
@@ -75,7 +77,7 @@ export default function SettingsPage() {
       // Load business profile from Supabase
       const { data: profile } = await supabase
         .from("user_profile")
-        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_default_validity_days, quote_default_markup, quote_title_label, quote_default_notes, quote_default_footer, quote_intro_text")
+        .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_default_validity_days, quote_default_markup, quote_title_label, quote_default_notes, quote_default_footer, quote_intro_text, testimonials, trust_badges")
         .eq("user_id", uid)
         .single();
 
@@ -98,6 +100,8 @@ export default function SettingsPage() {
           quoteDefaultNotes: profile.quote_default_notes ?? "",
           quoteDefaultFooter: profile.quote_default_footer ?? "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
           quoteIntroText: profile.quote_intro_text ?? "",
+          testimonials: (profile.testimonials as { customer_name: string; rating: number; text: string; location?: string }[]) ?? [],
+          trustBadges: (profile.trust_badges as { icon: string; text: string }[]) ?? [],
         });
       } else {
         // Migrate from localStorage if exists
@@ -123,6 +127,8 @@ export default function SettingsPage() {
               quoteDefaultNotes: "",
               quoteDefaultFooter: "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
               quoteIntroText: "",
+              testimonials: [],
+              trustBadges: [],
             });
           } catch {}
         } else {
@@ -248,6 +254,8 @@ export default function SettingsPage() {
       quote_default_notes: form.quoteDefaultNotes,
       quote_default_footer: form.quoteDefaultFooter,
       quote_intro_text: form.quoteIntroText,
+      testimonials: form.testimonials,
+      trust_badges: form.trustBadges,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
     setSaving(false);
@@ -567,6 +575,103 @@ export default function SettingsPage() {
             />
             <p className="text-[11px] text-gray-400 mt-1">מופיע בתחתית כל הצעת מחיר. לדוגמה תנאי שימוש, אחריות וכו&apos;.</p>
           </div>
+        </div>
+      </div>
+
+      {/* Trust Badges */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+            <FileText className="w-4 h-4 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">🛡️ תווי אמון</h2>
+            <p className="text-xs text-gray-500">יוצגו ללקוחות בהצעות המחיר (אחריות, חינם משלוח וכו&apos;)</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {form.trustBadges.map((badge, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <input value={badge.icon} onChange={e => {
+                const next = [...form.trustBadges];
+                next[idx] = { ...next[idx], icon: e.target.value };
+                setForm(f => ({ ...f, trustBadges: next }));
+              }} placeholder="🛡️" maxLength={3}
+                className="w-14 text-center text-xl border border-gray-200 rounded-xl px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input value={badge.text} onChange={e => {
+                const next = [...form.trustBadges];
+                next[idx] = { ...next[idx], text: e.target.value };
+                setForm(f => ({ ...f, trustBadges: next }));
+              }} placeholder="לדוגמה: אחריות 30 יום, ביטוח עבודה, חינם משלוח..."
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <button type="button" onClick={() => setForm(f => ({ ...f, trustBadges: f.trustBadges.filter((_, i) => i !== idx) }))}
+                className="text-gray-300 hover:text-red-500"><X size={16} /></button>
+            </div>
+          ))}
+          <button type="button" onClick={() => setForm(f => ({ ...f, trustBadges: [...f.trustBadges, { icon: "🛡️", text: "" }] }))}
+            className="w-full py-2 border-2 border-dashed border-blue-200 text-blue-600 hover:bg-blue-50 rounded-xl text-sm font-semibold">
+            + הוסף תו אמון
+          </button>
+          {form.trustBadges.length === 0 && (
+            <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+              <p className="font-semibold mb-1">💡 דוגמאות לתווי אמון נפוצים:</p>
+              <p>🛡️ אחריות 30 יום · 🚚 חינם משלוח · ✅ ביטוח עבודה מלא · 🌟 שירות 24/7 · 🌿 תקן ירוק</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Testimonials */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+            <FileText className="w-4 h-4 text-amber-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-900">⭐ עדויות לקוחות</h2>
+            <p className="text-xs text-gray-500">יוצגו בתחתית הצעות המחיר (מעלה אמון ב-30%+)</p>
+          </div>
+        </div>
+        <div className="p-6 space-y-3">
+          {form.testimonials.map((t, idx) => (
+            <div key={idx} className="bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-2">
+              <div className="flex justify-between items-center">
+                <div className="flex gap-2 items-center flex-1">
+                  <input value={t.customer_name} onChange={e => {
+                    const next = [...form.testimonials];
+                    next[idx] = { ...next[idx], customer_name: e.target.value };
+                    setForm(f => ({ ...f, testimonials: next }));
+                  }} placeholder="שם הלקוח" className="flex-1 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                  <input value={t.location ?? ""} onChange={e => {
+                    const next = [...form.testimonials];
+                    next[idx] = { ...next[idx], location: e.target.value };
+                    setForm(f => ({ ...f, testimonials: next }));
+                  }} placeholder="עיר (אופציונלי)" className="w-32 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                </div>
+                <button type="button" onClick={() => setForm(f => ({ ...f, testimonials: f.testimonials.filter((_, i) => i !== idx) }))}
+                  className="text-gray-300 hover:text-red-500 mr-2"><X size={16} /></button>
+              </div>
+              <div className="flex gap-1">
+                {[1,2,3,4,5].map(n => (
+                  <button key={n} type="button" onClick={() => {
+                    const next = [...form.testimonials];
+                    next[idx] = { ...next[idx], rating: n };
+                    setForm(f => ({ ...f, testimonials: next }));
+                  }} className={`text-xl ${n <= t.rating ? "text-amber-400" : "text-gray-300"}`}>★</button>
+                ))}
+              </div>
+              <textarea value={t.text} onChange={e => {
+                const next = [...form.testimonials];
+                next[idx] = { ...next[idx], text: e.target.value };
+                setForm(f => ({ ...f, testimonials: next }));
+              }} rows={2} placeholder="ציטוט מהלקוח..."
+                className="w-full border border-amber-200 bg-white rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300" />
+            </div>
+          ))}
+          <button type="button" onClick={() => setForm(f => ({ ...f, testimonials: [...f.testimonials, { customer_name: "", rating: 5, text: "", location: "" }] }))}
+            className="w-full py-2 border-2 border-dashed border-amber-200 text-amber-700 hover:bg-amber-50 rounded-xl text-sm font-semibold">
+            + הוסף עדות לקוח
+          </button>
         </div>
       </div>
 

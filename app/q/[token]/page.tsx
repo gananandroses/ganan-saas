@@ -41,6 +41,9 @@ interface QuoteData {
   signed_by_name: string | null;
 }
 
+interface Testimonial { customer_name: string; rating: number; text: string; location?: string }
+interface TrustBadge { icon: string; text: string }
+
 interface PublicProfile {
   business_name: string;
   owner_name: string;
@@ -55,6 +58,9 @@ interface PublicProfile {
   quote_title_label: string;
   quote_intro_text: string;
   quote_default_footer: string;
+  testimonials: Testimonial[];
+  trust_badges: TrustBadge[];
+  hero_image_url: string;
 }
 
 function fmt(n: number) {
@@ -78,6 +84,28 @@ export default function PublicQuotePage() {
   const [signing, setSigning] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasSignature, setHasSignature] = useState(false);
+  const [countdown, setCountdown] = useState<{ days: number; hours: number; minutes: number; expired: boolean } | null>(null);
+
+  // Countdown timer for valid_until
+  useEffect(() => {
+    if (!quote?.valid_until) return;
+    const update = () => {
+      const target = new Date(quote.valid_until!).getTime();
+      const now = Date.now();
+      const diff = target - now;
+      if (diff <= 0) {
+        setCountdown({ days: 0, hours: 0, minutes: 0, expired: true });
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      setCountdown({ days, hours, minutes, expired: false });
+    };
+    update();
+    const interval = setInterval(update, 60000); // update every minute
+    return () => clearInterval(interval);
+  }, [quote?.valid_until]);
 
   useEffect(() => {
     if (!token) return;
@@ -106,7 +134,7 @@ export default function PublicQuotePage() {
         // Fetch business profile (public read of selected fields)
         const { data: p } = await supabase
           .from("user_profile")
-          .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_title_label, quote_intro_text, quote_default_footer")
+          .select("business_name, owner_name, phone, city, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, business_logo_url, quote_title_label, quote_intro_text, quote_default_footer, testimonials, trust_badges, hero_image_url")
           .eq("user_id", q.user_id)
           .maybeSingle();
         if (p) setProfile(p as PublicProfile);
@@ -356,6 +384,49 @@ export default function PublicQuotePage() {
             </div>
           )}
 
+          {/* Trust badges */}
+          {profile?.trust_badges && profile.trust_badges.length > 0 && (
+            <div className="px-5 sm:px-8 py-4 bg-blue-50 border-b border-blue-100">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {profile.trust_badges.map((b, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-2.5 text-center border border-blue-100">
+                    <div className="text-2xl">{b.icon}</div>
+                    <p className="text-[11px] font-semibold text-gray-700 mt-1 leading-tight">{b.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Countdown timer */}
+          {!isAccepted && countdown && !countdown.expired && (countdown.days <= 7) && (
+            <div className="no-print mx-5 sm:mx-8 my-4 bg-gradient-to-l from-orange-500 to-red-500 text-white rounded-2xl p-4 text-center shadow-lg">
+              <p className="text-xs uppercase tracking-widest font-semibold opacity-90">⏰ ההצעה תפוג בעוד</p>
+              <div className="flex items-center justify-center gap-3 mt-2">
+                <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 min-w-14">
+                  <p className="text-2xl font-black">{countdown.days}</p>
+                  <p className="text-[10px] uppercase">ימים</p>
+                </div>
+                <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 min-w-14">
+                  <p className="text-2xl font-black">{countdown.hours}</p>
+                  <p className="text-[10px] uppercase">שעות</p>
+                </div>
+                <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 min-w-14">
+                  <p className="text-2xl font-black">{countdown.minutes}</p>
+                  <p className="text-[10px] uppercase">דקות</p>
+                </div>
+              </div>
+              <p className="text-xs mt-2 opacity-90">חתום עכשיו ושמור על המחיר!</p>
+            </div>
+          )}
+
+          {!isAccepted && countdown?.expired && (
+            <div className="no-print mx-5 sm:mx-8 my-4 bg-red-50 border-2 border-red-200 rounded-2xl p-4 text-center">
+              <p className="text-sm font-bold text-red-700">⚠️ תוקף ההצעה פג</p>
+              <p className="text-xs text-red-600 mt-1">צור קשר לקבלת הצעה מעודכנת</p>
+            </div>
+          )}
+
           {/* Items */}
           <div className="px-5 sm:px-8 py-6">
             <table className="w-full">
@@ -493,6 +564,26 @@ export default function PublicQuotePage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={quote.signature_data} alt="חתימה" className="h-16 w-auto" />
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Testimonials */}
+          {profile?.testimonials && profile.testimonials.length > 0 && (
+            <div className="px-5 sm:px-8 py-6 bg-amber-50 border-t border-amber-100">
+              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-3 text-center">⭐ לקוחות מרוצים מספרים</p>
+              <div className="space-y-3">
+                {profile.testimonials.slice(0, 3).map((t, idx) => (
+                  <div key={idx} className="bg-white rounded-xl p-3 border border-amber-100">
+                    <div className="flex items-center gap-1 mb-1">
+                      {Array.from({length: 5}, (_, i) => (
+                        <span key={i} className={`text-sm ${i < t.rating ? "text-amber-400" : "text-gray-200"}`}>★</span>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-700 italic leading-relaxed">&quot;{t.text}&quot;</p>
+                    <p className="text-xs text-gray-500 mt-1.5 font-semibold">— {t.customer_name}{t.location ? ` · ${t.location}` : ""}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}
