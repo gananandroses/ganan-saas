@@ -53,6 +53,7 @@ export default function QuoteEditPage() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
   const [depositPercent, setDepositPercent] = useState(50);
+  const [successMode, setSuccessMode] = useState<null | "draft" | "saved">(null);
 
   // Customer
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
@@ -267,8 +268,8 @@ export default function QuoteEditPage() {
       alert(`שגיאה בשמירה: ${error.message}`);
       return;
     }
-    alert(asDraft ? "✅ ההצעה נשמרה כטיוטה" : "✅ ההצעה עודכנה");
-    router.push(`/quote/${quoteId}`);
+    setSuccessMode(asDraft ? "draft" : "saved");
+    setTimeout(() => router.push(`/quote/${quoteId}`), 1800);
   }
 
   // Send WhatsApp
@@ -660,6 +661,40 @@ export default function QuoteEditPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Success overlay */}
+      {successMode && (
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center" dir="rtl">
+          <div className="bg-white rounded-3xl shadow-2xl mx-4 px-8 py-10 max-w-sm w-full text-center animate-in fade-in zoom-in-95 duration-300">
+            <div className="relative w-24 h-24 mx-auto mb-5">
+              <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-50"></div>
+              <div className="relative w-24 h-24 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-green-200">
+                <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            </div>
+            <h2 className="text-2xl font-black text-gray-900 mb-2">
+              {successMode === "draft" ? "טיוטה נשמרה!" : "ההצעה עודכנה!"}
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+              {successMode === "draft" ? "השינויים נשמרו כטיוטה." : "ההצעה המעודכנת מוכנה."}
+            </p>
+            <div className="bg-gray-50 rounded-2xl p-3">
+              <p className="text-xs text-gray-500">חוזר לתצוגת ההצעה...</p>
+              <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-full bg-green-500 rounded-full" style={{ animation: "progressBar 1.8s linear forwards", width: "0%" }}></div>
+              </div>
+            </div>
+          </div>
+          <style jsx global>{`
+            @keyframes progressBar {
+              from { width: 0%; }
+              to { width: 100%; }
+            }
+          `}</style>
         </div>
       )}
     </div>
