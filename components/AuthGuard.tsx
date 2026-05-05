@@ -12,6 +12,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (PUBLIC_PATHS.includes(pathname)) return;
+    // Public quote share links — no auth required
+    if (pathname.startsWith("/q/")) return;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT" || (event === "TOKEN_REFRESHED" && !session)) {
