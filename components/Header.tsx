@@ -1,6 +1,7 @@
 "use client";
-import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle } from "lucide-react";
+import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
 interface HeaderProps {
@@ -12,10 +13,12 @@ interface HeaderProps {
 interface Notif {
   id: string;
   text: string;
-  type: "red" | "yellow" | "green";
+  type: "red" | "yellow" | "green" | "orange";
+  href?: string;
 }
 
 export default function Header({ title, subtitle, action }: HeaderProps) {
+  const router = useRouter();
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);
 
@@ -25,6 +28,25 @@ export default function Header({ title, subtitle, action }: HeaderProps) {
       if (!user) return;
 
       const list: Notif[] = [];
+
+      // 🔥 ביקורים שדורשים תיאום מחדש (no_show / force_majeure) — דחוף!
+      const { data: missed } = await supabase
+        .from("jobs")
+        .select("id, customer_name, job_date, cancellation_reason")
+        .eq("user_id", user.id)
+        .eq("status", "cancelled")
+        .in("cancellation_reason", ["no_show", "force_majeure"])
+        .order("job_date", { ascending: false });
+
+      (missed || []).forEach((j) => {
+        const reasonLabel = j.cancellation_reason === "no_show" ? "לא הופיע" : "בלת״מ";
+        list.push({
+          id: `missed-${j.id}`,
+          text: `🔥 ${j.customer_name} — דרוש תיאום מחדש (${reasonLabel} · ${j.job_date})`,
+          type: "orange",
+          href: "/automations",
+        });
+      });
 
       // חובות פתוחים
       const { data: pending } = await supabase
@@ -39,6 +61,7 @@ export default function Header({ title, subtitle, action }: HeaderProps) {
           id: `tx-${t.customer_name}`,
           text: `${t.customer_name} — חוב פתוח של ₪${Number(t.amount).toLocaleString()}`,
           type: "red",
+          href: "/automations",
         });
       });
 
@@ -55,6 +78,7 @@ export default function Header({ title, subtitle, action }: HeaderProps) {
             id: `inv-${i.name}`,
             text: `מלאי נמוך: ${i.name} (${i.quantity} יחידות)`,
             type: "yellow",
+            href: "/inventory",
           });
         });
 
@@ -70,12 +94,14 @@ export default function Header({ title, subtitle, action }: HeaderProps) {
     red: "bg-red-100 text-red-700",
     yellow: "bg-yellow-100 text-yellow-700",
     green: "bg-green-100 text-green-700",
+    orange: "bg-orange-100 text-orange-700",
   };
 
   const iconMap = {
     red: <AlertCircle size={13} />,
     yellow: <Package size={13} />,
     green: <CheckCircle size={13} />,
+    orange: <Calendar size={13} />,
   };
 
   return (
@@ -130,13 +156,22 @@ export default function Header({ title, subtitle, action }: HeaderProps) {
                 </div>
               ) : (
                 notifs.map((n) => (
-                  <div key={n.id} className="flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
+                  <div
+                    key={n.id}
+                    onClick={() => {
+                      if (n.href) {
+                        setShowNotif(false);
+                        router.push(n.href);
+                      }
+                    }}
+                    className={`flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-2.5 ${n.href ? "cursor-pointer hover:bg-gray-100" : ""} transition-colors`}
+                  >
                     <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${colorMap[n.type]}`}>
                       {iconMap[n.type]}
                     </span>
                     <p className="text-sm text-gray-700 flex-1 leading-snug">{n.text}</p>
                     <button
-                      onClick={() => dismiss(n.id)}
+                      onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
                       className="text-gray-300 hover:text-gray-500 flex-shrink-0 mt-0.5 transition-colors"
                     >
                       <X size={14} />

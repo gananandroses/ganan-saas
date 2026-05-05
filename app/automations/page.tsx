@@ -667,14 +667,20 @@ export default function AutomationsPage() {
                       </p>
                     </div>
                   </div>
-                  {list.length > 0 && (isCollapsed ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronUp size={18} className="text-gray-400" />)}
+                  {isCollapsed ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronUp size={18} className="text-gray-400" />}
                 </button>
 
-                {!isCollapsed && list.length > 0 && (
+                {!isCollapsed && (
                   <div className="px-5 pb-4 space-y-2">
-                    {list.map(action => (
-                      <ActionRow key={action.id} action={action} onSend={() => openSend(action)} onDismiss={() => dismissAction(action.id)} />
-                    ))}
+                    {list.length === 0 ? (
+                      <div className="bg-white/60 rounded-xl px-4 py-3 text-center text-sm text-gray-500">
+                        {cfg.emptyText}
+                      </div>
+                    ) : (
+                      list.map(action => (
+                        <ActionRow key={action.id} action={action} onSend={() => openSend(action)} onDismiss={() => dismissAction(action.id)} />
+                      ))
+                    )}
                   </div>
                 )}
               </div>
