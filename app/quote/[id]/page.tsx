@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Calendar, User as UserIcon, Phone, MapPin, Copy, Eye, FileBox,
+  Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Calendar, User as UserIcon, Phone, MapPin, Copy, Eye, FileBox, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -95,6 +95,8 @@ export default function QuoteViewPage() {
     quoteDefaultFooter: "ההצעה תקפה למשך 30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה.",
   });
   const [updating, setUpdating] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -240,12 +242,23 @@ export default function QuoteViewPage() {
     }
   }
 
+  // Toast notification system
+  function showToast(message: string) {
+    setToast(message);
+    setTimeout(() => setToast(null), 2500);
+  }
+
   async function copyPublicLink() {
     if (!quote || !quote.public_token) return;
+    setShowShareModal(true);
+  }
+
+  async function copyLinkOnly() {
+    if (!quote?.public_token) return;
     const url = `${window.location.origin}/q/${quote.public_token}`;
     try {
       await navigator.clipboard.writeText(url);
-      alert(`✅ הקישור הועתק!\n\n${url}\n\nהדבק אותו ב-WhatsApp / מייל ושלח ללקוח.`);
+      showToast("✅ הקישור הועתק");
     } catch {
       prompt("העתק את הקישור:", url);
     }
@@ -255,9 +268,21 @@ export default function QuoteViewPage() {
     if (!quote?.pin_code) return;
     try {
       await navigator.clipboard.writeText(quote.pin_code);
-      alert(`✅ הקוד הועתק: ${quote.pin_code}\nשלח ללקוח בהודעה נפרדת.`);
+      showToast(`✅ הקוד הועתק: ${quote.pin_code}`);
     } catch {
       prompt("העתק את הקוד:", quote.pin_code);
+    }
+  }
+
+  async function copyBothLinkAndPin() {
+    if (!quote?.public_token || !quote.pin_code) return;
+    const url = `${window.location.origin}/q/${quote.public_token}`;
+    const text = `הצעת מחיר${quote.quote_number ? ` #${quote.quote_number}` : ""}:\n${url}\n\nקוד אישור: ${quote.pin_code}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("✅ הכל הועתק (קישור + קוד)");
+    } catch {
+      prompt("העתק:", text);
     }
   }
 
@@ -673,6 +698,100 @@ export default function QuoteViewPage() {
           </div>
         </div>
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+          {toast}
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && quote.public_token && (
+        <div className="no-print fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowShareModal(false)}>
+          <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" dir="rtl">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center text-xl">🔗</div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">שיתוף הצעה</h3>
+                  <p className="text-xs text-gray-500">שלח ללקוח את הקישור והקוד</p>
+                </div>
+              </div>
+              <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Link box */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">קישור ציבורי</label>
+                <div className="flex gap-1.5">
+                  <input readOnly value={`${typeof window !== "undefined" ? window.location.origin : ""}/q/${quote.public_token}`}
+                    className="flex-1 border border-gray-200 bg-gray-50 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-700 focus:outline-none"
+                    onClick={(e) => (e.target as HTMLInputElement).select()} />
+                  <button onClick={copyLinkOnly}
+                    className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 rounded-xl">
+                    <Copy size={13} />העתק
+                  </button>
+                </div>
+              </div>
+
+              {/* PIN box */}
+              {quote.pin_code && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">🔐 קוד אישור (שלח בנפרד)</label>
+                  <div className="flex gap-1.5">
+                    <div className="flex-1 border-2 border-amber-300 bg-amber-50 rounded-xl px-3 py-2.5 text-center text-xl font-black text-amber-700 tracking-[0.4em]">
+                      {quote.pin_code}
+                    </div>
+                    <button onClick={copyPin}
+                      className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 rounded-xl">
+                      <Copy size={13} />העתק
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick action buttons */}
+              <div className="space-y-2 pt-1">
+                <button onClick={copyBothLinkAndPin}
+                  className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold py-3 rounded-2xl">
+                  📋 העתק הכל (קישור + קוד)
+                </button>
+
+                {quote.customer_phone && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => { sendWhatsApp(); setShowShareModal(false); }}
+                      className="flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-3 rounded-2xl">
+                      <MessageSquare size={15} />שלח קישור
+                    </button>
+                    {quote.pin_code && (
+                      <button onClick={() => { sendPinViaWhatsApp(); setShowShareModal(false); }}
+                        className="flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold py-3 rounded-2xl">
+                        <MessageSquare size={15} />שלח קוד
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 leading-relaxed">
+                💡 <strong>טיפ:</strong> שלח את הקישור והקוד ב-2 הודעות נפרדות ב-WhatsApp לאבטחה מקסימלית.
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-100 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <button onClick={() => setShowShareModal(false)}
+                className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold">
+                סגור
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

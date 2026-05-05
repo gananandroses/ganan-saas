@@ -234,11 +234,20 @@ export default function PublicQuotePage() {
     setPinError(null);
 
     // Re-fetch the quote fresh from DB — to get latest pin_code (it might have been regenerated)
-    const { data: freshQuote } = await supabase
+    const { data: freshQuote, error: fetchErr } = await supabase
       .from("quotes")
       .select("pin_code, pin_attempts, pin_locked_until")
       .eq("public_token", token)
       .maybeSingle();
+
+    console.log("[PIN Debug]", {
+      typedPin: pinInput,
+      typedPinLength: pinInput.length,
+      freshQuotePin: freshQuote?.pin_code,
+      freshQuotePinType: typeof freshQuote?.pin_code,
+      fetchError: fetchErr,
+      tokenInUrl: token,
+    });
 
     const currentPin = freshQuote?.pin_code ?? quote.pin_code;
     const currentAttempts = freshQuote?.pin_attempts ?? quote.pin_attempts ?? 0;
