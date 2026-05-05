@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
@@ -17,6 +17,8 @@ interface QuoteItem {
   basePrice: number;
   qty: number;
   customPrice?: number;
+  description?: string;
+  category?: string;
 }
 
 interface CustomerOption { id: string; name: string; address: string; phone: string }
@@ -45,6 +47,9 @@ export default function QuotePage() {
   const [markup, setMarkup] = useState(100); // default 100%
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
+  const [groupByCategory, setGroupByCategory] = useState(false);
 
   // Customer
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
@@ -148,7 +153,7 @@ export default function QuotePage() {
       // already in quote — increase qty
       setItems(prev => prev.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i));
     } else {
-      setItems(prev => [...prev, { id: p.id, name: p.name, unit: p.unit, basePrice: p.price, qty: 1 }]);
+      setItems(prev => [...prev, { id: p.id, name: p.name, unit: p.unit, basePrice: p.price, qty: 1, category: p.category }]);
     }
   }
 
@@ -166,7 +171,11 @@ export default function QuotePage() {
     const lineTotal = finalPrice * i.qty;
     return { ...i, finalPrice, lineTotal };
   });
-  const subtotalBeforeVat = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+  const subtotalRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+  const discountValue = discountType === "percent"
+    ? Math.round((subtotalRaw * discountAmount) / 100)
+    : Math.round(discountAmount);
+  const subtotalBeforeVat = Math.max(0, subtotalRaw - discountValue);
   const vatAmount = Math.round(subtotalBeforeVat * VAT);
   const totalWithVat = subtotalBeforeVat + vatAmount;
 
@@ -221,6 +230,8 @@ export default function QuotePage() {
       subtotal_before_vat: subtotalBeforeVat,
       vat_amount: vatAmount,
       total_with_vat: totalWithVat,
+      discount_amount: discountAmount,
+      discount_type: discountType,
       status: asDraft ? "draft" : "sent",
       valid_until: validUntil || null,
       notes: notes.trim() || null,
@@ -456,51 +467,107 @@ export default function QuotePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {itemsWithCalc.map(i => (
-                    <tr key={i.id} className="border-b border-gray-50">
-                      <td className="py-2.5">
-                        <p className="font-medium text-gray-800">{i.name}</p>
-                        <p className="text-xs text-gray-400">{i.unit} · מחירון: {fmt(i.basePrice)}</p>
-                      </td>
-                      <td className="text-center py-2.5">
-                        <input type="number" min={0} step={0.5} value={i.qty}
-                          onChange={e => updateItem(i.id, { qty: parseFloat(e.target.value) || 0 })}
-                          className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-400 print:border-0" />
-                      </td>
-                      <td className="text-center py-2.5">
-                        <input type="number" min={0} value={i.finalPrice}
-                          onChange={e => updateItem(i.id, { customPrice: parseFloat(e.target.value) || 0 })}
-                          className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-400 print:border-0" />
-                      </td>
-                      <td className="text-left py-2.5 font-bold text-gray-900">{fmt(i.lineTotal)}</td>
-                      <td className="print:hidden">
-                        <button onClick={() => removeItem(i.id)} className="text-gray-300 hover:text-red-500">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
+                  {itemsWithCalc.map((i, idx) => (
+                    <React.Fragment key={i.id}>
+                      <tr className="border-b border-gray-50">
+                        <td className="py-2.5">
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs font-bold text-gray-400 mt-0.5 w-6 flex-shrink-0">#{idx + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-800">{i.name}</p>
+                              <p className="text-xs text-gray-400">{i.unit} · מחירון: {fmt(i.basePrice)}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="text-center py-2.5">
+                          <input type="number" min={0} step={0.5} value={i.qty}
+                            onChange={e => updateItem(i.id, { qty: parseFloat(e.target.value) || 0 })}
+                            className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-400 print:border-0" />
+                        </td>
+                        <td className="text-center py-2.5">
+                          <input type="number" min={0} value={i.finalPrice}
+                            onChange={e => updateItem(i.id, { customPrice: parseFloat(e.target.value) || 0 })}
+                            className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-400 print:border-0" />
+                        </td>
+                        <td className="text-left py-2.5 font-bold text-gray-900">{fmt(i.lineTotal)}</td>
+                        <td className="print:hidden">
+                          <button onClick={() => removeItem(i.id)} className="text-gray-300 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                      <tr className="border-b border-gray-50 print:hidden">
+                        <td colSpan={5} className="py-1 px-1">
+                          <input
+                            type="text"
+                            value={i.description ?? ""}
+                            onChange={e => updateItem(i.id, { description: e.target.value })}
+                            placeholder="📝 תיאור קצר (אופציונלי) — לדוגמה: 'עציץ קרמיקה לבן 12 ס״מ — דגם מודרני'"
+                            className="w-full text-xs text-gray-600 border-0 bg-gray-50 rounded-lg px-2 py-1.5 focus:outline-none focus:bg-white focus:ring-1 focus:ring-green-300"
+                          />
+                        </td>
+                      </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* Totals */}
+          {/* Discount + Totals */}
           {items.length > 0 && (
-            <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 mt-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">סה״כ לפני מע״מ</span>
-                <span className="font-semibold text-gray-800">{fmt(subtotalBeforeVat)}</span>
+            <>
+              {/* Discount input */}
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-rose-800">💸 הנחה (אופציונלי)</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" min={0} step={1} value={discountAmount}
+                      onChange={e => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-20 border border-rose-200 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300" />
+                    <div className="flex border border-rose-200 bg-white rounded-lg overflow-hidden">
+                      <button type="button" onClick={() => setDiscountType("amount")}
+                        className={`px-2 py-1 text-xs font-bold ${discountType === "amount" ? "bg-rose-500 text-white" : "text-rose-700"}`}>₪</button>
+                      <button type="button" onClick={() => setDiscountType("percent")}
+                        className={`px-2 py-1 text-xs font-bold ${discountType === "percent" ? "bg-rose-500 text-white" : "text-rose-700"}`}>%</button>
+                    </div>
+                  </div>
+                </div>
+                {discountValue > 0 && (
+                  <p className="text-xs text-rose-700">
+                    הנחה: -{fmt(discountValue)} {discountType === "percent" ? `(${discountAmount}% מ-${fmt(subtotalRaw)})` : ""}
+                  </p>
+                )}
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">מע״מ (18%)</span>
-                <span className="font-semibold text-gray-800">{fmt(vatAmount)}</span>
+
+              {/* Totals */}
+              <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 mt-3">
+                {discountValue > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">סכום פריטים</span>
+                      <span className="text-gray-700">{fmt(subtotalRaw)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-rose-600">
+                      <span>הנחה</span>
+                      <span>-{fmt(discountValue)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">סה״כ לפני מע״מ</span>
+                  <span className="font-semibold text-gray-800">{fmt(subtotalBeforeVat)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">מע״מ (18%)</span>
+                  <span className="font-semibold text-gray-800">{fmt(vatAmount)}</span>
+                </div>
+                <div className="flex justify-between text-base border-t border-gray-200 pt-1.5 mt-1.5">
+                  <span className="font-bold text-gray-900">סה״כ לתשלום</span>
+                  <span className="font-black text-green-700 text-lg">{fmt(totalWithVat)}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-base border-t border-gray-200 pt-1.5 mt-1.5">
-                <span className="font-bold text-gray-900">סה״כ לתשלום</span>
-                <span className="font-black text-green-700 text-lg">{fmt(totalWithVat)}</span>
-              </div>
-            </div>
+            </>
           )}
         </section>
 

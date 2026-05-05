@@ -14,6 +14,8 @@ interface QuoteItemDB {
   basePrice: number;
   qty: number;
   customPrice?: number;
+  description?: string;
+  category?: string;
 }
 
 interface QuoteData {
@@ -40,6 +42,8 @@ interface QuoteData {
   signed_by_name: string | null;
   project_id: string | null;
   user_id: string;
+  discount_amount: number | null;
+  discount_type: "amount" | "percent" | null;
 }
 
 interface PaymentSettings {
@@ -477,6 +481,7 @@ export default function QuoteViewPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b-2 border-gray-200">
+                    <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-10">#</th>
                     <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">פריט</th>
                     <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-16">כמות</th>
                     <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-24">מחיר ליח׳</th>
@@ -486,13 +491,15 @@ export default function QuoteViewPage() {
                 <tbody className="divide-y divide-gray-100">
                   {itemsWithCalc.map((i, idx) => (
                     <tr key={idx}>
+                      <td className="py-3.5 text-sm font-bold text-gray-400 align-top w-10">{idx + 1}</td>
                       <td className="py-3.5">
                         <p className="text-sm font-semibold text-gray-900">{i.name}</p>
+                        {i.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{i.description}</p>}
                         <p className="text-xs text-gray-400 mt-0.5">{i.unit}</p>
                       </td>
-                      <td className="text-center py-3.5 text-sm font-medium text-gray-700">{i.qty}</td>
-                      <td className="text-center py-3.5 text-sm text-gray-700">{fmt(i.finalPrice)}</td>
-                      <td className="text-left py-3.5 text-sm font-bold text-gray-900">{fmt(i.lineTotal)}</td>
+                      <td className="text-center py-3.5 text-sm font-medium text-gray-700 align-top">{i.qty}</td>
+                      <td className="text-center py-3.5 text-sm text-gray-700 align-top">{fmt(i.finalPrice)}</td>
+                      <td className="text-left py-3.5 text-sm font-bold text-gray-900 align-top">{fmt(i.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -501,7 +508,25 @@ export default function QuoteViewPage() {
 
             {/* Totals */}
             <div className="mt-6 flex justify-end">
-              <div className="w-full sm:w-72 bg-gray-50 rounded-2xl p-4 space-y-2">
+              <div className="w-full sm:w-80 bg-gray-50 rounded-2xl p-4 space-y-2">
+                {(quote.discount_amount ?? 0) > 0 && (() => {
+                  const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+                  const disc = quote.discount_type === "percent"
+                    ? Math.round((subRaw * (quote.discount_amount || 0)) / 100)
+                    : Math.round(quote.discount_amount || 0);
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">סכום פריטים</span>
+                        <span className="text-gray-700">{fmt(subRaw)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-rose-600 font-semibold">
+                        <span>הנחה {quote.discount_type === "percent" ? `(${quote.discount_amount}%)` : ""}</span>
+                        <span>-{fmt(disc)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">סה״כ לפני מע״מ</span>
                   <span className="font-bold text-gray-800">{fmt(quote.subtotal_before_vat)}</span>

@@ -17,6 +17,8 @@ interface QuoteItem {
   basePrice: number;
   qty: number;
   customPrice?: number;
+  description?: string;
+  category?: string;
 }
 
 interface CustomerOption { id: string; name: string; address: string; phone: string }
@@ -48,6 +50,8 @@ export default function QuoteEditPage() {
   const [markup, setMarkup] = useState(100); // default 100%
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountType, setDiscountType] = useState<"amount" | "percent">("amount");
 
   // Customer
   const [customerMode, setCustomerMode] = useState<"existing" | "new">("existing");
@@ -104,6 +108,8 @@ export default function QuoteEditPage() {
         setValidUntil(q.valid_until ?? "");
         setNotes(q.notes ?? "");
         setOriginalStatus(q.status ?? "draft");
+        setDiscountAmount(Number(q.discount_amount ?? 0));
+        setDiscountType((q.discount_type as "amount" | "percent") ?? "amount");
 
         // Customer
         if (q.customer_id) {
@@ -197,7 +203,11 @@ export default function QuoteEditPage() {
     const lineTotal = finalPrice * i.qty;
     return { ...i, finalPrice, lineTotal };
   });
-  const subtotalBeforeVat = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+  const subtotalRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+  const discountValue = discountType === "percent"
+    ? Math.round((subtotalRaw * discountAmount) / 100)
+    : Math.round(discountAmount);
+  const subtotalBeforeVat = Math.max(0, subtotalRaw - discountValue);
   const vatAmount = Math.round(subtotalBeforeVat * VAT);
   const totalWithVat = subtotalBeforeVat + vatAmount;
 
@@ -240,6 +250,8 @@ export default function QuoteEditPage() {
       subtotal_before_vat: subtotalBeforeVat,
       vat_amount: vatAmount,
       total_with_vat: totalWithVat,
+      discount_amount: discountAmount,
+      discount_type: discountType,
       status: newStatus,
       valid_until: validUntil || null,
       notes: notes.trim() || null,
@@ -505,9 +517,46 @@ export default function QuoteEditPage() {
             </div>
           )}
 
+          {/* Discount */}
+          {items.length > 0 && (
+            <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 mt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-rose-800">💸 הנחה (אופציונלי)</label>
+                <div className="flex items-center gap-1.5">
+                  <input type="number" min={0} step={1} value={discountAmount}
+                    onChange={e => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-20 border border-rose-200 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300" />
+                  <div className="flex border border-rose-200 bg-white rounded-lg overflow-hidden">
+                    <button type="button" onClick={() => setDiscountType("amount")}
+                      className={`px-2 py-1 text-xs font-bold ${discountType === "amount" ? "bg-rose-500 text-white" : "text-rose-700"}`}>₪</button>
+                    <button type="button" onClick={() => setDiscountType("percent")}
+                      className={`px-2 py-1 text-xs font-bold ${discountType === "percent" ? "bg-rose-500 text-white" : "text-rose-700"}`}>%</button>
+                  </div>
+                </div>
+              </div>
+              {discountValue > 0 && (
+                <p className="text-xs text-rose-700">
+                  הנחה: -{fmt(discountValue)} {discountType === "percent" ? `(${discountAmount}% מ-${fmt(subtotalRaw)})` : ""}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Totals */}
           {items.length > 0 && (
             <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 mt-3">
+              {discountValue > 0 && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">סכום פריטים</span>
+                    <span className="text-gray-700">{fmt(subtotalRaw)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-rose-600">
+                    <span>הנחה</span>
+                    <span>-{fmt(discountValue)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">סה״כ לפני מע״מ</span>
                 <span className="font-semibold text-gray-800">{fmt(subtotalBeforeVat)}</span>

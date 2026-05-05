@@ -12,6 +12,8 @@ interface QuoteItemDB {
   basePrice: number;
   qty: number;
   customPrice?: number;
+  description?: string;
+  category?: string;
 }
 
 interface QuoteData {
@@ -26,6 +28,8 @@ interface QuoteData {
   subtotal_before_vat: number;
   vat_amount: number;
   total_with_vat: number;
+  discount_amount: number | null;
+  discount_type: "amount" | "percent" | null;
   status: "draft" | "sent" | "accepted" | "rejected";
   valid_until: string | null;
   notes: string | null;
@@ -357,6 +361,7 @@ export default function PublicQuotePage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-gray-200">
+                  <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-10">#</th>
                   <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">פריט</th>
                   <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-16">כמות</th>
                   <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-24">מחיר ליח׳</th>
@@ -366,20 +371,40 @@ export default function PublicQuotePage() {
               <tbody className="divide-y divide-gray-100">
                 {itemsWithCalc.map((i, idx) => (
                   <tr key={idx}>
+                    <td className="py-3.5 text-sm font-bold text-gray-400 align-top">{idx + 1}</td>
                     <td className="py-3.5">
                       <p className="text-sm font-semibold text-gray-900">{i.name}</p>
+                      {i.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{i.description}</p>}
                       <p className="text-xs text-gray-400 mt-0.5">{i.unit}</p>
                     </td>
-                    <td className="text-center py-3.5 text-sm font-medium text-gray-700">{i.qty}</td>
-                    <td className="text-center py-3.5 text-sm text-gray-700">{fmt(i.finalPrice)}</td>
-                    <td className="text-left py-3.5 text-sm font-bold text-gray-900">{fmt(i.lineTotal)}</td>
+                    <td className="text-center py-3.5 text-sm font-medium text-gray-700 align-top">{i.qty}</td>
+                    <td className="text-center py-3.5 text-sm text-gray-700 align-top">{fmt(i.finalPrice)}</td>
+                    <td className="text-left py-3.5 text-sm font-bold text-gray-900 align-top">{fmt(i.lineTotal)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
             <div className="mt-6 flex justify-end">
-              <div className="w-full sm:w-72 bg-gray-50 rounded-2xl p-4 space-y-2">
+              <div className="w-full sm:w-80 bg-gray-50 rounded-2xl p-4 space-y-2">
+                {(quote.discount_amount ?? 0) > 0 && (() => {
+                  const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+                  const disc = quote.discount_type === "percent"
+                    ? Math.round((subRaw * (quote.discount_amount || 0)) / 100)
+                    : Math.round(quote.discount_amount || 0);
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">סכום פריטים</span>
+                        <span className="text-gray-700">{fmt(subRaw)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-rose-600 font-semibold">
+                        <span>הנחה {quote.discount_type === "percent" ? `(${quote.discount_amount}%)` : ""}</span>
+                        <span>-{fmt(disc)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">סה״כ לפני מע״מ</span>
                   <span className="font-bold text-gray-800">{fmt(quote.subtotal_before_vat)}</span>
@@ -394,6 +419,42 @@ export default function PublicQuotePage() {
                 </div>
               </div>
             </div>
+
+            {/* Big CTA inside body */}
+            {!isAccepted && (
+              <div className="no-print mt-6 bg-gradient-to-l from-green-500 to-emerald-600 rounded-2xl p-5 text-white text-center shadow-lg">
+                <p className="text-sm font-semibold mb-3">מאשר את ההצעה?</p>
+                <button onClick={() => setShowSignModal(true)}
+                  className="bg-white text-green-700 hover:bg-green-50 font-black px-8 py-3 rounded-xl text-base shadow-md inline-flex items-center gap-2">
+                  <CheckCircle2 size={18} /> חתום ואשר עכשיו
+                </button>
+                <p className="text-xs text-green-50 mt-2">⚡ אישור מיידי · ללא צורך בהדפסה</p>
+              </div>
+            )}
+
+            {/* Quick contact buttons */}
+            {(profile?.phone || quote.customer_phone) && (
+              <div className="no-print mt-4 grid grid-cols-2 gap-2">
+                {profile?.phone && (
+                  <a href={`tel:${profile.phone.replace(/\D/g, "")}`}
+                    className="flex items-center justify-center gap-2 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-800 text-sm font-semibold py-3 rounded-xl">
+                    <Phone size={14} /> התקשר
+                  </a>
+                )}
+                {profile?.phone && (
+                  <a href={`https://api.whatsapp.com/send?phone=${(() => {
+                    const p = profile.phone.replace(/\D/g, "");
+                    if (p.startsWith("0")) return "972" + p.slice(1);
+                    if (p.startsWith("972")) return p;
+                    return p;
+                  })()}&text=${encodeURIComponent(`היי, יש לי שאלה על הצעת המחיר ${quote.quote_number ? `#${quote.quote_number}` : ""}`)}`}
+                    target="_blank" rel="noreferrer"
+                    className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-3 rounded-xl">
+                    💬 שלח שאלה ב-WhatsApp
+                  </a>
+                )}
+              </div>
+            )}
           </div>
 
           {quote.notes && (
