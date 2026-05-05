@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FileText, Plus, ChevronRight, Loader2, Search, Trash2, Calendar, User as UserIcon, MessageSquare, Eye, Edit3,
+  FileText, Plus, ChevronRight, Loader2, Search, Trash2, Calendar, User as UserIcon, MessageSquare, Eye, Edit3, Copy,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -12,11 +12,19 @@ interface Quote {
   title: string;
   customer_name: string;
   customer_phone: string | null;
+  customer_id: string | null;
+  customer_address: string | null;
   status: "draft" | "sent" | "accepted" | "rejected";
   total_with_vat: number;
+  subtotal_before_vat: number;
+  vat_amount: number;
   markup_percent: number;
   valid_until: string | null;
   created_at: string;
+  quote_number: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  items: any[];
+  notes: string | null;
 }
 
 const STATUS_CONFIG: Record<Quote["status"], { label: string; bg: string; text: string }> = {
@@ -54,7 +62,7 @@ export default function QuotesListPage() {
 
     const { data } = await supabase
       .from("quotes")
-      .select("id, title, customer_name, customer_phone, status, total_with_vat, markup_percent, valid_until, created_at")
+      .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -68,6 +76,50 @@ export default function QuotesListPage() {
     if (!user) return;
     await supabase.from("quotes").delete().eq("id", id).eq("user_id", user.id);
     setQuotes(prev => prev.filter(q => q.id !== id));
+  }
+
+  async function handleDuplicate(q: Quote) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const currentYear = new Date().getFullYear();
+    const { data: lastQuotes } = await supabase
+      .from("quotes")
+      .select("quote_seq")
+      .eq("user_id", user.id)
+      .eq("quote_year", currentYear)
+      .order("quote_seq", { ascending: false })
+      .limit(1);
+    const nextSeq = ((lastQuotes && lastQuotes[0]?.quote_seq) || 0) + 1;
+    const quoteNumber = `${currentYear}-${String(nextSeq).padStart(3, "0")}`;
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    const publicToken = Array.from(arr).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+
+    const { data: dupe } = await supabase.from("quotes").insert({
+      user_id: user.id,
+      customer_id: q.customer_id,
+      customer_name: q.customer_name,
+      customer_phone: q.customer_phone,
+      customer_address: q.customer_address,
+      title: `${q.title} (העתק)`,
+      items: q.items,
+      markup_percent: q.markup_percent,
+      subtotal_before_vat: q.subtotal_before_vat,
+      vat_amount: q.vat_amount,
+      total_with_vat: q.total_with_vat,
+      status: "draft",
+      valid_until: q.valid_until,
+      notes: q.notes,
+      quote_number: quoteNumber,
+      quote_year: currentYear,
+      quote_seq: nextSeq,
+      public_token: publicToken,
+    }).select().single();
+
+    if (dupe) {
+      router.push(`/quote/${dupe.id}/edit`);
+    }
   }
 
   // Filtered quotes
@@ -179,6 +231,9 @@ export default function QuotesListPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
+                        {q.quote_number && (
+                          <span className="text-xs font-mono font-bold text-gray-400">#{q.quote_number}</span>
+                        )}
                         <h3 className="font-bold text-gray-900 text-base">{q.title || "ללא כותרת"}</h3>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${status.bg} ${status.text}`}>
                           {status.label}
@@ -210,6 +265,10 @@ export default function QuotesListPage() {
                     <button onClick={() => router.push(`/quote/${q.id}/edit`)}
                       className="flex-1 flex items-center justify-center gap-1.5 bg-purple-50 text-purple-700 text-xs font-semibold py-2 rounded-xl hover:bg-purple-100">
                       <Edit3 size={13} /> {q.status === "draft" ? "ערוך טיוטה" : "ערוך"}
+                    </button>
+                    <button onClick={() => handleDuplicate(q)}
+                      className="flex items-center justify-center gap-1.5 bg-amber-50 text-amber-700 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-amber-100" title="שכפול">
+                      <Copy size={13} /> שכפל
                     </button>
                     {q.customer_phone && (
                       <a href={`https://api.whatsapp.com/send?phone=${(() => {

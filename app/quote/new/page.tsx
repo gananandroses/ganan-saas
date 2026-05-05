@@ -190,6 +190,25 @@ export default function QuotePage() {
     if (!title.trim()) { alert("חובה להזין כותרת להצעה"); setSaving(false); return; }
     if (items.length === 0) { alert("חובה להוסיף לפחות פריט אחד"); setSaving(false); return; }
 
+    // Generate sequential quote number (e.g., 2026-001)
+    const currentYear = new Date().getFullYear();
+    const { data: lastQuotes } = await supabase
+      .from("quotes")
+      .select("quote_seq")
+      .eq("user_id", user.id)
+      .eq("quote_year", currentYear)
+      .order("quote_seq", { ascending: false })
+      .limit(1);
+    const nextSeq = ((lastQuotes && lastQuotes[0]?.quote_seq) || 0) + 1;
+    const quoteNumber = `${currentYear}-${String(nextSeq).padStart(3, "0")}`;
+
+    // Generate public token for shareable link
+    const publicToken = (() => {
+      const arr = new Uint8Array(16);
+      crypto.getRandomValues(arr);
+      return Array.from(arr).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+    })();
+
     await supabase.from("quotes").insert({
       user_id: user.id,
       customer_id: customerMode === "existing" ? selectedCustomer?.id : null,
@@ -205,6 +224,10 @@ export default function QuotePage() {
       status: asDraft ? "draft" : "sent",
       valid_until: validUntil || null,
       notes: notes.trim() || null,
+      quote_number: quoteNumber,
+      quote_year: currentYear,
+      quote_seq: nextSeq,
+      public_token: publicToken,
     });
 
     setSaving(false);

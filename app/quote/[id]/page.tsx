@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Calendar, User as UserIcon, Phone, MapPin,
+  Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Calendar, User as UserIcon, Phone, MapPin, Copy, Eye, FileBox,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
@@ -22,6 +22,7 @@ interface QuoteData {
   customer_name: string;
   customer_phone: string | null;
   customer_address: string | null;
+  customer_id: string | null;
   items: QuoteItemDB[];
   markup_percent: number;
   subtotal_before_vat: number;
@@ -31,6 +32,14 @@ interface QuoteData {
   valid_until: string | null;
   notes: string | null;
   created_at: string;
+  quote_number: string | null;
+  public_token: string | null;
+  view_count: number | null;
+  viewed_at: string | null;
+  signed_at: string | null;
+  signed_by_name: string | null;
+  project_id: string | null;
+  user_id: string;
 }
 
 interface PaymentSettings {
@@ -117,6 +126,53 @@ export default function QuoteViewPage() {
   async function updateStatus(status: QuoteData["status"]) {
     if (!quote) return;
     setUpdating(true);
+
+    // If accepting → automatically create a project
+    if (status === "accepted" && !quote.project_id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id) {
+        // Convert quote items to project materials
+        const materials = quote.items.map(i => ({
+          name: i.name,
+          qty: i.qty,
+          unit: i.unit,
+          price: i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100)),
+          vatIncluded: false,
+        }));
+        const totalCost = materials.reduce((s, m) => s + m.qty * m.price, 0);
+
+        const { data: project } = await supabase.from("projects").insert({
+          user_id: user.id,
+          name: quote.title,
+          customer_id: quote.customer_id,
+          customer_name: quote.customer_name,
+          description: `נוצר מהצעת מחיר ${quote.quote_number || "#" + quote.id.slice(0, 8)}`,
+          start_date: new Date().toISOString().split("T")[0],
+          budget: quote.total_with_vat,
+          spent: totalCost,
+          status: "planning",
+          materials,
+          tasks: [],
+          labor_hours: 0,
+          hourly_rate: 0,
+          vat_included: true,
+          progress: 0,
+        }).select().single();
+
+        // Link the quote to the new project
+        if (project) {
+          await supabase.from("quotes").update({
+            status,
+            project_id: project.id,
+          }).eq("id", quote.id);
+          setQuote({ ...quote, status, project_id: project.id });
+          setUpdating(false);
+          alert(`✅ ההצעה אושרה!\nנוצר אוטומטית פרויקט חדש: "${quote.title}"`);
+          return;
+        }
+      }
+    }
+
     await supabase.from("quotes").update({ status }).eq("id", quote.id);
     setQuote({ ...quote, status });
     setUpdating(false);
@@ -129,6 +185,63 @@ export default function QuoteViewPage() {
     router.push("/quote");
   }
 
+  async function handleDuplicate() {
+    if (!quote) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Generate new quote number + token
+    const currentYear = new Date().getFullYear();
+    const { data: lastQuotes } = await supabase
+      .from("quotes")
+      .select("quote_seq")
+      .eq("user_id", user.id)
+      .eq("quote_year", currentYear)
+      .order("quote_seq", { ascending: false })
+      .limit(1);
+    const nextSeq = ((lastQuotes && lastQuotes[0]?.quote_seq) || 0) + 1;
+    const quoteNumber = `${currentYear}-${String(nextSeq).padStart(3, "0")}`;
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    const publicToken = Array.from(arr).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+
+    const { data: dupe } = await supabase.from("quotes").insert({
+      user_id: user.id,
+      customer_id: quote.customer_id,
+      customer_name: quote.customer_name,
+      customer_phone: quote.customer_phone,
+      customer_address: quote.customer_address,
+      title: `${quote.title} (העתק)`,
+      items: quote.items,
+      markup_percent: quote.markup_percent,
+      subtotal_before_vat: quote.subtotal_before_vat,
+      vat_amount: quote.vat_amount,
+      total_with_vat: quote.total_with_vat,
+      status: "draft",
+      valid_until: quote.valid_until,
+      notes: quote.notes,
+      quote_number: quoteNumber,
+      quote_year: currentYear,
+      quote_seq: nextSeq,
+      public_token: publicToken,
+    }).select().single();
+
+    if (dupe) {
+      router.push(`/quote/${dupe.id}/edit`);
+    }
+  }
+
+  async function copyPublicLink() {
+    if (!quote || !quote.public_token) return;
+    const url = `${window.location.origin}/q/${quote.public_token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      alert(`✅ הקישור הועתק!\n\n${url}\n\nהדבק אותו ב-WhatsApp / מייל ושלח ללקוח.`);
+    } catch {
+      prompt("העתק את הקישור:", url);
+    }
+  }
+
   function handlePrint() { window.print(); }
 
   function sendWhatsApp() {
@@ -138,25 +251,26 @@ export default function QuoteViewPage() {
     if (cleaned.startsWith("0")) intl = "972" + cleaned.slice(1);
     else if (cleaned.startsWith("972")) intl = cleaned;
 
-    let msg = `שלום ${quote.customer_name},\n\nמצורפת הצעת מחיר עבור "${quote.title}":\n\n`;
-    quote.items.forEach((i: QuoteItemDB) => {
-      const finalPrice = i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100));
-      msg += `• ${i.name}: ${i.qty} ${i.unit} × ${fmt(finalPrice)} = ${fmt(finalPrice * i.qty)}\n`;
-    });
-    msg += `\nסה"כ לפני מע"מ: ${fmt(quote.subtotal_before_vat)}`;
-    msg += `\nמע"מ (18%): ${fmt(quote.vat_amount)}`;
-    msg += `\nסה"כ לתשלום: ${fmt(quote.total_with_vat)}`;
-    if (quote.valid_until) msg += `\n\nההצעה בתוקף עד: ${formatDate(quote.valid_until)}`;
-    if (quote.notes) msg += `\n\nהערות: ${quote.notes}`;
+    // Use public link if available — much cleaner than full text
+    const publicUrl = quote.public_token ? `${window.location.origin}/q/${quote.public_token}` : null;
 
-    const lines: string[] = [];
-    if (settings.bitPhone) lines.push(`• Bit: ${settings.bitPhone}`);
-    if (settings.payboxPhone) lines.push(`• PayBox: ${settings.payboxPhone}`);
-    if (settings.bankName || settings.bankAccount) {
-      lines.push(`• העברה בנקאית: ${settings.bankName}${settings.bankBranch ? ` סניף ${settings.bankBranch}` : ""}${settings.bankAccount ? ` חשבון ${settings.bankAccount}` : ""}`);
+    let msg: string;
+    if (publicUrl) {
+      msg = `שלום ${quote.customer_name},\n\nמצורפת הצעת מחיר עבור "${quote.title}" 🌿\n\n`;
+      msg += `📄 צפייה ואישור:\n${publicUrl}\n\n`;
+      msg += `סה"כ: ${fmt(quote.total_with_vat)} (כולל מע"מ)`;
+      if (quote.valid_until) msg += `\nתוקף: ${formatDate(quote.valid_until)}`;
+      if (settings.businessName) msg += `\n\n${settings.businessName}`;
+    } else {
+      // Fallback for old quotes without token
+      msg = `שלום ${quote.customer_name},\n\nמצורפת הצעת מחיר עבור "${quote.title}":\n\n`;
+      quote.items.forEach((i: QuoteItemDB) => {
+        const finalPrice = i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100));
+        msg += `• ${i.name}: ${i.qty} ${i.unit} × ${fmt(finalPrice)} = ${fmt(finalPrice * i.qty)}\n`;
+      });
+      msg += `\nסה"כ לתשלום: ${fmt(quote.total_with_vat)}`;
+      if (settings.businessName) msg += `\n\n${settings.businessName}`;
     }
-    if (lines.length > 0) msg += `\n\nאמצעי תשלום:\n${lines.join("\n")}`;
-    if (settings.businessName) msg += `\n\n${settings.businessName}`;
 
     window.open(`https://api.whatsapp.com/send?phone=${intl}&text=${encodeURIComponent(msg)}`, "_blank");
   }
@@ -207,11 +321,21 @@ export default function QuoteViewPage() {
               {status.label}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => router.push(`/quote/${quote.id}/edit`)}
               className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">
               <Edit3 size={13} /> ערוך
             </button>
+            <button onClick={handleDuplicate}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-2 rounded-lg" title="שכפול">
+              <Copy size={13} /> שכפל
+            </button>
+            {quote.public_token && (
+              <button onClick={copyPublicLink}
+                className="flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg" title="העתק קישור ציבורי">
+                <Copy size={13} /> קישור
+              </button>
+            )}
             <button onClick={sendWhatsApp}
               className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-lg">
               <MessageSquare size={13} /> שלח
@@ -227,6 +351,28 @@ export default function QuoteViewPage() {
           </div>
         </div>
       </div>
+
+      {/* Activity tracking bar */}
+      {(quote.view_count || quote.signed_at || quote.project_id) && (
+        <div className="no-print bg-violet-50 border-b border-violet-100 px-4 py-2.5">
+          <div className="max-w-3xl mx-auto flex items-center gap-4 text-xs text-violet-800 flex-wrap">
+            {(quote.view_count || 0) > 0 && (
+              <span className="flex items-center gap-1"><Eye size={12} /> נצפה {quote.view_count} פעמים</span>
+            )}
+            {quote.signed_at && (
+              <span className="flex items-center gap-1 font-semibold">
+                ✍️ נחתם ע״י {quote.signed_by_name} · {formatDate(quote.signed_at)}
+              </span>
+            )}
+            {quote.project_id && (
+              <button onClick={() => router.push("/projects")}
+                className="flex items-center gap-1 text-violet-700 hover:text-violet-900 font-semibold underline">
+                <FileBox size={12} /> נוצר פרויקט מההצעה — צפה
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Status update bar (only for sent quotes) */}
       {quote.status === "sent" && (
@@ -273,7 +419,7 @@ export default function QuoteViewPage() {
               </div>
               <div className="text-left">
                 <p className="text-xs text-green-100 uppercase tracking-wider">מספר הצעה</p>
-                <p className="text-lg font-bold">#{quote.id.slice(0, 8).toUpperCase()}</p>
+                <p className="text-lg font-bold">{quote.quote_number ? `#${quote.quote_number}` : `#${quote.id.slice(0, 8).toUpperCase()}`}</p>
                 <p className="text-xs text-green-100 mt-2">תאריך: {formatDate(quote.created_at)}</p>
                 {quote.valid_until && <p className="text-xs text-green-100">תקף עד: {formatDate(quote.valid_until)}</p>}
               </div>
