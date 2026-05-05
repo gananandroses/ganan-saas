@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, Sparkles, BarChart3, Zap, FolderKanban,
-  Settings, LogOut, X, Leaf, Camera, Tag, FileText,
+  Settings, LogOut, X, Leaf, Camera, Tag, FileText, BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ const allItems = [
   { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
   { href: "/pricer", label: "מחירון גנן", icon: Tag },
   { href: "/quote", label: "הצעת מחיר ללקוח", icon: FileText },
+  { href: "/articles", label: "מרכז ידע", icon: BookOpen },
   { href: "/plants", label: "עולם הצמחים", icon: Leaf },
   { href: "/customers", label: "לקוחות (CRM)", icon: Users },
   { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
