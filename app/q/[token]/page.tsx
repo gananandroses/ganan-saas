@@ -46,6 +46,8 @@ interface QuoteData {
   deposit_amount: number | null;
   payment_status: "unpaid" | "pending_verification" | "deposit_paid" | "fully_paid" | null;
   payment_method: string | null;
+  payment_reference: string | null;
+  payment_proof_url: string | null;
 }
 
 interface Testimonial { customer_name: string; rating: number; text: string; location?: string }
@@ -102,6 +104,11 @@ export default function PublicQuotePage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pinVerified, setPinVerified] = useState(false);
   const [paymentMarking, setPaymentMarking] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   // Countdown timer for valid_until
   useEffect(() => {
@@ -285,23 +292,81 @@ export default function PublicQuotePage() {
     return true;
   }
 
-  // Mark payment as paid (manual confirmation by customer)
-  async function markPaymentReceived(method: string) {
-    if (!quote) return;
+  // Step 1: Customer chose method, show payment instructions + proof upload
+  function selectPaymentMethod(method: string) {
+    setSelectedMethod(method);
+  }
+
+  function handleProofChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("הקובץ גדול מדי. מקסימום 5MB.");
+      return;
+    }
+    setProofFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setProofPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  // Final submit: upload proof, save reference, signature, status=pending_verification
+  async function submitPaymentProofAndSign() {
+    if (!quote || !signerName.trim() || !hasSignature) return;
+    if (!paymentReference.trim()) {
+      alert("חובה להזין מספר אסמכתא של התשלום");
+      return;
+    }
     setPaymentMarking(true);
+    setUploadingProof(true);
+
+    let proofUrl: string | null = null;
+    if (proofFile) {
+      const ext = proofFile.name.split(".").pop() || "jpg";
+      const path = `${quote.id}/proof-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("payment-proofs")
+        .upload(path, proofFile, { upsert: true });
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from("payment-proofs").getPublicUrl(path);
+        proofUrl = urlData.publicUrl;
+      }
+    }
+    setUploadingProof(false);
+
+    const canvas = canvasRef.current;
+    const sigData = canvas ? canvas.toDataURL("image/png") : null;
+
+    setSigning(true);
     await supabase.from("quotes").update({
       payment_status: "pending_verification",
-      payment_method: method,
+      payment_method: selectedMethod,
       payment_marked_at: new Date().toISOString(),
+      payment_reference: paymentReference.trim(),
+      payment_proof_url: proofUrl,
+      signed_at: new Date().toISOString(),
+      signature_data: sigData,
+      signed_by_name: signerName.trim(),
+      // status stays "sent" — quote becomes "accepted" only when seller verifies payment
+      pin_code: null,
+      pin_attempts: 0,
+      pin_locked_until: null,
     }).eq("public_token", token);
+
     setQuote({
       ...quote,
       payment_status: "pending_verification",
-      payment_method: method,
+      payment_method: selectedMethod,
+      payment_reference: paymentReference.trim(),
+      payment_proof_url: proofUrl,
+      signed_at: new Date().toISOString(),
+      signature_data: sigData,
+      signed_by_name: signerName.trim(),
+      pin_code: null,
     });
+    setSigning(false);
     setPaymentMarking(false);
     setShowPaymentModal(false);
-    setShowSignModal(true); // proceed to signature
   }
 
   async function handleSign() {
@@ -365,6 +430,7 @@ export default function PublicQuotePage() {
   });
 
   const isAccepted = quote.status === "accepted";
+  const isPendingVerification = quote.payment_status === "pending_verification" && !!quote.signed_at;
   const titleLabel = profile?.quote_title_label || "הצעת מחיר";
 
   return (
@@ -388,9 +454,8 @@ export default function PublicQuotePage() {
               className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg">
               <Printer size={13} /> הדפס
             </button>
-            {!isAccepted && (
+            {!isAccepted && !isPendingVerification && (
               <button onClick={() => {
-                  // If deposit > 0, show payment modal first; else go straight to signature
                   if ((quote.deposit_amount ?? 0) > 0 && quote.payment_status === "unpaid") {
                     setShowPaymentModal(true);
                   } else {
@@ -400,6 +465,11 @@ export default function PublicQuotePage() {
                 className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">
                 <CheckCircle2 size={14} /> אשר ההצעה
               </button>
+            )}
+            {isPendingVerification && (
+              <span className="flex items-center gap-1.5 bg-amber-100 text-amber-800 text-xs font-bold px-3 py-2 rounded-lg">
+                ⏳ ממתין לאימות תשלום
+              </span>
             )}
             {isAccepted && (
               <span className="flex items-center gap-1.5 bg-green-100 text-green-800 text-xs font-bold px-3 py-2 rounded-lg">
@@ -587,11 +657,10 @@ export default function PublicQuotePage() {
             </div>
 
             {/* Big CTA inside body */}
-            {!isAccepted && (
+            {!isAccepted && !isPendingVerification && (
               <div className="no-print mt-6 bg-gradient-to-l from-green-500 to-emerald-600 rounded-2xl p-5 text-white text-center shadow-lg">
                 <p className="text-sm font-semibold mb-3">מאשר את ההצעה?</p>
                 <button onClick={() => {
-                  // If deposit > 0, show payment modal first; else go straight to signature
                   if ((quote.deposit_amount ?? 0) > 0 && quote.payment_status === "unpaid") {
                     setShowPaymentModal(true);
                   } else {
@@ -602,6 +671,23 @@ export default function PublicQuotePage() {
                   <CheckCircle2 size={18} /> חתום ואשר עכשיו
                 </button>
                 <p className="text-xs text-green-50 mt-2">⚡ אישור מיידי · ללא צורך בהדפסה</p>
+              </div>
+            )}
+
+            {/* Pending verification banner */}
+            {isPendingVerification && (
+              <div className="mt-6 bg-gradient-to-l from-amber-100 to-yellow-100 border-2 border-amber-300 rounded-2xl p-5 text-center">
+                <div className="text-4xl mb-2">⏳</div>
+                <p className="text-base font-black text-amber-900 mb-1">תודה! קיבלנו את ההזמנה</p>
+                <p className="text-sm text-amber-800 mb-3">החתימה שלך והוכחת התשלום נשלחו לספק.</p>
+                <div className="bg-white rounded-xl p-3 text-right text-xs text-gray-700 space-y-1">
+                  {quote.payment_reference && <p><span className="text-gray-500">אסמכתא:</span> <span className="font-mono font-bold">{quote.payment_reference}</span></p>}
+                  {quote.signed_by_name && <p><span className="text-gray-500">חתימת:</span> <strong>{quote.signed_by_name}</strong></p>}
+                  {quote.signed_at && <p><span className="text-gray-500">תאריך:</span> {formatDate(quote.signed_at)}</p>}
+                </div>
+                <p className="text-xs text-amber-700 mt-3">
+                  הספק יאמת את התשלום בבנק שלו ויעדכן אותך בהקדם (תוך 24 שעות).
+                </p>
               </div>
             )}
 
@@ -771,8 +857,8 @@ export default function PublicQuotePage() {
                 </div>
               )}
 
-              {/* Step 2: Payment options */}
-              {pinVerified && (
+              {/* Step 2: Payment method selection (no method chosen yet) */}
+              {pinVerified && !selectedMethod && (
                 <div className="p-5 space-y-2.5 overflow-y-auto flex-1">
                   <p className="text-sm font-semibold text-gray-800 mb-1">בחר אופציית תשלום:</p>
 
@@ -788,9 +874,8 @@ export default function PublicQuotePage() {
                   )}
 
                   {allowBit && (
-                    <button onClick={() => markPaymentReceived("bit")}
-                      disabled={paymentMarking}
-                      className="w-full flex items-center gap-3 p-3 border-2 border-blue-200 hover:bg-blue-50 rounded-2xl text-right transition-colors disabled:opacity-50">
+                    <button onClick={() => selectPaymentMethod("bit")}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-blue-200 hover:bg-blue-50 rounded-2xl text-right transition-colors">
                       <div className="text-3xl">💸</div>
                       <div className="flex-1">
                         <p className="font-bold text-gray-900 text-sm">Bit</p>
@@ -800,9 +885,8 @@ export default function PublicQuotePage() {
                   )}
 
                   {allowPayBox && (
-                    <button onClick={() => markPaymentReceived("paybox")}
-                      disabled={paymentMarking}
-                      className="w-full flex items-center gap-3 p-3 border-2 border-purple-200 hover:bg-purple-50 rounded-2xl text-right transition-colors disabled:opacity-50">
+                    <button onClick={() => selectPaymentMethod("paybox")}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-purple-200 hover:bg-purple-50 rounded-2xl text-right transition-colors">
                       <div className="text-3xl">📱</div>
                       <div className="flex-1">
                         <p className="font-bold text-gray-900 text-sm">PayBox</p>
@@ -812,9 +896,8 @@ export default function PublicQuotePage() {
                   )}
 
                   {allowBank && (
-                    <button onClick={() => markPaymentReceived("bank")}
-                      disabled={paymentMarking}
-                      className="w-full flex items-center gap-3 p-3 border-2 border-gray-200 hover:bg-gray-50 rounded-2xl text-right transition-colors disabled:opacity-50">
+                    <button onClick={() => selectPaymentMethod("bank")}
+                      className="w-full flex items-center gap-3 p-3 border-2 border-gray-200 hover:bg-gray-50 rounded-2xl text-right transition-colors">
                       <div className="text-3xl">🏦</div>
                       <div className="flex-1">
                         <p className="font-bold text-gray-900 text-sm">העברה בנקאית</p>
@@ -858,6 +941,121 @@ export default function PublicQuotePage() {
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 mt-3">
                     💡 לאחר ביצוע התשלום, לחץ על השיטה שבחרת וחתום על ההצעה.
                   </div>
+                </div>
+              )}
+
+              {/* Step 3: Payment instructions + proof + signature */}
+              {pinVerified && selectedMethod && (
+                <div className="p-5 space-y-4 overflow-y-auto flex-1">
+                  {/* Back button */}
+                  <button onClick={() => setSelectedMethod(null)}
+                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1 font-semibold">
+                    ← חזור לבחירת שיטה
+                  </button>
+
+                  {/* Payment instructions per method */}
+                  {selectedMethod === "bit" && (
+                    <div className="bg-gradient-to-l from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl p-4 text-center space-y-2">
+                      <div className="text-4xl">💸</div>
+                      <p className="text-sm font-bold text-blue-900">שלח Bit עכשיו</p>
+                      <div className="bg-white rounded-xl p-3 mt-2">
+                        <p className="text-xs text-gray-500">לטלפון:</p>
+                        <p className="text-2xl font-black text-blue-700 tracking-wide">{profile?.bit_phone}</p>
+                        <p className="text-xs text-gray-500 mt-2">סכום:</p>
+                        <p className="text-2xl font-black text-blue-700">{fmt(depositAmount)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {selectedMethod === "paybox" && (
+                    <div className="bg-gradient-to-l from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 text-center space-y-2">
+                      <div className="text-4xl">📱</div>
+                      <p className="text-sm font-bold text-purple-900">שלח PayBox עכשיו</p>
+                      <div className="bg-white rounded-xl p-3 mt-2">
+                        <p className="text-xs text-gray-500">לטלפון:</p>
+                        <p className="text-2xl font-black text-purple-700 tracking-wide">{profile?.paybox_phone}</p>
+                        <p className="text-xs text-gray-500 mt-2">סכום:</p>
+                        <p className="text-2xl font-black text-purple-700">{fmt(depositAmount)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {selectedMethod === "bank" && (
+                    <div className="bg-gradient-to-l from-gray-50 to-slate-100 border-2 border-gray-300 rounded-2xl p-4 text-center space-y-2">
+                      <div className="text-4xl">🏦</div>
+                      <p className="text-sm font-bold text-gray-900">בצע העברה בנקאית</p>
+                      <div className="bg-white rounded-xl p-3 mt-2 text-right space-y-1">
+                        {profile?.bank_name && <p className="text-sm"><span className="text-gray-500">בנק:</span> <strong>{profile.bank_name}</strong></p>}
+                        {profile?.bank_branch && <p className="text-sm"><span className="text-gray-500">סניף:</span> <strong>{profile.bank_branch}</strong></p>}
+                        {profile?.bank_account && <p className="text-sm"><span className="text-gray-500">חשבון:</span> <strong>{profile.bank_account}</strong></p>}
+                        {profile?.business_name && <p className="text-sm"><span className="text-gray-500">לפקודת:</span> <strong>{profile.business_name}</strong></p>}
+                        <p className="text-sm pt-2 border-t border-gray-100"><span className="text-gray-500">סכום:</span> <strong className="text-lg text-gray-900">{fmt(depositAmount)}</strong></p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 leading-relaxed">
+                    ⚠️ <strong>שלב 1:</strong> בצע את התשלום באפליקציה / בנק.<br/>
+                    <strong>שלב 2:</strong> חזור לכאן והזן אסמכתא + העלה צילום מסך + חתום.<br/>
+                    <strong>שלב 3:</strong> הספק יאמת את התשלום בבנק שלו ואז ההצעה תאושר רשמית.
+                  </div>
+
+                  {/* Proof form */}
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-800 mb-1.5">📌 מספר אסמכתא / Reference *</label>
+                      <input value={paymentReference} onChange={e => setPaymentReference(e.target.value)}
+                        placeholder="לדוגמה: 123456789"
+                        className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+                      <p className="text-[11px] text-gray-400 mt-1">המספר שמופיע באישור התשלום שקיבלת</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-800 mb-1.5">📷 צילום מסך של האישור (אופציונלי)</label>
+                      {!proofPreview ? (
+                        <label className="flex flex-col items-center justify-center w-full py-6 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
+                          <span className="text-3xl">📤</span>
+                          <span className="text-xs text-gray-500 mt-1">לחץ להעלאת תמונה</span>
+                          <input type="file" accept="image/*" onChange={handleProofChange} className="hidden" />
+                        </label>
+                      ) : (
+                        <div className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={proofPreview} alt="הוכחת תשלום" className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+                          <button onClick={() => { setProofFile(null); setProofPreview(null); }}
+                            className="absolute top-2 left-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-bold">
+                            <X size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-800 mb-1.5">שם מלא לחתימה *</label>
+                      <input value={signerName} onChange={e => setSignerName(e.target.value)}
+                        placeholder="שם מלא"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-bold text-gray-800">חתימה *</label>
+                        <button type="button" onClick={clearSignature} className="text-xs text-gray-500 hover:text-red-600 font-medium">נקה</button>
+                      </div>
+                      <canvas ref={canvasRef} width={600} height={200}
+                        className="w-full border-2 border-gray-200 rounded-xl bg-gray-50 touch-none cursor-crosshair"
+                        style={{ aspectRatio: "3/1" }} />
+                    </div>
+                  </div>
+
+                  <button onClick={submitPaymentProofAndSign}
+                    disabled={paymentMarking || signing || uploadingProof || !paymentReference.trim() || !signerName.trim() || !hasSignature}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-base font-bold mt-2">
+                    {(paymentMarking || signing || uploadingProof) ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                    {uploadingProof ? "מעלה תמונה..." : signing ? "שומר..." : "סיימתי לשלם → חתום ושלח לאימות"}
+                  </button>
+
+                  <p className="text-[11px] text-gray-500 text-center">
+                    ההצעה תקבל אישור סופי לאחר שהספק יאמת את התשלום בבנק שלו (תוך 24 שעות).
+                  </p>
                 </div>
               )}
             </div>

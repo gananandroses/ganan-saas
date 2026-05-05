@@ -53,6 +53,8 @@ interface QuoteData {
   payment_method: string | null;
   payment_marked_at: string | null;
   payment_verified_at: string | null;
+  payment_reference: string | null;
+  payment_proof_url: string | null;
 }
 
 interface PaymentSettings {
@@ -282,17 +284,57 @@ export default function QuoteViewPage() {
 
   async function verifyPayment() {
     if (!quote) return;
-    if (!confirm("מאשר שקיבלת את התשלום? פעולה זו לא ניתנת לביטול.")) return;
+    if (!confirm("מאשר שקיבלת את התשלום בבנק שלך? ההצעה תאושר ופרויקט ייווצר אוטומטית.")) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 1) Mark payment verified + quote accepted
     await supabase.from("quotes").update({
       payment_status: "deposit_paid",
       payment_verified_at: new Date().toISOString(),
+      status: "accepted",
     }).eq("id", quote.id);
+
+    // 2) Auto-create project (if not already)
+    if (!quote.project_id) {
+      const materials = quote.items.map(i => ({
+        name: i.name,
+        qty: i.qty,
+        unit: i.unit,
+        price: i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100)),
+        vatIncluded: false,
+      }));
+      const totalCost = materials.reduce((s, m) => s + m.qty * m.price, 0);
+      const { data: project } = await supabase.from("projects").insert({
+        user_id: user.id,
+        name: quote.title,
+        customer_id: quote.customer_id,
+        customer_name: quote.customer_name,
+        description: `נוצר אוטומטית מהצעה אושרה ${quote.quote_number ? `#${quote.quote_number}` : ""}`,
+        start_date: new Date().toISOString().split("T")[0],
+        budget: quote.total_with_vat,
+        spent: totalCost,
+        status: "planning",
+        materials,
+        tasks: [],
+        labor_hours: 0,
+        hourly_rate: 0,
+        vat_included: true,
+        progress: 0,
+      }).select().single();
+      if (project) {
+        await supabase.from("quotes").update({ project_id: project.id }).eq("id", quote.id);
+      }
+    }
+
     setQuote({
       ...quote,
       payment_status: "deposit_paid",
       payment_verified_at: new Date().toISOString(),
+      status: "accepted",
     });
-    showToast("✅ התשלום אומת");
+    showToast("✅ התשלום אומת! ההצעה אושרה ופרויקט נוצר");
   }
 
   async function copyBothLinkAndPin() {
@@ -474,11 +516,39 @@ export default function QuoteViewPage() {
             </div>
           </div>
           {quote.payment_method && quote.payment_marked_at && (
-            <p className="text-[11px] text-gray-500 mt-1.5 max-w-3xl mx-auto">
-              שיטת תשלום: {quote.payment_method === "bit" ? "💸 Bit" : quote.payment_method === "paybox" ? "📱 PayBox" : quote.payment_method === "bank" ? "🏦 העברה בנקאית" : quote.payment_method === "meshulam" ? "💳 משולם" : quote.payment_method}
-              · סומן בתאריך {formatDate(quote.payment_marked_at)}
-              {quote.payment_verified_at && ` · אומת בתאריך ${formatDate(quote.payment_verified_at)}`}
-            </p>
+            <div className="max-w-3xl mx-auto mt-3 space-y-2">
+              <p className="text-[11px] text-gray-500">
+                שיטת תשלום: {quote.payment_method === "bit" ? "💸 Bit" : quote.payment_method === "paybox" ? "📱 PayBox" : quote.payment_method === "bank" ? "🏦 העברה בנקאית" : quote.payment_method === "meshulam" ? "💳 משולם" : quote.payment_method}
+                · סומן בתאריך {formatDate(quote.payment_marked_at)}
+                {quote.payment_verified_at && ` · אומת בתאריך ${formatDate(quote.payment_verified_at)}`}
+              </p>
+
+              {/* Payment proof */}
+              {(quote.payment_reference || quote.payment_proof_url) && quote.payment_status === "pending_verification" && (
+                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3 space-y-2">
+                  <p className="text-xs font-bold text-amber-900">📋 הוכחת תשלום מהלקוח</p>
+                  {quote.payment_reference && (
+                    <div className="bg-white rounded-lg px-3 py-2">
+                      <span className="text-[11px] text-gray-500">מספר אסמכתא:</span>
+                      <p className="font-mono font-bold text-gray-900 text-sm">{quote.payment_reference}</p>
+                    </div>
+                  )}
+                  {quote.payment_proof_url && (
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-1">צילום מסך:</p>
+                      <a href={quote.payment_proof_url} target="_blank" rel="noreferrer" className="block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={quote.payment_proof_url} alt="הוכחת תשלום" className="w-full max-h-64 object-contain rounded-lg border border-amber-200 bg-white cursor-pointer hover:opacity-90" />
+                      </a>
+                      <p className="text-[10px] text-gray-400 mt-1">לחץ על התמונה לצפייה בגדול</p>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    ⓘ ודא בבנק / Bit שלך שהתשלום אכן נכנס ואז לחץ <strong>&quot;אמת תשלום&quot;</strong>. עם האימות — ההצעה תאושר ויווצר פרויקט.
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
