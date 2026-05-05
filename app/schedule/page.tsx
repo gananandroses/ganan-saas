@@ -14,6 +14,8 @@ type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 type Priority = "low" | "medium" | "high" | "urgent";
 type JobCategory = "work" | "quote" | "followup";
 
+type CancellationReason = "no_show" | "force_majeure" | null;
+
 interface Job {
   id: string;
   customerId: string | null;
@@ -31,6 +33,7 @@ interface Job {
   notes?: string;
   priority: Priority;
   jobCategory: JobCategory;
+  cancellationReason?: CancellationReason;
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -256,6 +259,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   const [completing, setCompleting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   async function handleComplete() {
     setCompleting(true);
@@ -300,12 +304,27 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   }
 
   async function handleDelete() {
-    if (!confirm(`למחוק את העבודה עם ${job.customerName}?`)) return;
     setDeleting(true);
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("jobs").delete().eq("id", job.id).eq("user_id", user?.id);
     onDeleted(job.id);
     onClose();
+  }
+
+  async function handleCancel(reason: "no_show" | "force_majeure") {
+    setDeleting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("jobs")
+      .update({ status: "cancelled", cancellation_reason: reason })
+      .eq("id", job.id).eq("user_id", user?.id);
+    setDeleting(false);
+    setShowCancelModal(false);
+    // Use onDeleted to remove from list (the job still exists in DB but is "cancelled")
+    onDeleted(job.id);
+    onClose();
+    // Show toast/alert
+    const reasonLabel = reason === "no_show" ? "לא הופיע" : "בלת״מ";
+    alert(`✅ העבודה של ${job.customerName} סומנה כ"${reasonLabel}".\nהלקוח יופיע בתור הפעולות לתיאום מחדש.`);
   }
 
   return (
@@ -432,7 +451,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
             <AlertCircle size={14} /> עריכה
           </button>
           <button
-            onClick={handleDelete}
+            onClick={() => setShowCancelModal(true)}
             disabled={deleting}
             className="w-11 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-2xl py-3 transition-colors"
           >
@@ -442,6 +461,71 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
 
         {showEdit && (
           <EditJobModal job={job} onClose={() => setShowEdit(false)} onSaved={updated => { onEdited(updated); onClose(); }} />
+        )}
+
+        {/* Cancel/Delete Modal */}
+        {showCancelModal && (
+          <div className="fixed inset-0 z-[70] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowCancelModal(false)}>
+            <div className="bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" dir="rtl">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-base font-bold text-gray-900">מה לעשות עם העבודה?</h3>
+                <button onClick={() => setShowCancelModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-5 space-y-2.5">
+                <button
+                  onClick={() => handleCancel("no_show")}
+                  disabled={deleting}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 text-right transition-colors"
+                >
+                  <span className="text-2xl">⏰</span>
+                  <div className="flex-1">
+                    <p className="font-bold text-amber-800 text-sm">לקוח לא הופיע</p>
+                    <p className="text-xs text-amber-600 mt-0.5">העבודה תסומן כמבוטלת. הלקוח יופיע באוטומציות לתיאום מחדש.</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleCancel("force_majeure")}
+                  disabled={deleting}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 text-right transition-colors"
+                >
+                  <span className="text-2xl">⛈️</span>
+                  <div className="flex-1">
+                    <p className="font-bold text-blue-800 text-sm">בלת״מ</p>
+                    <p className="text-xs text-blue-600 mt-0.5">בלתי מתוכנן (גשם, מחלה וכו'). הלקוח יופיע באוטומציות לתיאום מחדש.</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (confirm(`למחוק לצמיתות את העבודה עם ${job.customerName}?\nפעולה זו לא ניתנת לביטול.`)) {
+                      handleDelete();
+                      setShowCancelModal(false);
+                    }
+                  }}
+                  disabled={deleting}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-red-200 bg-red-50 hover:bg-red-100 text-right transition-colors"
+                >
+                  <span className="text-2xl">🗑️</span>
+                  <div className="flex-1">
+                    <p className="font-bold text-red-800 text-sm">מחיקה לצמיתות</p>
+                    <p className="text-xs text-red-600 mt-0.5">העבודה תמחק כליל מהמערכת. לא ניתן לשחזר.</p>
+                  </div>
+                </button>
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={deleting}
+                  className="w-full py-3 rounded-2xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -800,6 +884,7 @@ export default function SchedulePage() {
         status: row.status as TaskStatus, assignedTo: row.assigned_to ?? [],
         price: Number(row.price), priceBeforeVat: Boolean(row.price_before_vat),
         expenses: Number(row.expenses ?? 0),
+        cancellationReason: (row.cancellation_reason ?? null) as CancellationReason,
         notes: row.notes ?? undefined,
         priority: (row.priority ?? "medium") as Priority,
         jobCategory: (row.job_category ?? "work") as JobCategory,

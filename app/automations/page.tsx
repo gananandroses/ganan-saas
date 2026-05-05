@@ -20,7 +20,7 @@ import {
 // Types
 // ─────────────────────────────────────────────────────────────
 
-type ActionType = "tomorrow_visit" | "open_debt" | "completed_today" | "inactive_customer";
+type ActionType = "tomorrow_visit" | "open_debt" | "completed_today" | "inactive_customer" | "missed_visit";
 
 interface ActionItem {
   id: string;
@@ -43,6 +43,7 @@ interface JobRow {
   address: string | null;
   price: number;
   price_before_vat: boolean;
+  cancellation_reason?: string | null;
 }
 
 interface TxRow {
@@ -125,6 +126,8 @@ const DEFAULT_TEMPLATES: Record<ActionType, string> = {
     "שלום {name},\nסיימנו את {type} היום. תודה שבחרתם בנו! 🌿\nאם הכל מצא חן בעיניך — נשמח לדירוג / המלצה.{paymentBlock}\n\n{businessName}",
   inactive_customer:
     "שלום {name},\nמזמן לא נפגשנו! עברו {days} ימים מאז הביקור האחרון.\nרוצה לקבוע ביקור או טיפול עונתי? כתוב לי כאן 🌸\n\n{businessName}",
+  missed_visit:
+    "שלום {name},\nהביקור המתוכנן ב-{date} לא יצא לפועל ({reason}).\nמתי נוח לך לתאם תאריך חדש? 📅\n\n{businessName}",
 };
 
 const TEMPLATE_KEY_PREFIX = "automation_template_";
@@ -193,6 +196,15 @@ function buildInactiveCustomerMsg(name: string, daysSince: number, businessName:
   });
 }
 
+function buildMissedVisitMsg(name: string, date: string, reasonLabel: string, businessName: string): string {
+  return applyTemplate(loadTemplate("missed_visit"), {
+    name,
+    date: date || "",
+    reason: reasonLabel || "ביטול",
+    businessName: businessName || "",
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────
@@ -224,6 +236,7 @@ export default function AutomationsPage() {
     open_debt: DEFAULT_TEMPLATES.open_debt,
     completed_today: DEFAULT_TEMPLATES.completed_today,
     inactive_customer: DEFAULT_TEMPLATES.inactive_customer,
+    missed_visit: DEFAULT_TEMPLATES.missed_visit,
   });
   const [templateRefresh, setTemplateRefresh] = useState(0); // bump to re-render actions
 
@@ -233,6 +246,7 @@ export default function AutomationsPage() {
       open_debt: loadTemplate("open_debt"),
       completed_today: loadTemplate("completed_today"),
       inactive_customer: loadTemplate("inactive_customer"),
+      missed_visit: loadTemplate("missed_visit"),
     });
     setShowTemplates(true);
   }
@@ -255,6 +269,7 @@ export default function AutomationsPage() {
     open_debt: false,
     completed_today: false,
     inactive_customer: false,
+    missed_visit: false,
   });
 
   useEffect(() => {
@@ -404,6 +419,25 @@ export default function AutomationsPage() {
         };
       });
 
+    // 5) Missed visits (cancelled with reason — needs rescheduling)
+    const missedVisits: ActionItem[] = jobs
+      .filter(j => j.status === "cancelled" && (j.cancellation_reason === "no_show" || j.cancellation_reason === "force_majeure"))
+      .sort((a, b) => (b.job_date || "").localeCompare(a.job_date || ""))
+      .map(j => {
+        const c = findCustomer(j.customer_id, j.customer_name);
+        const reasonLabel = j.cancellation_reason === "no_show" ? "לקוח לא הופיע" : "בלת״מ";
+        return {
+          id: `missed:${j.id}`,
+          type: "missed_visit" as ActionType,
+          customerId: c?.id ?? "",
+          customerName: j.customer_name,
+          phone: c?.phone ?? "",
+          meta: { date: j.job_date, reasonLabel, reason: j.cancellation_reason ?? "" },
+          message: buildMissedVisitMsg(j.customer_name, j.job_date, reasonLabel, settings.businessName),
+        };
+      });
+
+    items.push({ type: "missed_visit", list: missedVisits });
     items.push({ type: "tomorrow_visit", list: tomorrowVisits });
     items.push({ type: "open_debt", list: openDebts });
     items.push({ type: "completed_today", list: completedToday });
@@ -431,7 +465,52 @@ export default function AutomationsPage() {
       alert(`לא נמצא טלפון ללקוח "${action.customerName}".\nודא שהלקוח רשום ב-CRM עם טלפון תקין.`);
       return;
     }
-    setWaModal({ phone: intl, message: action.message, actionId: action.id });
+    // Rebuild message fresh from action's own data — defensively per-click
+    // (not from memoized action.message which could be stale)
+    const freshMessage = rebuildMessage(action);
+    setWaModal({ phone: intl, message: freshMessage, actionId: action.id });
+  }
+
+  // Rebuild message fresh from action's own data — defensively per click
+  function rebuildMessage(action: ActionItem): string {
+    switch (action.type) {
+      case "tomorrow_visit":
+        return buildTomorrowVisitMsg(
+          action.customerName,
+          (action.meta.time as string) || "",
+          (action.meta.type as string) || "",
+          settings.businessName
+        );
+      case "open_debt":
+        return buildDebtReminderMsg(
+          action.customerName,
+          action.meta.amount as number,
+          (action.meta.description as string) || "",
+          action.meta.days as number,
+          settings
+        );
+      case "completed_today":
+        return buildCompletedTodayMsg(
+          action.customerName,
+          (action.meta.type as string) || "",
+          settings
+        );
+      case "inactive_customer":
+        return buildInactiveCustomerMsg(
+          action.customerName,
+          action.meta.daysSince as number,
+          settings.businessName
+        );
+      case "missed_visit":
+        return buildMissedVisitMsg(
+          action.customerName,
+          (action.meta.date as string) || "",
+          (action.meta.reasonLabel as string) || "ביטול",
+          settings.businessName
+        );
+      default:
+        return action.message;
+    }
   }
 
   function confirmSend() {
@@ -449,7 +528,7 @@ export default function AutomationsPage() {
       alert("אין פעולות זמינות לשליחה (רק ללקוחות עם טלפון רשום).");
       return;
     }
-    setWizard({ actions: allActions, index: 0, editedMessage: allActions[0].message });
+    setWizard({ actions: allActions, index: 0, editedMessage: rebuildMessage(allActions[0]) });
   }
 
   function wizardSendAndAdvance() {
@@ -468,7 +547,7 @@ export default function AutomationsPage() {
     if (nextIdx >= wizard.actions.length) {
       setWizard(null); // done
     } else {
-      setWizard({ actions: wizard.actions, index: nextIdx, editedMessage: wizard.actions[nextIdx].message });
+      setWizard({ actions: wizard.actions, index: nextIdx, editedMessage: rebuildMessage(wizard.actions[nextIdx]) });
     }
   }
 
@@ -477,6 +556,13 @@ export default function AutomationsPage() {
   // ─────────────────────────────────────────────────────────────
 
   const sectionConfig: Record<ActionType, { title: string; icon: React.ReactNode; color: string; bgColor: string; emptyText: string }> = {
+    missed_visit: {
+      title: "🔥 דרושים תיאום מחדש (דחוף)",
+      icon: <Calendar size={18} />,
+      color: "text-red-700",
+      bgColor: "bg-red-50 border-red-300",
+      emptyText: "אין ביקורים שצריכים תיאום מחדש",
+    },
     tomorrow_visit: {
       title: "ביקורים מחר",
       icon: <Calendar size={18} />,
@@ -713,6 +799,7 @@ export default function AutomationsPage() {
                 { type: "open_debt" as ActionType, title: "💰 תזכורת תשלום (חוב פתוח)", color: "amber" },
                 { type: "completed_today" as ActionType, title: "✅ סיכום עבודה שהושלמה", color: "green" },
                 { type: "inactive_customer" as ActionType, title: "🌸 לקוח לא פעיל", color: "pink" },
+                { type: "missed_visit" as ActionType, title: "🔥 תיאום מחדש (לא הופיע / בלת״מ)", color: "red" },
               ]).map(({ type, title }) => {
                 const isCustom = templates[type] !== DEFAULT_TEMPLATES[type];
                 return (
@@ -814,6 +901,8 @@ function ActionRow({ action, onSend, onDismiss }: { action: ActionItem; onSend: 
     subtitle = (action.meta.type as string) || "עבודה הושלמה";
   } else if (action.type === "inactive_customer") {
     subtitle = `${action.meta.daysSince} ימים מאז ביקור אחרון`;
+  } else if (action.type === "missed_visit") {
+    subtitle = `${action.meta.reasonLabel} · ${action.meta.date}`;
   }
 
   return (
