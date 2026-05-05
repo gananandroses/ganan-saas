@@ -462,7 +462,6 @@ function ProjectFormModal({
   );
   const [existingCustomers, setExistingCustomers] = useState<CustomerOption[]>([]);
   const [customerSearch, setCustomerSearch] = useState(initial?.customerName ?? "");
-  const [showCustomerList, setShowCustomerList] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -479,7 +478,6 @@ function ProjectFormModal({
   function handleSelectCustomer(c: CustomerOption) {
     setForm(p => ({ ...p, customer_name: c.name }));
     setCustomerSearch(c.name);
-    setShowCustomerList(false);
   }
 
   const filteredCustomers = existingCustomers.filter(c =>
@@ -607,51 +605,66 @@ function ProjectFormModal({
                 👤 לקוח קיים
               </button>
               <button type="button" onClick={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: "" })); setCustomerSearch(""); }}
+
                 className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "new" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200 hover:border-green-300"}`}>
                 ✨ לקוח חדש
               </button>
             </div>
             {customerMode === "existing" ? (
-              <div className="relative">
-                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                <input
-                  value={customerSearch}
-                  onChange={e => { setCustomerSearch(e.target.value); setShowCustomerList(true); }}
-                  onFocus={() => setShowCustomerList(true)}
-                  onBlur={() => setTimeout(() => setShowCustomerList(false), 200)}
-                  placeholder={existingCustomers.length === 0 ? "אין לקוחות במערכת — עבור ל'לקוח חדש'" : `חפש בין ${existingCustomers.length} לקוחות...`}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-                {showCustomerList && (
-                  <div className="absolute z-30 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                    {existingCustomers.length === 0 ? (
-                      <div className="px-4 py-4 text-center text-sm text-gray-500">
-                        <p>אין לקוחות במערכת.</p>
-                        <button type="button" onMouseDown={() => setCustomerMode("new")}
-                          className="text-green-600 hover:text-green-700 font-semibold mt-1">
-                          ✨ צור לקוח חדש
-                        </button>
-                      </div>
-                    ) : filteredCustomers.length === 0 ? (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    value={customerSearch}
+                    onChange={e => setCustomerSearch(e.target.value)}
+                    placeholder={existingCustomers.length === 0 ? "אין לקוחות במערכת — עבור ל'לקוח חדש'" : `חפש בין ${existingCustomers.length} לקוחות...`}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+                {/* Always-visible customers list */}
+                {existingCustomers.length > 0 ? (
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-sm max-h-56 overflow-y-auto">
+                    {filteredCustomers.length === 0 ? (
                       <div className="px-4 py-4 text-center text-sm text-gray-500">
                         <p>לא נמצא לקוח &quot;{customerSearch}&quot;.</p>
                         <button type="button"
-                          onMouseDown={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: customerSearch })); }}
+                          onClick={() => { setCustomerMode("new"); setForm(p => ({ ...p, customer_name: customerSearch })); }}
                           className="text-green-600 hover:text-green-700 font-semibold mt-1">
                           ✨ צור לקוח חדש בשם זה
                         </button>
                       </div>
                     ) : (
-                      filteredCustomers.map(c => (
-                        <button key={c.id} type="button"
-                          onMouseDown={() => handleSelectCustomer(c)}
-                          className="w-full text-right px-4 py-2.5 hover:bg-green-50 transition-colors border-b border-gray-50 last:border-0">
-                          <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                          {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
-                        </button>
-                      ))
+                      filteredCustomers.map(c => {
+                        const isSelected = form.customer_name === c.name;
+                        return (
+                          <button key={c.id} type="button"
+                            onClick={() => handleSelectCustomer(c)}
+                            className={`w-full text-right px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 ${isSelected ? "bg-green-50" : "hover:bg-green-50"}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                                {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
+                              </div>
+                              {isSelected && <span className="text-green-600 text-sm">✓</span>}
+                            </div>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-center">
+                    <p className="text-sm text-amber-800 mb-1">אין לקוחות במערכת.</p>
+                    <button type="button" onClick={() => setCustomerMode("new")}
+                      className="text-green-600 hover:text-green-700 font-semibold text-sm">
+                      ✨ צור לקוח חדש
+                    </button>
+                  </div>
+                )}
+                {form.customer_name && (
+                  <p className="text-xs text-green-600 font-medium px-1">
+                    ✓ נבחר: {form.customer_name}
+                  </p>
                 )}
               </div>
             ) : (
