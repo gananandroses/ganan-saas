@@ -207,12 +207,10 @@ export default function QuotesListPage() {
                       className="flex-1 flex items-center justify-center gap-1.5 bg-blue-50 text-blue-700 text-xs font-semibold py-2 rounded-xl hover:bg-blue-100">
                       <Eye size={13} /> צפייה
                     </button>
-                    {q.status === "draft" && (
-                      <button onClick={() => router.push(`/quote/${q.id}/edit`)}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-purple-50 text-purple-700 text-xs font-semibold py-2 rounded-xl hover:bg-purple-100">
-                        <Edit3 size={13} /> ערוך טיוטה
-                      </button>
-                    )}
+                    <button onClick={() => router.push(`/quote/${q.id}/edit`)}
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-purple-50 text-purple-700 text-xs font-semibold py-2 rounded-xl hover:bg-purple-100">
+                      <Edit3 size={13} /> {q.status === "draft" ? "ערוך טיוטה" : "ערוך"}
+                    </button>
                     {q.customer_phone && (
                       <a href={`https://api.whatsapp.com/send?phone=${(() => {
                         const cleaned = (q.customer_phone || "").replace(/\D/g, "");

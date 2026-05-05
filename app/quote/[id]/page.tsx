@@ -200,12 +200,10 @@ export default function QuoteViewPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {quote.status === "draft" && (
-              <button onClick={() => router.push(`/quote/${quote.id}/edit`)}
-                className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">
-                <Edit3 size={13} /> ערוך
-              </button>
-            )}
+            <button onClick={() => router.push(`/quote/${quote.id}/edit`)}
+              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">
+              <Edit3 size={13} /> ערוך
+            </button>
             <button onClick={sendWhatsApp}
               className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-lg">
               <MessageSquare size={13} /> שלח
