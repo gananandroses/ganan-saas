@@ -734,6 +734,7 @@ function DraftsListModal({ drafts, onClose, onLoad, onDelete }: {
 // ── Quote panel ─────────────────────────────────────────────────────────────
 function QuotePanel({
   quote, overridePrices, overrideUnits, overrideNames, vatItems,
+  globalMarkup, onMarkupChange,
   onQtyChange, onQtySet, onRemove, onClear, onPrint, onSaveToProject, onSaveDraft,
   collapsed, onToggle,
 }: {
@@ -742,6 +743,8 @@ function QuotePanel({
   overrideUnits: Record<string, string>;
   overrideNames: Record<string, string>;
   vatItems: Record<string, "before" | "after">;
+  globalMarkup: number;
+  onMarkupChange: (n: number) => void;
   onQtyChange: (id: string, delta: number) => void;
   onQtySet: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
@@ -752,7 +755,13 @@ function QuotePanel({
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  function ep(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
+  // Effective price: if user overrode → use override AS-IS. Otherwise base × (1 + markup/100)
+  const markupMultiplier = 1 + (globalMarkup / 100);
+  function ep(item: PriceItem) {
+    if (overridePrices[item.id] !== undefined) return overridePrices[item.id];
+    return Math.round(item.price * markupMultiplier);
+  }
+  function basePrice(item: PriceItem) { return overridePrices[item.id] ?? item.price; }
   function eu(item: PriceItem) { return overrideUnits[item.id] ?? item.unit; }
   function en(item: PriceItem) { return overrideNames[item.id] ?? item.name; }
   function vm(item: PriceItem) { return (vatItems[item.id] ?? "before") === "after" ? 1 + VAT : 1; }
@@ -772,6 +781,45 @@ function QuotePanel({
 
       {!collapsed && (
         <>
+          {/* Global Markup Control */}
+          <div className="px-4 py-3 bg-gradient-to-l from-amber-50 to-orange-50 border-b border-amber-100">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                💰 אחוז ייקור גלובלי
+                <span className="text-[10px] font-normal text-amber-600">(חל על כל הפריטים מהמחירון)</span>
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={500}
+                  step={5}
+                  value={globalMarkup}
+                  onChange={(e) => onMarkupChange(Math.max(0, Math.min(500, parseFloat(e.target.value) || 0)))}
+                  className="w-16 border border-amber-300 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+                <span className="text-sm font-bold text-amber-700">%</span>
+              </div>
+            </div>
+            <div className="flex gap-1.5 mb-2">
+              {[0, 25, 50, 100, 150, 200].map(v => (
+                <button key={v} type="button" onClick={() => onMarkupChange(v)}
+                  className={`flex-1 text-[11px] py-1 rounded-lg font-bold transition-colors ${
+                    globalMarkup === v
+                      ? "bg-amber-500 text-white"
+                      : "bg-white text-amber-700 border border-amber-200 hover:bg-amber-100"
+                  }`}>
+                  {v}%
+                </button>
+              ))}
+            </div>
+            {globalMarkup > 0 && (
+              <p className="text-[11px] text-amber-700 font-medium">
+                ⓘ מחיר מהמחירון × {(1 + globalMarkup / 100).toFixed(2)} (לפני מע״מ)
+              </p>
+            )}
+          </div>
+
           <div className="flex-1 overflow-y-auto max-h-[420px]">
             {quote.length === 0 ? (
               <div className="py-10 text-center text-gray-400">
@@ -799,8 +847,14 @@ function QuotePanel({
                         {isVat && (
                           <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 whitespace-nowrap">+מע"מ</span>
                         )}
+                        {globalMarkup > 0 && overridePrices[item.id] === undefined && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0 whitespace-nowrap">+{globalMarkup}%</span>
+                        )}
                         <div className="flex-1 min-w-0 flex flex-col">
                           <span className="text-[11px] text-gray-400 leading-tight">{formatPrice(p)} / {eu(item)}</span>
+                          {globalMarkup > 0 && overridePrices[item.id] === undefined && (
+                            <span className="text-[11px] text-amber-600 font-medium leading-tight">מחירון: {formatPrice(item.price)}</span>
+                          )}
                           {isVat && (
                             <span className="text-[11px] text-blue-500 font-medium leading-tight">לפני מע"מ: {formatPrice(ep(item))}</span>
                           )}
@@ -882,6 +936,7 @@ export default function PricerPage() {
   const [overrideCatNames, setOverrideCatNames] = useState<Record<string, string>>({});
   const [overrideItemCats, setOverrideItemCats] = useState<Record<string, string>>({});
   const [vatItems, setVatItems]             = useState<Record<string, "before" | "after">>({});
+  const [globalMarkup, setGlobalMarkup]     = useState<number>(0); // % markup applied to all base prices
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [deletedCategories, setDeletedCategories] = useState<string[]>([]);
   const [deletedItems, setDeletedItems] = useState<string[]>([]);
@@ -1612,6 +1667,7 @@ export default function PricerPage() {
           <div className="hidden lg:block w-72 flex-shrink-0 sticky top-5">
             <QuotePanel
               quote={quote} overridePrices={overridePrices} overrideUnits={overrideUnits} overrideNames={overrideNames} vatItems={vatItems}
+              globalMarkup={globalMarkup} onMarkupChange={setGlobalMarkup}
               onQtyChange={changeQty} onQtySet={setQty}
               onRemove={id => setQuote(prev => prev.filter(qi => qi.item.id !== id))}
               onClear={() => setQuote([])}
@@ -1630,6 +1686,7 @@ export default function PricerPage() {
               <div className="px-4 pt-3 pb-4">
                 <QuotePanel
                   quote={quote} overridePrices={overridePrices} overrideUnits={overrideUnits} overrideNames={overrideNames} vatItems={vatItems}
+                  globalMarkup={globalMarkup} onMarkupChange={setGlobalMarkup}
                   onQtyChange={changeQty} onQtySet={setQty}
                   onRemove={id => setQuote(prev => prev.filter(qi => qi.item.id !== id))}
                   onClear={() => setQuote([])}
