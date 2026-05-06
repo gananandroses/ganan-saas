@@ -185,7 +185,7 @@ function EditJobModal({ job, onClose, onSaved }: {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">שעה</label>
-            <input type="time" value={form.job_time} onChange={e => setForm(p => ({ ...p, job_time: e.target.value }))}
+            <input type="time" value={form.job_time} onChange={e => setForm(p => ({ ...p, job_time: e.target.value }))} dir="ltr"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
         </div>
@@ -815,7 +815,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">שעה</label>
-            <input name="job_time" type="time" value={form.job_time} onChange={handleChange}
+            <input name="job_time" type="time" value={form.job_time} onChange={handleChange} dir="ltr"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
         </div>

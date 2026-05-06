@@ -118,6 +118,7 @@ function DetailModal({ type, data, onClose }: {
   const transactions = (data.transactions as Record<string,unknown>[]) || [];
   const customers = (data.customers as Record<string,unknown>[]) || [];
   const jobs = (data.jobs as Record<string,unknown>[]) || [];
+  const openBalanceItems = (data.openBalanceItems as { name: string; phone: string; balance: number }[]) || [];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -215,25 +216,23 @@ function DetailModal({ type, data, onClose }: {
 
           {/* יתרות פתוחות */}
           {type === "balance" && (
-            customers.filter(c => (c.balance as number) > 0).length === 0
+            openBalanceItems.length === 0
               ? <p className="text-center text-gray-400 py-10 text-sm">🎉 הכל שולם! אין יתרות פתוחות</p>
-              : customers.filter(c => (c.balance as number) > 0)
-                  .sort((a, b) => (b.balance as number) - (a.balance as number))
-                  .map((c, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{c.name as string}</p>
-                        {!!c.phone && (
-                          <a href={`https://wa.me/972${String(c.phone).replace(/^0/, "")}`}
-                            target="_blank" rel="noreferrer"
-                            className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
-                            💬 שלח תזכורת בוואטסאפ
-                          </a>
-                        )}
-                      </div>
-                      <span className="text-orange-600 font-bold text-base">₪{(c.balance as number).toLocaleString()}</span>
+              : openBalanceItems.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{item.name}</p>
+                      {!!item.phone && (
+                        <a href={`https://wa.me/972${item.phone.replace(/^0/, "")}`}
+                          target="_blank" rel="noreferrer"
+                          className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
+                          💬 שלח תזכורת בוואטסאפ
+                        </a>
+                      )}
                     </div>
-                  ))
+                    <span className="text-orange-600 font-bold text-base">₪{item.balance.toLocaleString("he-IL")}</span>
+                  </div>
+                ))
           )}
         </div>
 
@@ -246,11 +245,11 @@ function DetailModal({ type, data, onClose }: {
             </span>
           </div>
         )}
-        {type === "balance" && customers.filter(c => (c.balance as number) > 0).length > 0 && (
+        {type === "balance" && openBalanceItems.length > 0 && (
           <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 flex justify-between items-center">
-            <span className="text-sm text-gray-500">{customers.filter(c => (c.balance as number) > 0).length} לקוחות</span>
+            <span className="text-sm text-gray-500">{openBalanceItems.length} לקוחות</span>
             <span className="text-base font-bold text-orange-600">
-              סה"כ ₪{customers.filter(c => (c.balance as number) > 0).reduce((s, c) => s + ((c.balance as number)||0), 0).toLocaleString()}
+              סה"כ ₪{openBalanceItems.reduce((s, c) => s + c.balance, 0).toLocaleString("he-IL")}
             </span>
           </div>
         )}
@@ -430,16 +429,31 @@ export default function DashboardPage() {
         .filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth))
         .reduce((sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0), 0);
 
-      const debtors = customers
-        .filter((c: Record<string, unknown>) => (c.balance as number) > 0)
+      // Open-balance source of truth = pending/overdue income transactions.
+      // (The legacy customers.balance field is rarely kept in sync with project/job
+      // completions, which auto-create pending transactions.)
+      const openIncome = transactions.filter((t: Record<string, unknown>) =>
+        t.type === "income" && (t.status === "pending" || t.status === "overdue"),
+      );
+      const debtorsByName = new Map<string, number>();
+      openIncome.forEach((t: Record<string, unknown>) => {
+        const name = (t.customer_name as string) || "ללא שם";
+        debtorsByName.set(name, (debtorsByName.get(name) ?? 0) + ((t.amount as number) || 0));
+      });
+      const debtors = Array.from(debtorsByName.entries())
+        .sort((a, b) => b[1] - a[1])
         .slice(0, 2)
-        .map((c: Record<string, unknown>) => `${c.name} ₪${c.balance}`)
+        .map(([name, amount]) => `${name} ₪${Math.round(amount).toLocaleString("he-IL")}`)
         .join(' · ');
+      const openBalanceTotal = openIncome.reduce(
+        (sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0),
+        0,
+      );
 
       setStats({
         monthlyIncome,
         activeCustomers: customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip").length,
-        openBalance: customers.reduce((sum: number, c: Record<string, unknown>) => sum + ((c.balance as number) || 0), 0),
+        openBalance: openBalanceTotal,
         todayJobs: jobs.filter((j: Record<string, unknown>) => j.job_date === today).length,
         debtorsSub: debtors || "אין חובות פתוחים",
       });
@@ -448,7 +462,22 @@ export default function DashboardPage() {
       // Store full data for modals
       const thisMonthTx = transactions.filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth));
       const activeCustomers = customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip");
-      setModalData({ transactions: thisMonthTx, customers: activeCustomers, allCustomers: customers, jobs });
+
+      // Build open-balance items from pending income transactions, aggregated by customer
+      // (matches the openBalance KPI calculation above — single source of truth).
+      const phoneByName = new Map<string, string>();
+      customers.forEach((c: Record<string, unknown>) => {
+        if (c.name && c.phone) phoneByName.set(c.name as string, c.phone as string);
+      });
+      const openBalanceItems = Array.from(debtorsByName.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, total]) => ({
+          name,
+          phone: phoneByName.get(name) ?? "",
+          balance: Math.round(total),
+        }));
+
+      setModalData({ transactions: thisMonthTx, customers: activeCustomers, allCustomers: customers, jobs, openBalanceItems });
 
       // Calculate chart data from real transactions
       const computed = Array.from({length: 6}, (_, i) => {

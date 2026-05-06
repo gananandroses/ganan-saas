@@ -945,7 +945,7 @@ function ProjectFormModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">שעה (כל יום)</label>
-                    <input type="time" value={calendarTime} onChange={e => setCalendarTime(e.target.value)}
+                    <input type="time" value={calendarTime} onChange={e => setCalendarTime(e.target.value)} dir="ltr"
                       className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                   </div>
                   <div className="flex items-end">
