@@ -565,7 +565,10 @@ export default function DashboardPage() {
       });
       setChartData(computed);
 
-      const totalIncome = allTx.filter((t: Record<string,unknown>) => t.type === "income").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+      // Chart totals follow the same cash-basis rule as the bars:
+      // only paid income is counted; pending receivables are excluded
+      // (they belong to "יתרות פתוחות").
+      const totalIncome = allTx.filter((t: Record<string,unknown>) => t.type === "income" && t.status === "paid").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
       const totalExpense = allTx.filter((t: Record<string,unknown>) => t.type === "expense").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
       setChartTotals({ totalIncome, totalExpense, netProfit: totalIncome - totalExpense });
 
