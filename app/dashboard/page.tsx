@@ -486,12 +486,16 @@ export default function DashboardPage() {
       const activeProjs = projects.filter((p: Record<string,unknown>) => p.status === "active").length;
       setMiniStats({ activeEmployees: activeEmps, activeProjects: activeProjs });
 
-      // Monthly income = paid income only. Pending income shows up in "open balance",
-      // and only moves to monthly income once the user marks the transaction as paid.
+      // Monthly income counts transactions that have actually been received.
+      // We treat anything not explicitly pending/overdue as collected — this
+      // includes legacy rows where status is null/missing and modern paid rows.
+      const isCollected = (t: Record<string, unknown>) =>
+        t.status !== "pending" && t.status !== "overdue";
+
       const monthlyIncome = transactions
         .filter((t: Record<string, unknown>) =>
           t.type === "income"
-          && t.status === "paid"
+          && isCollected(t)
           && (t.transaction_date as string)?.startsWith(thisMonth),
         )
         .reduce((sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0), 0);
@@ -530,7 +534,7 @@ export default function DashboardPage() {
       // so the drill-down list and the headline number stay in sync.
       const thisMonthTx = transactions.filter((t: Record<string, unknown>) =>
         t.type === "income"
-        && t.status === "paid"
+        && isCollected(t)
         && (t.transaction_date as string)?.startsWith(thisMonth),
       );
       const activeCustomers = customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip");
@@ -559,7 +563,7 @@ export default function DashboardPage() {
         const label = new Date(month + "-01").toLocaleDateString("he-IL", { month: "short" });
         // Income chart counts paid income only — pending receivables are tracked
         // separately under "open balance" so the chart reflects actual cash collected.
-        const income = allTx.filter((t: Record<string,unknown>) => t.type === "income" && t.status === "paid" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+        const income = allTx.filter((t: Record<string,unknown>) => t.type === "income" && isCollected(t) && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
         const expense = allTx.filter((t: Record<string,unknown>) => t.type === "expense" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
         return { month: label, income, expense };
       });
@@ -568,7 +572,7 @@ export default function DashboardPage() {
       // Chart totals follow the same cash-basis rule as the bars:
       // only paid income is counted; pending receivables are excluded
       // (they belong to "יתרות פתוחות").
-      const totalIncome = allTx.filter((t: Record<string,unknown>) => t.type === "income" && t.status === "paid").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+      const totalIncome = allTx.filter((t: Record<string,unknown>) => t.type === "income" && isCollected(t)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
       const totalExpense = allTx.filter((t: Record<string,unknown>) => t.type === "expense").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
       setChartTotals({ totalIncome, totalExpense, netProfit: totalIncome - totalExpense });
 

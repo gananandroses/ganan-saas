@@ -119,6 +119,60 @@ function KpiCard({ icon, iconBg, label, value, highlight, sub, onClick }: KpiCar
   );
 }
 
+// ── Debtors KPI: replaces the giant ₪ figure with a compact list of who owes ──
+interface DebtorsCardProps {
+  items: { name: string; amount: number }[];
+  total: number;
+  onClick?: () => void;
+}
+
+function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
+  const hasDebtors = items.length > 0;
+  const visible = items.slice(0, 3);
+  const extraCount = Math.max(0, items.length - visible.length);
+
+  return (
+    <div
+      onClick={hasDebtors ? onClick : undefined}
+      className={`bg-white rounded-2xl shadow-sm p-5 border border-red-200 ring-1 ring-red-100 flex flex-col gap-2 ${onClick && hasDebtors ? "cursor-pointer active:scale-[0.98] transition-transform" : ""}`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-50">
+          <AlertCircle size={19} className="text-red-500" />
+        </div>
+        {hasDebtors && onClick && <span className="text-xs text-gray-400">לפרטים ›</span>}
+      </div>
+
+      <p className="text-sm font-semibold text-gray-700">חוב פתוח</p>
+
+      {hasDebtors ? (
+        <ul className="space-y-1.5">
+          {visible.map((item) => (
+            <li key={item.name} className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-gray-700 truncate">{item.name}</span>
+              <span className="font-semibold text-red-600 whitespace-nowrap">
+                ₪{item.amount.toLocaleString("he-IL")}
+              </span>
+            </li>
+          ))}
+          {extraCount > 0 && (
+            <li className="text-xs text-gray-400 pt-0.5">+ עוד {extraCount} חייבים</li>
+          )}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-400">🎉 אין חובות פתוחים</p>
+      )}
+
+      {hasDebtors && (
+        <p className="text-xs text-gray-500 border-t border-gray-50 pt-1.5 flex items-center justify-between">
+          <span>{items.length} {items.length === 1 ? "לקוח" : "לקוחות"}</span>
+          <span className="font-semibold text-gray-700">סה&quot;כ ₪{total.toLocaleString("he-IL")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: PaymentStatus }) {
   if (status === "paid")
     return (
@@ -786,7 +840,11 @@ export default function FinancePage() {
   const maxCustomerRevenue = Math.max(...customerRevenue.map((c) => c.total), 1);
 
   // KPI calculations (in range)
-  const totalIncome = txInRange.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  // Cash-basis: "סה״כ הכנסות" counts only money actually collected.
+  // Pending/overdue receivables live under "חוב פתוח" so they don't double-count.
+  // Anything not explicitly pending/overdue (incl. legacy null status) = collected.
+  const isCollected = (t: Transaction) => t.status !== "pending" && t.status !== "overdue";
+  const totalIncome = txInRange.filter((t) => t.type === "income" && isCollected(t)).reduce((s, t) => s + t.amount, 0);
   const totalExpense = txInRange.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   // Net profit = (income - expenses) excluding VAT — the actual money the business keeps
   const cashFlow = totalIncome - totalExpense;
@@ -1142,14 +1200,18 @@ export default function FinancePage() {
             sub={totalIncome > 0 ? `שולי רווח ${Math.round((netProfit / totalIncome) * 100)}%` : undefined}
             onClick={() => setDetailModal("profit")}
           />
-          <KpiCard
-            icon={<AlertCircle size={19} className="text-red-500" />}
-            iconBg="bg-red-50"
-            label="חוב פתוח"
-            value={`₪${openDebt.toLocaleString()}`}
-            highlight="border-red-200 ring-1 ring-red-100"
-            sub={`${alerts.length} לקוחות עם חוב פתוח`}
-            onClick={alerts.length > 0 ? () => setShowDebtModal(true) : undefined}
+          <DebtorsCard
+            items={(() => {
+              const byName = new Map<string, number>();
+              alerts.forEach(t => {
+                byName.set(t.customerName, (byName.get(t.customerName) ?? 0) + t.amount);
+              });
+              return Array.from(byName.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(([name, amount]) => ({ name, amount: Math.round(amount) }));
+            })()}
+            total={openDebt}
+            onClick={() => setShowDebtModal(true)}
           />
         </div>
 
