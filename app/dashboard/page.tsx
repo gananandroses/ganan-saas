@@ -425,8 +425,14 @@ export default function DashboardPage() {
       const activeProjs = projects.filter((p: Record<string,unknown>) => p.status === "active").length;
       setMiniStats({ activeEmployees: activeEmps, activeProjects: activeProjs });
 
+      // Monthly income = paid income only. Pending income shows up in "open balance",
+      // and only moves to monthly income once the user marks the transaction as paid.
       const monthlyIncome = transactions
-        .filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth))
+        .filter((t: Record<string, unknown>) =>
+          t.type === "income"
+          && t.status === "paid"
+          && (t.transaction_date as string)?.startsWith(thisMonth),
+        )
         .reduce((sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0), 0);
 
       // Open-balance source of truth = pending/overdue income transactions.
@@ -459,8 +465,13 @@ export default function DashboardPage() {
       });
       setRecentJobs(jobs.slice(0, 5));
 
-      // Store full data for modals
-      const thisMonthTx = transactions.filter((t: Record<string, unknown>) => (t.transaction_date as string)?.startsWith(thisMonth));
+      // Store full data for modals — same paid-income filter as the KPI,
+      // so the drill-down list and the headline number stay in sync.
+      const thisMonthTx = transactions.filter((t: Record<string, unknown>) =>
+        t.type === "income"
+        && t.status === "paid"
+        && (t.transaction_date as string)?.startsWith(thisMonth),
+      );
       const activeCustomers = customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip");
 
       // Build open-balance items from pending income transactions, aggregated by customer
@@ -485,7 +496,9 @@ export default function DashboardPage() {
         d.setMonth(d.getMonth() - 5 + i);
         const month = d.toISOString().slice(0, 7);
         const label = new Date(month + "-01").toLocaleDateString("he-IL", { month: "short" });
-        const income = allTx.filter((t: Record<string,unknown>) => t.type === "income" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+        // Income chart counts paid income only — pending receivables are tracked
+        // separately under "open balance" so the chart reflects actual cash collected.
+        const income = allTx.filter((t: Record<string,unknown>) => t.type === "income" && t.status === "paid" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
         const expense = allTx.filter((t: Record<string,unknown>) => t.type === "expense" && (t.transaction_date as string)?.startsWith(month)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
         return { month: label, income, expense };
       });
@@ -656,6 +669,7 @@ export default function DashboardPage() {
             transactions: modalData.transactions,
             customers: modal === "balance" ? modalData.allCustomers : modalData.customers,
             jobs: modalData.jobs,
+            openBalanceItems: modalData.openBalanceItems,
           }}
           onClose={() => setModal(null)}
         />
