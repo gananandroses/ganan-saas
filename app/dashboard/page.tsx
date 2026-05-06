@@ -97,6 +97,67 @@ function KpiCard({ icon, iconBg, label, value, trend, trendColor, trendIcon, sub
   );
 }
 
+// ── Debtors KPI card: compact list instead of one giant number ──
+interface DebtorsCardProps {
+  items: { name: string; balance: number }[];
+  total: number;
+  onClick: () => void;
+}
+
+function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
+  const hasDebtors = items.length > 0;
+  const visible = items.slice(0, 3);
+  const extraCount = Math.max(0, items.length - visible.length);
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white rounded-2xl shadow-sm p-6 flex flex-col gap-3 border border-gray-100 hover:shadow-md hover:border-orange-200 active:scale-[0.98] cursor-pointer transition-all"
+    >
+      <div className="flex items-center justify-between">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-orange-50">
+          <AlertCircle size={20} className="text-orange-500" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1 text-xs font-semibold text-orange-500">
+            <AlertCircle size={13} />
+            {hasDebtors ? "דורש טיפול" : "הכל שולם ✓"}
+          </span>
+          <ChevronRight size={14} className="text-gray-300" />
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-gray-700">יתרות פתוחות</p>
+        {hasDebtors ? (
+          <ul className="mt-2 space-y-1.5">
+            {visible.map((item) => (
+              <li key={item.name} className="flex items-center justify-between gap-2 text-sm">
+                <span className="text-gray-700 truncate">{item.name}</span>
+                <span className="font-semibold text-orange-600 whitespace-nowrap">
+                  ₪{item.balance.toLocaleString("he-IL")}
+                </span>
+              </li>
+            ))}
+            {extraCount > 0 && (
+              <li className="text-xs text-gray-400 pt-0.5">+ עוד {extraCount} חייבים</li>
+            )}
+          </ul>
+        ) : (
+          <p className="mt-2 text-sm text-gray-400">🎉 אין חובות פתוחים</p>
+        )}
+      </div>
+
+      {hasDebtors && (
+        <p className="text-xs text-gray-500 border-t border-gray-50 pt-2 flex items-center justify-between">
+          <span>לחץ לרשימה המלאה</span>
+          <span className="font-semibold text-gray-700">סה&quot;כ ₪{total.toLocaleString("he-IL")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Detail Modal ──────────────────────────────────────────────
 
 type ModalType = "income" | "customers" | "jobs" | "balance" | null;
@@ -649,15 +710,9 @@ export default function DashboardPage() {
             sub="היום ועבודות הבאות"
             onClick={() => setModal("jobs")}
           />
-          <KpiCard
-            icon={<AlertCircle size={20} className="text-orange-500" />}
-            iconBg="bg-orange-50"
-            label="יתרות פתוחות"
-            value={`₪${stats.openBalance.toLocaleString("he-IL")}`}
-            trend={stats.openBalance > 0 ? "דורש טיפול" : "הכל שולם ✓"}
-            trendColor="text-orange-500"
-            trendIcon={<AlertCircle size={13} />}
-            sub="לחץ לרשימת החייבים"
+          <DebtorsCard
+            items={(modalData.openBalanceItems as { name: string; balance: number }[]) ?? []}
+            total={stats.openBalance}
             onClick={() => setModal("balance")}
           />
         </div>
