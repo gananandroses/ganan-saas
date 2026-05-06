@@ -543,6 +543,54 @@ function ProjectFormModal({
 
     if (dbError) { setError("שגיאה: " + dbError.message); setSaving(false); return; }
 
+    // Auto-create income/expense transactions when an EDIT flips status to "completed"
+    // (mirrors the logic in UpdateProgressModal, so it doesn't matter which UI path the user used).
+    if (isEdit && data && payload.status === "completed" && initial?.status !== "completed" && user?.id) {
+      const projectForFin = mapProject(data);
+      const txDate = projectForFin.startDate || new Date().toISOString().split("T")[0];
+      const { totalCost, budgetBeforeVat } = calcFinancials(projectForFin);
+      // Income transaction (project budget) — pending until paid
+      if (projectForFin.budget > 0) {
+        const totalWithVat = Math.round(budgetBeforeVat * 1.18);
+        const vatAmount = totalWithVat - Math.round(budgetBeforeVat);
+        const incomeDesc = `פרויקט: ${projectForFin.name}`;
+        const { data: existingIncome } = await supabase.from("transactions")
+          .select("id").eq("user_id", user.id).eq("type", "income").eq("description", incomeDesc).limit(1);
+        if (!existingIncome || existingIncome.length === 0) {
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            customer_name: projectForFin.customerName || "פרויקט",
+            type: "income",
+            amount: totalWithVat,
+            vat_amount: vatAmount,
+            description: incomeDesc,
+            method: "cash",
+            status: "pending",
+            transaction_date: txDate,
+          });
+        }
+      }
+      // Expense transaction (materials + labor)
+      if (totalCost > 0) {
+        const expenseDesc = `חומרים: ${projectForFin.name}`;
+        const { data: existingExpense } = await supabase.from("transactions")
+          .select("id").eq("user_id", user.id).eq("type", "expense").eq("description", expenseDesc).limit(1);
+        if (!existingExpense || existingExpense.length === 0) {
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            customer_name: projectForFin.customerName || "פרויקט",
+            type: "expense",
+            amount: Math.round(totalCost),
+            vat_amount: 0,
+            description: expenseDesc,
+            method: "cash",
+            status: "paid",
+            transaction_date: txDate,
+          });
+        }
+      }
+    }
+
     // Add to calendar if requested — creates a job per day in range
     if (addToCalendar && data) {
       const startDate = calendarDate;

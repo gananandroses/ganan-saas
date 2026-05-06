@@ -266,12 +266,11 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
 
-    // SKIP transaction creation if this job belongs to a project — the project will handle the transactions
-    // (Detection: notes start with "פרויקט:")
+    // Detect whether this job belongs to a project (notes start with "פרויקט:")
     const isProjectJob = job.notes?.startsWith("פרויקט:") ?? false;
 
     if (!error && user?.id && !isProjectJob) {
-      // Create income transaction automatically (only for standalone jobs)
+      // Standalone job — create income/expense transactions directly
       const priceBefore = job.priceBeforeVat ? job.price : Math.round(job.price / 1.18);
       const totalWithVat = Math.round(priceBefore * 1.18);
       const vatAmount = totalWithVat - priceBefore;
@@ -302,6 +301,95 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
           transaction_date: txDate,
           user_id: user.id,
         });
+      }
+    }
+
+    // Project job — auto-complete the parent project once all its jobs are done.
+    // The project completion handler creates the income/expense transactions.
+    if (!error && user?.id && isProjectJob && job.notes) {
+      // Extract project name from notes: "פרויקט: <name>" or "פרויקט: <name> · X ימי עבודה"
+      const projectName = job.notes
+        .replace(/^פרויקט:\s*/, "")
+        .replace(/\s*·\s*\d+\s*ימי עבודה.*$/, "")
+        .trim();
+
+      if (projectName) {
+        // Find the matching project (must not already be completed)
+        const { data: projects } = await supabase
+          .from("projects")
+          .select("id, status, start_date, name, customer_name, budget, materials, labor_hours, hourly_rate, vat_included")
+          .eq("user_id", user.id)
+          .eq("name", projectName)
+          .neq("status", "completed")
+          .limit(1);
+
+        const project = projects?.[0];
+        if (project) {
+          // Check whether any sibling jobs of this project are still not completed
+          const { data: siblingJobs } = await supabase
+            .from("jobs")
+            .select("id, status")
+            .eq("user_id", user.id)
+            .like("notes", `פרויקט: ${projectName}%`);
+
+          const stillOpen = (siblingJobs ?? []).some(j => j.id !== job.id && j.status !== "completed" && j.status !== "cancelled");
+
+          if (!stillOpen) {
+            // Mark project as completed
+            await supabase.from("projects").update({ status: "completed", progress: 100 }).eq("id", project.id).eq("user_id", user.id);
+
+            // Recreate the financials calc inline (mirrors calcFinancials in /projects)
+            type RawMaterial = { quantity?: number; price?: number };
+            const materials = Array.isArray(project.materials) ? (project.materials as RawMaterial[]) : [];
+            const materialsCost = materials.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.price) || 0)), 0);
+            const laborCost = (Number(project.labor_hours) || 0) * (Number(project.hourly_rate) || 0);
+            const totalCost = materialsCost + laborCost;
+            const budget = Number(project.budget) || 0;
+            const budgetBeforeVat = project.vat_included ? Math.round(budget / 1.18) : budget;
+            const txDate = project.start_date || new Date().toISOString().split("T")[0];
+
+            // Income transaction (deduped by description)
+            if (budget > 0) {
+              const totalWithVat = Math.round(budgetBeforeVat * 1.18);
+              const vatAmount = totalWithVat - Math.round(budgetBeforeVat);
+              const incomeDesc = `פרויקט: ${project.name}`;
+              const { data: existingIncome } = await supabase.from("transactions")
+                .select("id").eq("user_id", user.id).eq("type", "income").eq("description", incomeDesc).limit(1);
+              if (!existingIncome || existingIncome.length === 0) {
+                await supabase.from("transactions").insert({
+                  user_id: user.id,
+                  customer_name: project.customer_name || "פרויקט",
+                  type: "income",
+                  amount: totalWithVat,
+                  vat_amount: vatAmount,
+                  description: incomeDesc,
+                  method: "cash",
+                  status: "pending",
+                  transaction_date: txDate,
+                });
+              }
+            }
+            // Expense transaction
+            if (totalCost > 0) {
+              const expenseDesc = `חומרים: ${project.name}`;
+              const { data: existingExpense } = await supabase.from("transactions")
+                .select("id").eq("user_id", user.id).eq("type", "expense").eq("description", expenseDesc).limit(1);
+              if (!existingExpense || existingExpense.length === 0) {
+                await supabase.from("transactions").insert({
+                  user_id: user.id,
+                  customer_name: project.customer_name || "פרויקט",
+                  type: "expense",
+                  amount: Math.round(totalCost),
+                  vat_amount: 0,
+                  description: expenseDesc,
+                  method: "cash",
+                  status: "paid",
+                  transaction_date: txDate,
+                });
+              }
+            }
+          }
+        }
       }
     }
     setCompleting(false);
@@ -605,7 +693,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
     setSaving(true);
     setError(null);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error: dbError } = await supabase.from("jobs").insert({
+    const { data: inserted, error: dbError } = await supabase.from("jobs").insert({
       customer_name: form.customer_name.trim(),
       address: form.address.trim() || null,
       job_date: form.job_date,
@@ -621,25 +709,20 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
       assigned_to: [],
       job_category: jobCategory,
       user_id: user?.id,
-    });
-    if (dbError) { setError("שגיאה: " + dbError.message); setSaving(false); return; }
+    }).select().single();
+    if (dbError || !inserted) { setError("שגיאה: " + (dbError?.message ?? "שמירה נכשלה")); setSaving(false); return; }
 
-    // reload
-    const { data: fresh } = await supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time");
-    if (fresh && fresh.length > 0) {
-      const last = fresh[fresh.length - 1];
-      onCreated({
-        id: last.id, customerId: last.customer_id ?? null, customerName: last.customer_name ?? "",
-        address: last.address ?? "", date: last.job_date, time: (last.job_time ?? "00:00").slice(0, 5),
-        duration: Number(last.duration), type: last.type ?? "", status: last.status as TaskStatus,
-        assignedTo: last.assigned_to ?? [], price: Number(last.price),
-        priceBeforeVat: Boolean(last.price_before_vat),
-        expenses: Number(last.expenses ?? 0),
-        notes: last.notes ?? undefined,
-        priority: (last.priority ?? "medium") as Priority,
-        jobCategory: (last.job_category ?? "work") as JobCategory,
-      });
-    }
+    onCreated({
+      id: inserted.id, customerId: inserted.customer_id ?? null, customerName: inserted.customer_name ?? "",
+      address: inserted.address ?? "", date: inserted.job_date, time: (inserted.job_time ?? "00:00").slice(0, 5),
+      duration: Number(inserted.duration), type: inserted.type ?? "", status: inserted.status as TaskStatus,
+      assignedTo: inserted.assigned_to ?? [], price: Number(inserted.price),
+      priceBeforeVat: Boolean(inserted.price_before_vat),
+      expenses: Number(inserted.expenses ?? 0),
+      notes: inserted.notes ?? undefined,
+      priority: (inserted.priority ?? "medium") as Priority,
+      jobCategory: (inserted.job_category ?? "work") as JobCategory,
+    });
     setSaving(false);
     onClose();
   }
@@ -915,6 +998,13 @@ export default function SchedulePage() {
 
   function handleJobCreated(job: Job) {
     setJobs(prev => [...prev, job].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)));
+    // Navigate the calendar to the new job's date so the user sees it immediately,
+    // even if it's in a different month than the current view.
+    setSelectedISO(job.date);
+    const jobDate = new Date(job.date + "T00:00:00");
+    const diffMonths = (jobDate.getFullYear() - today.getFullYear()) * 12
+      + (jobDate.getMonth() - today.getMonth());
+    setMonthOffset(diffMonths);
   }
 
   function handleMarkCompleted(id: string) {

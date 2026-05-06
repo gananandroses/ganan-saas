@@ -6,7 +6,8 @@ import {
   FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
+import { PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
+import { loadPricerSettings, buildEffectivePriceList, buildEffectiveCategories, type PricerSettings } from "@/lib/pricer-merge";
 
 const VAT = 0.18;
 
@@ -67,6 +68,14 @@ export default function QuotePage() {
   const [itemSearch, setItemSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
 
+  // Pricer settings (custom items + overrides + hidden) — synced with /pricer page
+  const [pricerSettings, setPricerSettings] = useState<PricerSettings>({
+    customItems: [], customCategories: [],
+    overridePrices: {}, overrideUnits: {}, overrideNames: {},
+    overrideCatNames: {}, overrideItemCats: {},
+    hiddenItems: [], hiddenCategories: [],
+  });
+
   // Payment settings (for the quote footer)
   const [settings, setSettings] = useState<PaymentSettings>({
     bitPhone: "", payboxPhone: "", bankName: "", bankBranch: "", bankAccount: "", businessName: "",
@@ -77,10 +86,12 @@ export default function QuotePage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const [custRes, profileRes] = await Promise.all([
+      const [custRes, profileRes, pricerSet] = await Promise.all([
         supabase.from("customers").select("id, name, address, phone").eq("user_id", user.id).order("name"),
         supabase.from("user_profile").select("business_name, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, quote_default_validity_days, quote_default_markup, quote_default_notes").eq("user_id", user.id).single(),
+        loadPricerSettings(),
       ]);
+      setPricerSettings(pricerSet);
 
       if (custRes.data) {
         setCustomers(custRes.data.map(c => ({
@@ -124,30 +135,27 @@ export default function QuotePage() {
     return (c.name || "").toLowerCase().includes(q) || (c.address || "").toLowerCase().includes(q);
   });
 
-  // Item picker — categories with Hebrew labels
-  const categories = useMemo(() => {
-    const seen = new Set<string>();
-    PRICE_LIST.forEach(p => seen.add(p.category));
-    // Build list with Hebrew labels from PRICE_CATEGORIES, fallback to key
-    const labelFor = (key: string) => {
-      const c = PRICE_CATEGORIES.find(c => c.key === key);
-      return c ? `${c.emoji} ${c.label}` : key;
-    };
-    return [
-      { key: "all", label: "📋 הכל" },
-      ...Array.from(seen).sort().map(key => ({ key, label: labelFor(key) })),
-    ];
-  }, []);
+  // Effective price list (PRICE_LIST + custom items, with overrides + hidden applied)
+  const effectivePriceList = useMemo(
+    () => buildEffectivePriceList(pricerSettings),
+    [pricerSettings],
+  );
+
+  // Item picker — categories synced with /pricer page
+  const categories = useMemo(
+    () => buildEffectiveCategories(pricerSettings, effectivePriceList),
+    [pricerSettings, effectivePriceList],
+  );
 
   // Filtered price list
   const filteredPriceList = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
-    return PRICE_LIST.filter(p => {
+    return effectivePriceList.filter(p => {
       if (activeCategory !== "all" && p.category !== activeCategory) return false;
       if (!q) return true;
       return p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q);
     });
-  }, [itemSearch, activeCategory]);
+  }, [itemSearch, activeCategory, effectivePriceList]);
 
   // Add item to quote
   function addItem(p: PriceItem) {
