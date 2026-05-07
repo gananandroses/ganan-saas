@@ -816,6 +816,19 @@ export default function AnalyticsPage() {
   const [showInfo, setShowInfo] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
 
+  // Solo mode: hide every employee-related widget. Persisted in localStorage
+  // so it survives reloads without needing a DB column.
+  // Lazy initialiser reads localStorage on the client; SSR safely defaults to false.
+  const [soloMode, setSoloMode] = useState(() =>
+    typeof window !== "undefined" && localStorage.getItem("analytics_solo_mode") === "1"
+  );
+  function toggleSoloMode(next: boolean) {
+    setSoloMode(next);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("analytics_solo_mode", next ? "1" : "0");
+    }
+  }
+
   // Raw data (fetched once)
   const [rawData, setRawData] = useState<{
     transactions: Row[];
@@ -917,21 +930,37 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Date range selector */}
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-          {([30, 90, 365] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setDateRange(r)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                dateRange === r
-                  ? "bg-green-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              {RANGE_LABELS[r]}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Solo mode toggle — hides employee widgets for solo gardeners */}
+          <button
+            onClick={() => toggleSoloMode(!soloMode)}
+            title={soloMode ? "הצג מחדש את כל הוויג'טים של עובדים" : "הסתר את כל הוויג'טים של עובדים"}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border shadow-sm ${
+              soloMode
+                ? "bg-green-50 text-green-700 border-green-200"
+                : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span className="text-sm">{soloMode ? "🙋‍♂️" : "👥"}</span>
+            <span className="hidden sm:inline">{soloMode ? "סולו" : "עם עובדים"}</span>
+          </button>
+
+          {/* Date range selector */}
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+            {([30, 90, 365] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setDateRange(r)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  dateRange === r
+                    ? "bg-green-600 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {RANGE_LABELS[r]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1006,7 +1035,7 @@ export default function AnalyticsPage() {
               color="rose"
               onClick={() => setActiveModal("income")}
             />
-            {a.kpis.hasEmployees && (
+            {a.kpis.hasEmployees && !soloMode && (
               <>
                 <KpiCard
                   icon={Users}
@@ -1088,7 +1117,7 @@ export default function AnalyticsPage() {
           </SectionCard>
 
           {/* ── Employee Comparison ── */}
-          {a.employeePerformance.length > 0 && (
+          {a.employeePerformance.length > 0 && !soloMode && (
             <SectionCard title="השוואת עובדים — הכנסות ומשרות">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart
@@ -1373,7 +1402,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* ── Employee Performance Table ── */}
-          {a.employeePerformance.length > 0 && (
+          {a.employeePerformance.length > 0 && !soloMode && (
             <SectionCard title="ביצועי עובדים — סיכום מלא">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1454,7 +1483,9 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {a.aiInsights.map((insight, i) => (
+              {a.aiInsights
+                .filter(insight => !soloMode || !/עובד|מציג\/ה ביצועים/.test(insight))
+                .map((insight, i) => (
                 <div
                   key={i}
                   className="bg-white/70 backdrop-blur-sm rounded-xl p-3.5 border border-green-100/60 flex gap-2.5"
