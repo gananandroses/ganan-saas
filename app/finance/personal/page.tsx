@@ -5,7 +5,7 @@ import {
   TrendingUp, Flame, PiggyBank, Calendar, Plus,
   ChevronUp, ChevronDown, Loader2, RefreshCw, X, Pencil, Trash2,
   Sparkles, Repeat, AlertCircle, ChevronRight, ChevronLeft,
-  Download, FileSpreadsheet, FileText,
+  Download, FileSpreadsheet, FileText, Briefcase, User as UserIcon,
 } from "lucide-react";
 import {
   BarChart, Bar, ResponsiveContainer, XAxis, YAxis, CartesianGrid,
@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabase/client";
 import {
-  PersonalTx, Recurrence, TxType, RawBusinessTxRow,
+  PersonalTx, Recurrence, TxType, Scope, RawBusinessTxRow,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES, getCategory, categoryClasses, categoryHex,
   isoMonth, hebrewMonthLabel, monthlySeries, computeMetrics,
   breakdownByCategory, businessIncomeAsPersonalTxs, isVirtualTx,
@@ -70,6 +70,81 @@ function Kpi({
   );
 }
 
+// Tiny pill flagging a transaction as business-related.
+function ScopePill() {
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-700 flex-shrink-0">
+      <Briefcase size={9} />
+      עסק
+    </span>
+  );
+}
+
+// ── Business-scope split card ────────────────────────────────────────────────
+// Splits the month's expense total into "purely personal" vs "business-related".
+// Skips rendering when there's nothing to show on either side.
+
+import type { CashFlowMetrics } from "@/lib/personal-finance";
+
+function BusinessScopeCard({ metrics }: { metrics: CashFlowMetrics }) {
+  const total = metrics.businessExpensesThisMonth + metrics.personalExpensesThisMonth;
+  if (total <= 0) return null;
+  const businessShare = total > 0 ? metrics.businessExpensesThisMonth / total : 0;
+  const personalShare = 1 - businessShare;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 border border-gray-100">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+        <div>
+          <h2 className="text-base font-bold text-gray-900">פילוח לפי שייכות</h2>
+          <p className="text-xs text-gray-400 mt-0.5">כמה מההוצאות החודש הלכו לעסק</p>
+        </div>
+        <div className="text-xs text-gray-500">
+          סה״כ: <span className="font-bold text-gray-800">{ils(total)}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Personal */}
+        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-lg bg-slate-200 flex items-center justify-center">
+              <UserIcon size={14} className="text-slate-700" />
+            </div>
+            <span className="text-xs font-semibold text-slate-700">אישי טהור</span>
+            <span className="text-xs text-slate-400 mr-auto">{(personalShare * 100).toFixed(0)}%</span>
+          </div>
+          <p className="text-xl font-bold text-slate-900">{ils(metrics.personalExpensesThisMonth)}</p>
+        </div>
+        {/* Business-related */}
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-lg bg-emerald-200 flex items-center justify-center">
+              <Briefcase size={14} className="text-emerald-700" />
+            </div>
+            <span className="text-xs font-semibold text-emerald-700">עסקי-קשור</span>
+            <span className="text-xs text-emerald-500 mr-auto">{(businessShare * 100).toFixed(0)}%</span>
+          </div>
+          <p className="text-xl font-bold text-emerald-900">{ils(metrics.businessExpensesThisMonth)}</p>
+          {metrics.businessExpensesThisMonth > 0 && (
+            <p className="text-[10px] text-emerald-700 mt-1">
+              💡 אלו הוצאות עסקיות שיצאו מהכיס האישי — שקול לתבוע החזר
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Visual bar */}
+      <div className="mt-4 h-2 rounded-full bg-slate-100 overflow-hidden flex">
+        <div className="bg-slate-400 h-full transition-all"
+          style={{ width: `${personalShare * 100}%` }} />
+        <div className="bg-emerald-500 h-full transition-all"
+          style={{ width: `${businessShare * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
 // ── Cash-flow chart tooltip ──────────────────────────────────────────────────
 
 interface ChartPayload { value: number; name: string; dataKey: string }
@@ -97,11 +172,13 @@ interface FormState {
   start_date: string;
   end_date: string;
   notes: string;
+  scope: Scope;
 }
 
 const EMPTY_FORM: FormState = {
   type: "expense", category: "groceries", amount: "", description: "",
   recurrence: "one_time", start_date: todayISO(), end_date: "", notes: "",
+  scope: "personal",
 };
 
 function TxModal({
@@ -122,6 +199,7 @@ function TxModal({
       start_date: initial.start_date,
       end_date: initial.end_date ?? "",
       notes: initial.notes ?? "",
+      scope: initial.scope ?? "personal",
     };
   });
   const [saving, setSaving] = useState(false);
@@ -156,6 +234,7 @@ function TxModal({
       start_date: form.start_date || todayISO(),
       end_date: form.recurrence === "one_time" ? null : (form.end_date || null),
       notes: form.notes.trim() || null,
+      scope: form.scope,
     };
 
     const { error } = initial
@@ -164,9 +243,14 @@ function TxModal({
 
     setSaving(false);
     if (error) {
-      const msg = error.message?.includes("personal_transactions")
-        ? `הטבלה personal_transactions לא קיימת ב-DB.\nהרץ את הקובץ lib/supabase/add-personal-transactions-migration.sql ב-Supabase SQL Editor.`
-        : `שגיאה: ${error.message}`;
+      let msg: string;
+      if (/scope/i.test(error.message ?? "")) {
+        msg = `העמודה scope לא קיימת ב-DB.\nהרץ את lib/supabase/add-personal-tx-scope-migration.sql ב-Supabase SQL Editor.`;
+      } else if (/personal_transactions/i.test(error.message ?? "")) {
+        msg = `הטבלה personal_transactions לא קיימת ב-DB.\nהרץ את lib/supabase/add-personal-transactions-migration.sql ב-Supabase SQL Editor.`;
+      } else {
+        msg = `שגיאה: ${error.message}`;
+      }
       setError(msg);
       return;
     }
@@ -213,6 +297,30 @@ function TxModal({
                   {t === "income" ? "הכנסה" : "הוצאה"}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Scope toggle — personal vs business-related */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              שייכות
+              <span className="text-gray-400 font-normal mr-1">(האם זה היה בשביל העסק?)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setForm(p => ({ ...p, scope: "personal" }))}
+                className={`flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 rounded-xl transition-colors ${
+                  form.scope === "personal" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-500"
+                }`}>
+                <UserIcon size={13} />
+                אישי
+              </button>
+              <button onClick={() => setForm(p => ({ ...p, scope: "business" }))}
+                className={`flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 rounded-xl transition-colors ${
+                  form.scope === "business" ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-500"
+                }`}>
+                <Briefcase size={13} />
+                עסקי-קשור
+              </button>
             </div>
           </div>
 
@@ -353,7 +461,10 @@ export default function PersonalCashFlowPage() {
         setErr("הטבלה personal_transactions לא קיימת. הרץ את lib/supabase/add-personal-transactions-migration.sql ב-Supabase SQL Editor.");
       }
 
-      setTxs((persRes.data ?? []) as PersonalTx[]);
+      // Normalise scope so downstream code can rely on it being set even if
+      // the DB row predates the migration.
+      const rows = (persRes.data ?? []) as PersonalTx[];
+      setTxs(rows.map(r => ({ ...r, scope: (r.scope ?? "personal") as Scope })));
       setBusinessTxs(businessIncomeAsPersonalTxs((bizRes.data ?? []) as RawBusinessTxRow[], user.id));
       setLoading(false);
     }
@@ -556,6 +667,9 @@ export default function PersonalCashFlowPage() {
               />
             </div>
 
+            {/* Personal vs business-related expense split */}
+            <BusinessScopeCard metrics={metrics} />
+
             {/* Cash flow chart */}
             <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 border border-gray-100">
               <div className="flex items-start justify-between flex-wrap gap-2 mb-4">
@@ -613,9 +727,12 @@ export default function PersonalCashFlowPage() {
                           <Icon size={15} className={cls.text} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">
-                            {t.description || def.label}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {t.description || def.label}
+                            </p>
+                            {t.scope === "business" && <ScopePill />}
+                          </div>
                           <p className="text-[11px] text-gray-400">
                             {def.label} · {recurrenceLabel(t.recurrence)}
                           </p>
@@ -705,7 +822,10 @@ export default function PersonalCashFlowPage() {
                               <Icon size={13} className={cls.text} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-gray-800 truncate">{t.description || def.label}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm text-gray-800 truncate">{t.description || def.label}</p>
+                                {t.scope === "business" && <ScopePill />}
+                              </div>
                               <p className="text-[11px] text-gray-400">{t.start_date.slice(5).replace("-", "/")} · {def.label}</p>
                             </div>
                             <span className="text-sm font-bold text-orange-600 flex-shrink-0">−{ils(Number(t.amount))}</span>

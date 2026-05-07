@@ -12,6 +12,7 @@ import {
 
 export type Recurrence = "one_time" | "monthly" | "yearly";
 export type TxType = "income" | "expense";
+export type Scope = "personal" | "business";
 
 export interface PersonalTx {
   id: string;
@@ -24,6 +25,7 @@ export interface PersonalTx {
   start_date: string;       // YYYY-MM-DD
   end_date: string | null;  // null = ongoing
   notes: string | null;
+  scope: Scope;             // 'personal' (default) or 'business' = paid from personal pocket but for the business
   created_at: string;
 }
 
@@ -153,17 +155,19 @@ export function txAppliesToMonth(tx: PersonalTx, yyyymm: string): boolean {
   return true;
 }
 
-// Sum of all txs of a given type that apply to the month, optionally filtered by category.
+// Sum of all txs of a given type that apply to the month, optionally filtered by category and scope.
 export function sumForMonth(
   txs: PersonalTx[],
   yyyymm: string,
   type: TxType,
   categoryId?: string,
+  scope?: Scope,
 ): number {
   let total = 0;
   for (const t of txs) {
     if (t.type !== type) continue;
     if (categoryId && t.category !== categoryId) continue;
+    if (scope && t.scope !== scope) continue;
     if (txAppliesToMonth(t, yyyymm)) total += Number(t.amount) || 0;
   }
   return total;
@@ -224,6 +228,8 @@ export interface CashFlowMetrics {
   fixedMonthly: number;      // sum of monthly + (yearly/12) recurring expenses
   variableThisMonth: number; // one_time expenses dated this month
   monthOverMonth: number;    // % change in net vs previous month
+  businessExpensesThisMonth: number; // out of expense total — flagged "business-related"
+  personalExpensesThisMonth: number; // out of expense total — purely personal
 }
 
 export function computeMetrics(
@@ -274,9 +280,13 @@ export function computeMetrics(
   const prevNet = sumForMonth(txs, isoMonth(prev), "income") - sumForMonth(txs, isoMonth(prev), "expense");
   const monthOverMonth = prevNet === 0 ? 0 : ((netThisMonth - prevNet) / Math.abs(prevNet));
 
+  const businessExpensesThisMonth = sumForMonth(txs, yyyymm, "expense", undefined, "business");
+  const personalExpensesThisMonth = expenseNow - businessExpensesThisMonth;
+
   return {
     netThisMonth, burnRate, savingsRate, annualForecast,
     fixedMonthly, variableThisMonth, monthOverMonth,
+    businessExpensesThisMonth, personalExpensesThisMonth,
   };
 }
 
@@ -337,6 +347,7 @@ export function businessIncomeAsPersonalTxs(
       start_date: `${ym}-01`,
       end_date: null,
       notes: null,
+      scope: "personal", // business income that lands in my personal pocket
       created_at: new Date().toISOString(),
     });
   }

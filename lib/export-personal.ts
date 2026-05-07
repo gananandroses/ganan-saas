@@ -62,6 +62,8 @@ export function exportPersonalCSV(opts: {
   lines.push(`Savings Rate,${(metrics.savingsRate * 100).toFixed(1)}%`);
   lines.push(`צפי שנתי,${Math.round(metrics.annualForecast)}`);
   lines.push(`הוצאות קבועות,${Math.round(metrics.fixedMonthly)}`);
+  lines.push(`הוצאות אישיות (טהור),${Math.round(metrics.personalExpensesThisMonth)}`);
+  lines.push(`הוצאות עסקיות-קשור,${Math.round(metrics.businessExpensesThisMonth)}`);
   lines.push(``);
 
   // Per-category breakdown for the active month
@@ -90,6 +92,7 @@ export function exportPersonalCSV(opts: {
     "תאריך התחלה",
     "תאריך סיום",
     "סוג",
+    "שייכות",
     "קטגוריה",
     "תיאור",
     "סכום (₪)",
@@ -106,6 +109,7 @@ export function exportPersonalCSV(opts: {
       csvEscape(t.start_date),
       csvEscape(t.end_date ?? ""),
       csvEscape(t.type === "income" ? "הכנסה" : "הוצאה"),
+      csvEscape(t.scope === "business" ? "עסקי-קשור" : "אישי"),
       csvEscape(def?.label ?? t.category),
       csvEscape(t.description ?? ""),
       csvEscape(Number(t.amount)),
@@ -155,11 +159,14 @@ export function exportPersonalPDF(opts: {
 
   const fmtTx = (t: PersonalTx) => {
     const def = getCategory(t.category);
+    const scopeChip = t.scope === "business"
+      ? `<span class="chip chip-biz">עסק</span>`
+      : "";
     return `
       <tr>
         <td>${escapeHtml(t.start_date)}</td>
         <td>${escapeHtml(t.type === "income" ? "הכנסה" : "הוצאה")}</td>
-        <td>${escapeHtml(def?.label ?? t.category)}</td>
+        <td>${escapeHtml(def?.label ?? t.category)} ${scopeChip}</td>
         <td>${escapeHtml(t.description ?? "")}</td>
         <td>${escapeHtml(recurrenceLabel(t.recurrence))}</td>
         <td class="num ${t.type === "income" ? "pos" : "neg"}">${t.type === "income" ? "+" : "−"}${ils(Number(t.amount))}</td>
@@ -211,6 +218,8 @@ export function exportPersonalPDF(opts: {
   td.num { text-align: left; font-variant-numeric: tabular-nums; font-weight: 600; }
   td.pos { color: #16a34a; }
   td.neg { color: #dc2626; }
+  .chip { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 9px; font-weight: 700; margin-right: 4px; vertical-align: middle; }
+  .chip-biz { background: #d1fae5; color: #047857; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .bar { background: #e2e8f0; height: 6px; border-radius: 3px; overflow: hidden; }
   .bar > span { display: block; height: 100%; background: #f97316; }
@@ -243,6 +252,19 @@ export function exportPersonalPDF(opts: {
       <div class="value">${ils(metrics.annualForecast)}</div>
     </div>
   </div>
+
+  ${(metrics.businessExpensesThisMonth + metrics.personalExpensesThisMonth) > 0 ? `
+  <div class="kpis" style="grid-template-columns: 1fr 1fr;">
+    <div class="kpi" style="background:#f8fafc;">
+      <div class="label">אישי טהור</div>
+      <div class="value" style="color:#0f172a;">${ils(metrics.personalExpensesThisMonth)}</div>
+    </div>
+    <div class="kpi" style="background:#ecfdf5;">
+      <div class="label">עסקי-קשור</div>
+      <div class="value" style="color:#047857;">${ils(metrics.businessExpensesThisMonth)}</div>
+    </div>
+  </div>
+  ` : ""}
 
   <div class="grid2">
     <div>
