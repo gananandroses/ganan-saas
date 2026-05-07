@@ -22,6 +22,7 @@ import {
   X,
   ChevronRight,
   Phone,
+  RefreshCw,
 } from "lucide-react";
 import {
   BarChart,
@@ -384,6 +385,7 @@ export default function DashboardPage() {
   const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied">("idle");
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -525,10 +527,17 @@ export default function DashboardPage() {
         monthlyIncome,
         activeCustomers: customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip").length,
         openBalance: openBalanceTotal,
-        todayJobs: jobs.filter((j: Record<string, unknown>) => j.job_date === today).length,
+        todayJobs: jobs.filter((j: Record<string, unknown>) =>
+          j.job_date === today && j.status !== "completed" && j.status !== "cancelled",
+        ).length,
         debtorsSub: debtors || "אין חובות פתוחים",
       });
-      setRecentJobs(jobs.slice(0, 5));
+      // Upcoming jobs widget — hide completed/cancelled so finished work
+      // doesn't keep cluttering the "what's next" list.
+      const upcomingJobs = jobs.filter((j: Record<string, unknown>) =>
+        j.status !== "completed" && j.status !== "cancelled",
+      );
+      setRecentJobs(upcomingJobs.slice(0, 5));
 
       // Store full data for modals — same paid-income filter as the KPI,
       // so the drill-down list and the headline number stay in sync.
@@ -569,16 +578,28 @@ export default function DashboardPage() {
       });
       setChartData(computed);
 
-      // Chart totals follow the same cash-basis rule as the bars:
-      // only paid income is counted; pending receivables are excluded
-      // (they belong to "יתרות פתוחות").
-      const totalIncome = allTx.filter((t: Record<string,unknown>) => t.type === "income" && isCollected(t)).reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
-      const totalExpense = allTx.filter((t: Record<string,unknown>) => t.type === "expense").reduce((s: number, t: Record<string,unknown>) => s + ((t.amount as number)||0), 0);
+      // Chart totals = sum of the bars actually shown in the chart (last 6 months),
+      // so the headline numbers stay consistent with the visual.
+      const totalIncome = computed.reduce((s, m) => s + m.income, 0);
+      const totalExpense = computed.reduce((s, m) => s + m.expense, 0);
       setChartTotals({ totalIncome, totalExpense, netProfit: totalIncome - totalExpense });
 
       setLoading(false);
     }
     load();
+  }, [refreshTick]);
+
+  // Refetch when the tab regains focus / becomes visible — keeps the dashboard
+  // in sync after a job is completed on /schedule and the user comes back.
+  useEffect(() => {
+    function onFocus() { setRefreshTick(t => t + 1); }
+    function onVisibility() { if (document.visibilityState === "visible") setRefreshTick(t => t + 1); }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   return (
@@ -602,7 +623,17 @@ export default function DashboardPage() {
         {/* ── Greeting + Weather ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
+              <button
+                onClick={() => setRefreshTick(t => t + 1)}
+                disabled={loading}
+                title="רענן נתונים"
+                className="p-2 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mt-0.5">{hebrewDate()}</p>
             <div className="mt-2">
               {pushStatus === "enabled" && (

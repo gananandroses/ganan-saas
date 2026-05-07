@@ -7,6 +7,17 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
+
+// ── Holiday styling ─────────────────────────────────────────────────────────
+function holidayStyle(type: HolidayType) {
+  switch (type) {
+    case "major":    return { dot: "bg-rose-500",    text: "text-rose-700",   bg: "bg-rose-50",   ring: "ring-rose-200",   pill: "bg-rose-100 text-rose-700" };
+    case "national": return { dot: "bg-sky-500",     text: "text-sky-700",    bg: "bg-sky-50",    ring: "ring-sky-200",    pill: "bg-sky-100 text-sky-700" };
+    case "memorial": return { dot: "bg-slate-500",   text: "text-slate-700",  bg: "bg-slate-50",  ring: "ring-slate-200",  pill: "bg-slate-100 text-slate-700" };
+    default:         return { dot: "bg-amber-400",   text: "text-amber-700",  bg: "bg-amber-50",  ring: "ring-amber-200",  pill: "bg-amber-100 text-amber-700" };
+  }
+}
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -1078,42 +1089,72 @@ export default function SchedulePage() {
         </div>
 
         {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 mb-1">
-          {["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"].map(d => (
-            <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+        <div className="grid grid-cols-7 mb-1.5">
+          {["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"].map((d, i) => (
+            <div key={d} className={`text-center text-[11px] font-bold py-1.5 tracking-wide ${
+              i === 6 ? "text-rose-400" : "text-gray-400"
+            }`}>
+              {d}
+            </div>
           ))}
         </div>
 
         {/* Month grid */}
-        <div className="grid grid-cols-7 gap-0.5">
+        <div className="grid grid-cols-7 gap-1">
           {calendarDays.map((day, i) => {
             if (!day) return <div key={`empty-${i}`} />;
             const iso = formatDateISO(day);
             const isToday = iso === todayISO;
             const isSelected = iso === selectedISO;
+            const isShabbat = day.getDay() === 6;
             const dayJobs = jobs.filter(j => j.date === iso);
-            const hasUrgent = dayJobs.some(j => j.priority === "urgent");
             const hasJobs = dayJobs.length > 0;
+            const holiday = getHoliday(iso);
+            const hStyle = holiday ? holidayStyle(holiday.type) : null;
+
+            // Background priority: selected > today > holiday > shabbat > default
+            const bgClass = isSelected
+              ? "bg-green-600 shadow-md ring-2 ring-green-200"
+              : isToday
+              ? "bg-green-50 ring-1 ring-green-400"
+              : holiday && hStyle
+              ? `${hStyle.bg} ring-1 ${hStyle.ring}`
+              : isShabbat
+              ? "bg-gray-50"
+              : "hover:bg-gray-50 active:bg-gray-100";
+
+            const dateColor = isSelected
+              ? "text-white"
+              : isToday
+              ? "text-green-700"
+              : holiday && hStyle
+              ? hStyle.text
+              : isShabbat
+              ? "text-rose-400"
+              : "text-gray-800";
 
             return (
               <button
                 key={iso}
                 onClick={() => setSelectedISO(iso)}
-                className={`flex flex-col items-center py-1.5 rounded-xl transition-all relative ${
-                  isSelected ? "bg-green-600 shadow-sm" :
-                  isToday ? "bg-green-50 ring-1 ring-green-400" :
-                  "hover:bg-gray-50 active:bg-gray-100"
-                }`}
+                className={`relative flex flex-col items-center justify-start min-h-[56px] py-1.5 px-0.5 rounded-xl transition-all overflow-hidden ${bgClass}`}
               >
-                <span className={`text-sm font-bold leading-tight ${
-                  isSelected ? "text-white" :
-                  isToday ? "text-green-700" :
-                  "text-gray-800"
-                }`}>
+                <span className={`text-sm font-bold leading-tight ${dateColor}`}>
                   {day.getDate()}
                 </span>
-                {hasJobs ? (
-                  <div className="flex gap-0.5 mt-0.5">
+
+                {/* Holiday name — tiny one-liner under the date */}
+                {holiday && hStyle && (
+                  <span className={`text-[9px] leading-tight font-semibold mt-0.5 truncate w-full px-0.5 ${
+                    isSelected ? "text-white/90" : hStyle.text
+                  }`}>
+                    {holiday.name}
+                  </span>
+                )}
+
+                {/* Job indicator dots — anchored at bottom */}
+                {hasJobs && (
+                  <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5">
                     {dayJobs.slice(0, 3).map((j, idx) => (
                       <div key={idx} className={`w-1 h-1 rounded-full ${
                         isSelected ? "bg-white" :
@@ -1126,22 +1167,41 @@ export default function SchedulePage() {
                       }`} />
                     ))}
                   </div>
-                ) : (
-                  <div className="h-2" />
                 )}
               </button>
             );
           })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-3 pt-2.5 border-t border-gray-100 text-[10px] text-gray-500">
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />עבודה</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" />הצעה</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />מעקב</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-50 ring-1 ring-rose-200" />חג</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-sky-50 ring-1 ring-sky-200" />יום לאומי</span>
         </div>
       </div>
 
       {/* ── Day summary bar ── */}
       <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
         <div>
-          <p className="text-sm font-bold text-gray-800">
-            {HEBREW_DAYS_FULL[selectedDate.getDay()]}{" "}
-            {selectedDate.getDate()} {HEBREW_MONTHS[selectedDate.getMonth()]}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-bold text-gray-800">
+              {HEBREW_DAYS_FULL[selectedDate.getDay()]}{" "}
+              {selectedDate.getDate()} {HEBREW_MONTHS[selectedDate.getMonth()]}
+            </p>
+            {(() => {
+              const h = getHoliday(selectedISO);
+              if (!h) return null;
+              const s = holidayStyle(h.type);
+              return (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${s.pill}`}>
+                  {h.name}
+                </span>
+              );
+            })()}
+          </div>
           <p className="text-xs text-gray-500">{selectedDayJobs.length} עבודות</p>
         </div>
         <div className="flex gap-4 text-center">
