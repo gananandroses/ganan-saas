@@ -5,6 +5,7 @@ import {
   TrendingUp, Flame, PiggyBank, Calendar, Plus,
   ChevronUp, ChevronDown, Loader2, RefreshCw, X, Pencil, Trash2,
   Sparkles, Repeat, AlertCircle, ChevronRight, ChevronLeft,
+  Download, FileSpreadsheet, FileText,
 } from "lucide-react";
 import {
   BarChart, Bar, ResponsiveContainer, XAxis, YAxis, CartesianGrid,
@@ -18,6 +19,7 @@ import {
   breakdownByCategory, businessIncomeAsPersonalTxs, isVirtualTx,
   ils, pct, recurrenceLabel,
 } from "@/lib/personal-finance";
+import { exportPersonalCSV, exportPersonalPDF } from "@/lib/export-personal";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -328,6 +330,7 @@ export default function PersonalCashFlowPage() {
   const [month, setMonth] = useState(() => isoMonth(new Date()));
   const [editing, setEditing] = useState<PersonalTx | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
@@ -418,10 +421,59 @@ export default function PersonalCashFlowPage() {
               title="רענן">
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             </button>
+
+            {/* Export dropdown */}
+            <div className="relative">
+              <button onClick={() => setShowExport(s => !s)}
+                disabled={txs.length === 0 && businessTxs.length === 0}
+                className="flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3.5 py-2.5 rounded-xl text-sm font-semibold shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                title="ייצוא נתונים">
+                <Download size={15} />
+                <span className="hidden sm:inline">ייצוא</span>
+                <ChevronDown size={13} className={`transition-transform ${showExport ? "rotate-180" : ""}`} />
+              </button>
+              {showExport && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowExport(false)} />
+                  <div className="absolute left-0 mt-2 w-56 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-40" dir="rtl">
+                    <button
+                      onClick={() => {
+                        exportPersonalCSV({ txs: allTxs, month });
+                        setShowExport(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-right transition">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                        <FileSpreadsheet size={16} className="text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900">אקסל (CSV)</p>
+                        <p className="text-[11px] text-gray-400">נפתח ב-Excel / Numbers</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportPersonalPDF({ txs: allTxs, month });
+                        setShowExport(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-right transition border-t border-gray-100">
+                      <div className="w-9 h-9 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0">
+                        <FileText size={16} className="text-rose-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900">PDF</p>
+                        <p className="text-[11px] text-gray-400">דוח מודפס מעוצב</p>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <button onClick={() => setShowAdd(true)}
               className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm">
               <Plus size={15} />
-              הוסף תנועה
+              <span className="hidden sm:inline">הוסף תנועה</span>
+              <span className="sm:hidden">הוסף</span>
             </button>
           </div>
         </div>
