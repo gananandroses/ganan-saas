@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabase/client";
 import {
-  PersonalTx, Recurrence, TxType,
+  PersonalTx, Recurrence, TxType, RawBusinessTxRow,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES, getCategory, categoryClasses, categoryHex,
   isoMonth, hebrewMonthLabel, monthlySeries, computeMetrics,
   breakdownByCategory, businessIncomeAsPersonalTxs, isVirtualTx,
@@ -126,12 +126,15 @@ function TxModal({
   const [error, setError] = useState<string | null>(null);
 
   const categories = form.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  // If switching type would leave an invalid category, snap to the first one.
-  useEffect(() => {
-    if (!categories.find(c => c.id === form.category)) {
-      setForm(p => ({ ...p, category: categories[0].id }));
-    }
-  }, [form.type, form.category, categories]);
+  // Helper: switching type may leave the previously-picked category invalid
+  // for the new type, so we snap to the first valid one.
+  function setType(t: TxType) {
+    setForm(p => {
+      const list = t === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+      const stillValid = list.some(c => c.id === p.category);
+      return { ...p, type: t, category: stillValid ? p.category : list[0].id };
+    });
+  }
 
   async function handleSave() {
     setError(null);
@@ -199,7 +202,7 @@ function TxModal({
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">סוג</label>
             <div className="grid grid-cols-2 gap-2">
               {(["income", "expense"] as TxType[]).map(t => (
-                <button key={t} onClick={() => setForm(p => ({ ...p, type: t }))}
+                <button key={t} onClick={() => setType(t)}
                   className={`text-sm font-semibold py-2.5 rounded-xl transition-colors ${
                     form.type === t
                       ? (t === "income" ? "bg-green-600 text-white" : "bg-orange-500 text-white")
@@ -348,7 +351,7 @@ export default function PersonalCashFlowPage() {
       }
 
       setTxs((persRes.data ?? []) as PersonalTx[]);
-      setBusinessTxs(businessIncomeAsPersonalTxs((bizRes.data ?? []) as never[], user.id));
+      setBusinessTxs(businessIncomeAsPersonalTxs((bizRes.data ?? []) as RawBusinessTxRow[], user.id));
       setLoading(false);
     }
     load();
@@ -597,9 +600,11 @@ export default function PersonalCashFlowPage() {
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(value: number, _n, p) => {
-                            const def = getCategory(String(p.payload.categoryId));
-                            return [ils(value), def?.label ?? p.payload.categoryId];
+                          formatter={(value, _n, item) => {
+                            const num = typeof value === "number" ? value : Number(value) || 0;
+                            const payload = (item as { payload?: { categoryId?: string } })?.payload;
+                            const def = payload?.categoryId ? getCategory(payload.categoryId) : undefined;
+                            return [ils(num), def?.label ?? payload?.categoryId ?? ""];
                           }}
                           contentStyle={{ borderRadius: 12, fontSize: 12, border: "1px solid #f1f5f9", direction: "rtl" }}
                         />
@@ -799,7 +804,7 @@ function AnnualOverview({ txs, reference }: { txs: PersonalTx[]; reference: stri
           <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false}
             tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}k`} width={48} />
           <Tooltip
-            formatter={(v: number) => [ils(v), "נטו"]}
+            formatter={(v) => [ils(typeof v === "number" ? v : Number(v) || 0), "נטו"]}
             contentStyle={{ borderRadius: 12, fontSize: 12, border: "1px solid #f1f5f9", direction: "rtl" }}
             cursor={{ fill: "#f8fafc" }}
           />
