@@ -30,14 +30,14 @@ export default function DemoPage() {
       setStep("מאמתים גישה...");
 
       // 2. Sign in to the shared demo account
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: DEMO_EMAIL,
         password: DEMO_PASSWORD,
       });
 
       if (cancelled) return;
 
-      if (signInError) {
+      if (signInError || !signInData.session) {
         setError(
           "המצב דמו לא זמין כרגע. נסה שוב בעוד רגע, או הירשם לחשבון אישי כדי להתחיל מיד."
         );
@@ -49,11 +49,20 @@ export default function DemoPage() {
       // Mark this client as a demo session so the banner shows everywhere
       try { localStorage.setItem("is_demo_session", "1"); } catch {}
 
-      // Brief pause so the user notices what's happening
-      await new Promise(r => setTimeout(r, 600));
+      // Wait until the session is actually persisted to localStorage —
+      // otherwise AuthGuard on /dashboard runs before supabase.auth.getSession()
+      // can find the new session and bounces us back to /login.
+      for (let i = 0; i < 20; i++) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email === DEMO_EMAIL) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
       if (cancelled) return;
 
-      router.replace("/dashboard");
+      // Hard navigation rather than client routing so AuthGuard mounts fresh
+      // with the new session, instead of trying to react to a session change
+      // mid-render.
+      window.location.href = "/dashboard";
     }
     go();
     return () => { cancelled = true; };
