@@ -449,7 +449,7 @@ export default function LandingPage() {
 
               <div className="flex flex-wrap gap-3 mb-8">
                 <Link
-                  href="/tour"
+                  href="/demo"
                   className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-7 py-3.5 rounded-xl font-bold text-base transition-all shadow-lg shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5"
                 >
                   ראה את האפליקציה בלייב
@@ -493,7 +493,7 @@ export default function LandingPage() {
             </p>
           </div>
           <Link
-            href="/tour"
+            href="/demo"
             className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-gray-900 px-6 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition shadow-lg shadow-green-500/30"
           >
             כנס לסיור עכשיו
@@ -682,7 +682,7 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/tour"
+              href="/demo"
               className="inline-flex items-center justify-center gap-2 bg-white text-green-700 hover:bg-green-50 px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
             >
               כנס לסיור חי
