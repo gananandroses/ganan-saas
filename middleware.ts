@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/login', '/register', '/', '/landing', '/auth/callback']
+const PUBLIC_ROUTES = ['/login', '/register', '/', '/landing', '/tour', '/demo', '/auth/callback']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
   // Allow public routes, subscribe pages, and static/api paths
   if (
     PUBLIC_ROUTES.some(route => pathname === route) ||
+    pathname.startsWith('/tour/') ||             // Marketing tour (read-only, no auth)
     pathname.startsWith('/subscribe') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
