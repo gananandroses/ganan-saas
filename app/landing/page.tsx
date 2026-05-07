@@ -437,28 +437,31 @@ export default function LandingPage() {
               </div>
 
               <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight text-gray-900 mb-5">
-                נהל את עסק הגינון שלך{" "}
+                תפסיק לנהל לקוחות.{" "}
                 <span className="text-transparent bg-clip-text bg-gradient-to-l from-green-600 to-emerald-500">
-                  כמו מקצוען
+                  תתחיל לנהל עסק.
                 </span>
               </h1>
 
               <p className="text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">
-                אפליקציה חכמה לניהול לקוחות, לוח זמנים, פיננסים ואוטומציות WhatsApp — הכל במקום אחד
+                ה-CRM הישראלי הראשון שנבנה <span className="font-semibold text-gray-800">ע״י גנן, בשביל גננים</span>. לוח זמנים, פיננסים, הצעות מחיר ב-WhatsApp — באפליקציה אחת בעברית.
               </p>
 
               <div className="flex flex-wrap gap-3 mb-8">
                 <Link
-                  href="/register"
+                  href="/demo"
                   className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-7 py-3.5 rounded-xl font-bold text-base transition-all shadow-lg shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5"
                 >
-                  התחל ניסיון חינם 14 יום
+                  כנס לדמו חי — בלי הרשמה
                   <ArrowRight size={18} />
                 </Link>
-                <button className="inline-flex items-center gap-2 border-2 border-gray-200 hover:border-green-300 text-gray-700 px-6 py-3.5 rounded-xl font-semibold text-base transition-all hover:bg-green-50">
+                <Link
+                  href="/register"
+                  className="inline-flex items-center gap-2 border-2 border-gray-200 hover:border-green-300 text-gray-700 px-6 py-3.5 rounded-xl font-semibold text-base transition-all hover:bg-green-50"
+                >
                   <Play size={16} className="text-green-600" />
-                  צפה בדמו
-                </button>
+                  התחל ניסיון 14 יום
+                </Link>
               </div>
 
               {/* Social proof */}
@@ -480,19 +483,22 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── STATS BAR ───────────────────────────────────────────────────────── */}
-      <div className="bg-gray-900 text-white py-5">
-        <div className="max-w-4xl mx-auto px-4 grid grid-cols-3 gap-4 text-center">
-          {[
-            { value: "500+", label: "גננים פעילים" },
-            { value: "18,000+", label: "לקוחות מנוהלים" },
-            { value: "₪2.3M", label: "הכנסות מנוהלות" },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <div className="text-2xl sm:text-3xl font-extrabold text-green-400">{stat.value}</div>
-              <div className="text-xs sm:text-sm text-gray-400 mt-1">{stat.label}</div>
-            </div>
-          ))}
+      {/* ── DEMO CTA ────────────────────────────────────────────────────────── */}
+      <div className="bg-gradient-to-l from-gray-900 via-gray-800 to-gray-900 text-white py-8 px-4">
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-5 text-center sm:text-right">
+          <div>
+            <p className="text-base sm:text-lg font-bold">רוצה לראות איך זה עובד?</p>
+            <p className="text-xs sm:text-sm text-gray-400 mt-1">
+              חשבון דמו עם 8 לקוחות, 30+ עבודות, פרויקט פעיל ופיננסים מלאים — מתאפס בלילה
+            </p>
+          </div>
+          <Link
+            href="/demo"
+            className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-gray-900 px-6 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition shadow-lg shadow-green-500/30"
+          >
+            כנס לדמו עכשיו
+            <ArrowRight size={16} />
+          </Link>
         </div>
       </div>
 
@@ -672,15 +678,23 @@ export default function LandingPage() {
             מוכן להתחיל?
           </h2>
           <p className="text-green-100 text-lg mb-8 leading-relaxed">
-            הצטרף ל-500+ גננים שכבר מנהלים את העסק שלהם בצורה חכמה יותר
+            תכנס לדמו, תשחק, תרגיש את האפליקציה — ואז תחליט.
           </p>
-          <Link
-            href="/register"
-            className="inline-flex items-center gap-2 bg-white text-green-700 hover:bg-green-50 px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
-          >
-            התחל ניסיון חינם עכשיו
-            <ArrowRight size={20} />
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/demo"
+              className="inline-flex items-center justify-center gap-2 bg-white text-green-700 hover:bg-green-50 px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
+            >
+              כנס לדמו חי
+              <ArrowRight size={20} />
+            </Link>
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center gap-2 border-2 border-white/40 hover:bg-white/10 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all"
+            >
+              התחל ניסיון חינם
+            </Link>
+          </div>
           <div className="flex justify-center flex-wrap gap-5 mt-6 text-green-100 text-sm">
             {["14 יום ניסיון חינם", "ללא כרטיס אשראי", "הגדרה ב-5 דקות"].map((t) => (
               <span key={t} className="flex items-center gap-1.5">

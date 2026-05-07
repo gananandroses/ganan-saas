@@ -1,5 +1,6 @@
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
+import DemoBanner from "./DemoBanner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 md:mr-64 min-h-screen overflow-x-hidden pb-20 md:pb-0">
+        <DemoBanner />
         {children}
       </main>
 
