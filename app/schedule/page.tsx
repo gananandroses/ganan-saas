@@ -988,21 +988,46 @@ export default function SchedulePage() {
   async function fetchJobs() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { data } = await supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time");
-    if (data) {
-      setJobs(data.map(row => ({
-        id: row.id, customerId: row.customer_id ?? null,
-        customerName: row.customer_name ?? "", address: row.address ?? "",
-        date: row.job_date, time: (row.job_time ?? "00:00").slice(0, 5),
-        duration: Number(row.duration), type: row.type ?? "",
-        status: row.status as TaskStatus, assignedTo: row.assigned_to ?? [],
-        price: Number(row.price), priceBeforeVat: Boolean(row.price_before_vat),
-        expenses: Number(row.expenses ?? 0),
-        cancellationReason: (row.cancellation_reason ?? null) as CancellationReason,
-        notes: row.notes ?? undefined,
-        priority: (row.priority ?? "medium") as Priority,
-        jobCategory: (row.job_category ?? "work") as JobCategory,
-      })));
+    // Load jobs and customers in parallel — we use customer addresses as a
+    // fallback when the job row itself has no address (e.g. recurring jobs
+    // booked from the customers page where customer.address was empty at
+    // booking time but later filled in).
+    const [jobsRes, custRes] = await Promise.all([
+      supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time"),
+      supabase.from("customers").select("id, name, address, city").eq("user_id", user?.id),
+    ]);
+    const customers = custRes.data ?? [];
+    const addrById = new Map<string, string>();
+    const addrByName = new Map<string, string>();
+    for (const c of customers) {
+      const full = [c.address, c.city].filter(Boolean).join(", ");
+      if (!full) continue;
+      if (c.id) addrById.set(String(c.id), full);
+      if (c.name) addrByName.set(String(c.name), full);
+    }
+
+    if (jobsRes.data) {
+      setJobs(jobsRes.data.map(row => {
+        const stored = (row.address ?? "").trim();
+        const fallback =
+          (row.customer_id && addrById.get(String(row.customer_id))) ||
+          (row.customer_name && addrByName.get(String(row.customer_name))) ||
+          "";
+        return {
+          id: row.id, customerId: row.customer_id ?? null,
+          customerName: row.customer_name ?? "",
+          address: stored || fallback,
+          date: row.job_date, time: (row.job_time ?? "00:00").slice(0, 5),
+          duration: Number(row.duration), type: row.type ?? "",
+          status: row.status as TaskStatus, assignedTo: row.assigned_to ?? [],
+          price: Number(row.price), priceBeforeVat: Boolean(row.price_before_vat),
+          expenses: Number(row.expenses ?? 0),
+          cancellationReason: (row.cancellation_reason ?? null) as CancellationReason,
+          notes: row.notes ?? undefined,
+          priority: (row.priority ?? "medium") as Priority,
+          jobCategory: (row.job_category ?? "work") as JobCategory,
+        };
+      }));
     }
     setLoading(false);
   }

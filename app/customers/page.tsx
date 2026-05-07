@@ -434,9 +434,12 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
   async function handleBookDate(date: string) {
     setBookingSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
+    // Combine street + city so the job card always has enough for Waze.
+    const fullAddress = [customer.address, customer.city].filter(Boolean).join(", ");
     await supabase.from("jobs").insert({
+      customer_id: customer.id,
       customer_name: customer.name,
-      address: customer.address || null,
+      address: fullAddress || null,
       job_date: date,
       job_time: "09:00",
       duration: 2,
