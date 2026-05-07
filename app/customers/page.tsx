@@ -1055,12 +1055,16 @@ export default function CustomersPage() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Load customers + upcoming jobs in parallel
+    // Load customers + upcoming jobs + all income transactions in parallel.
+    // We compute balance/totalPaid from transactions (single source of truth)
+    // because customers.balance/total_paid columns drift out of sync as soon
+    // as a project/job auto-creates a transaction.
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-    const [{ data, error }, { data: jobsData }] = await Promise.all([
+    const [{ data, error }, { data: jobsData }, { data: txData }] = await Promise.all([
       supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false }),
       supabase.from("jobs").select("customer_name, job_date").eq("user_id", user?.id).gte("job_date", todayStr).order("job_date"),
+      supabase.from("transactions").select("customer_name, amount, status, type").eq("user_id", user?.id).eq("type", "income"),
     ]);
 
     // Build a map: normalized customer_name → earliest upcoming job date
@@ -1071,27 +1075,47 @@ export default function CustomersPage() {
       if (name && !nextJobMap[name]) nextJobMap[name] = j.job_date as string;
     });
 
+    // Aggregate transactions by normalized customer name:
+    //   collected (status != pending/overdue) → totalPaid
+    //   pending/overdue                       → balance
+    const paidByName: Record<string, number> = {};
+    const balanceByName: Record<string, number> = {};
+    (txData ?? []).forEach((t: Record<string, unknown>) => {
+      const name = normalize(t.customer_name as string);
+      if (!name) return;
+      const amount = Number(t.amount) || 0;
+      const status = t.status as string | null;
+      if (status === "pending" || status === "overdue") {
+        balanceByName[name] = (balanceByName[name] ?? 0) + amount;
+      } else {
+        paidByName[name] = (paidByName[name] ?? 0) + amount;
+      }
+    });
+
     if (!error && data) {
-      setCustomers(data.map((c: Record<string, unknown>) => ({
-        id: c.id as string,
-        name: c.name as string,
-        city: c.city as string || "",
-        address: c.address as string || "",
-        phone: c.phone as string || "",
-        email: c.email as string || undefined,
-        monthlyPrice: c.monthly_price as number || 0,
-        frequency: c.frequency as string || "",
-        status: c.status as CustomerStatus || "active",
-        joinDate: c.join_date as string || "",
-        lastVisit: c.last_visit as string || "",
-        nextVisit: nextJobMap[normalize(c.name as string)] || (c.next_visit as string) || "",
-        notes: c.notes as string || "",
-        tags: c.tags as string[] || [],
-        totalPaid: c.total_paid as number || 0,
-        balance: c.balance as number || 0,
-        lat: c.lat as number || 0,
-        lng: c.lng as number || 0,
-      })));
+      setCustomers(data.map((c: Record<string, unknown>) => {
+        const key = normalize(c.name as string);
+        return {
+          id: c.id as string,
+          name: c.name as string,
+          city: c.city as string || "",
+          address: c.address as string || "",
+          phone: c.phone as string || "",
+          email: c.email as string || undefined,
+          monthlyPrice: c.monthly_price as number || 0,
+          frequency: c.frequency as string || "",
+          status: c.status as CustomerStatus || "active",
+          joinDate: c.join_date as string || "",
+          lastVisit: c.last_visit as string || "",
+          nextVisit: nextJobMap[key] || (c.next_visit as string) || "",
+          notes: c.notes as string || "",
+          tags: c.tags as string[] || [],
+          totalPaid: Math.round(paidByName[key] ?? (c.total_paid as number) ?? 0),
+          balance: Math.round(balanceByName[key] ?? 0),
+          lat: c.lat as number || 0,
+          lng: c.lng as number || 0,
+        };
+      }));
     }
     setLoading(false);
   }

@@ -796,13 +796,18 @@ export default function FinancePage() {
     });
   }, []);
 
-  // Chart data from real transactions
+  // Cash-basis income filter: only count transactions actually received.
+  // status="paid" or null/legacy = collected; pending/overdue belong to "חוב פתוח".
+  const isCollected = (t: Transaction) => t.status !== "pending" && t.status !== "overdue";
+
+  // Chart data from real transactions (paid income only — keeps the bars in
+  // sync with KPI totals and prevents pending receivables from inflating revenue)
   const chartData = Array.from({length: 6}, (_, i) => {
     const d = new Date();
     d.setMonth(d.getMonth() - 5 + i);
     const month = d.toISOString().slice(0, 7);
     const label = new Date(month + "-01").toLocaleDateString("he-IL", { month: "short" });
-    const income = transactions.filter(t => t.type === "income" && t.date.startsWith(month)).reduce((s, t) => s + t.amount, 0);
+    const income = transactions.filter(t => t.type === "income" && isCollected(t) && t.date.startsWith(month)).reduce((s, t) => s + t.amount, 0);
     const expense = transactions.filter(t => t.type === "expense" && t.date.startsWith(month)).reduce((s, t) => s + t.amount, 0);
     return { month: label, income, expense };
   });
@@ -824,10 +829,10 @@ export default function FinancePage() {
     (t) => t.type === "income" && (t.status === "pending" || t.status === "overdue")
   );
 
-  // Top 5 customers by revenue (in range)
+  // Top 5 customers by revenue (in range, paid only)
   const customerRevenueMap: Record<string, { name: string; total: number }> = {};
   txInRange
-    .filter((t) => t.type === "income")
+    .filter((t) => t.type === "income" && isCollected(t))
     .forEach((t) => {
       if (!customerRevenueMap[t.customerName]) {
         customerRevenueMap[t.customerName] = { name: t.customerName, total: 0 };
@@ -840,16 +845,13 @@ export default function FinancePage() {
   const maxCustomerRevenue = Math.max(...customerRevenue.map((c) => c.total), 1);
 
   // KPI calculations (in range)
-  // Cash-basis: "סה״כ הכנסות" counts only money actually collected.
-  // Pending/overdue receivables live under "חוב פתוח" so they don't double-count.
-  // Anything not explicitly pending/overdue (incl. legacy null status) = collected.
-  const isCollected = (t: Transaction) => t.status !== "pending" && t.status !== "overdue";
   const totalIncome = txInRange.filter((t) => t.type === "income" && isCollected(t)).reduce((s, t) => s + t.amount, 0);
   const totalExpense = txInRange.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   // Net profit = (income - expenses) excluding VAT — the actual money the business keeps
   const cashFlow = totalIncome - totalExpense;
   const netProfit = Math.round(cashFlow / 1.18);
-  const totalVat = txInRange.filter((t) => t.type === "income").reduce((s, t) => s + t.vatAmount, 0);
+  // VAT is owed only on income actually received (cash-basis VAT — Israeli עוסק מורשה default).
+  const totalVat = txInRange.filter((t) => t.type === "income" && isCollected(t)).reduce((s, t) => s + t.vatAmount, 0);
   // VAT paid on expenses (input VAT) — assume expenses include VAT, deductible from VAT collected
   const inputVat = Math.round(totalExpense - totalExpense / 1.18);
   // Net VAT to pay = VAT collected - VAT paid on inputs
@@ -1022,7 +1024,7 @@ export default function FinancePage() {
                   {detailModal === "income" ? "פירוט הכנסות" : detailModal === "expense" ? "פירוט הוצאות" : "פירוט רווח נקי"}
                 </h2>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {detailModal === "income" && `${txInRange.filter(t => t.type === "income").length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
+                  {detailModal === "income" && `${txInRange.filter(t => t.type === "income" && isCollected(t)).length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
                   {detailModal === "expense" && `${txInRange.filter(t => t.type === "expense").length} תנועות · ₪${totalExpense.toLocaleString()} סה״כ`}
                   {detailModal === "profit" && `(הכנסות - הוצאות) ÷ 1.18 — אחרי הפחתת מע״מ`}
                 </p>
@@ -1057,8 +1059,11 @@ export default function FinancePage() {
             {/* Transaction list */}
             <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
               {(detailModal === "profit"
-                ? [...txInRange].sort((a, b) => b.date.localeCompare(a.date))
-                : txInRange.filter(t => t.type === detailModal)
+                ? [...txInRange.filter(t => t.type === "expense" || (t.type === "income" && isCollected(t)))]
+                    .sort((a, b) => b.date.localeCompare(a.date))
+                : detailModal === "income"
+                  ? txInRange.filter(t => t.type === "income" && isCollected(t))
+                  : txInRange.filter(t => t.type === detailModal)
               ).map(tx => (
                 <div key={tx.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">

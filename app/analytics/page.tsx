@@ -166,7 +166,11 @@ function compute(
   fromDate.setDate(fromDate.getDate() - dateRange);
   const fromStr = fromDate.toISOString().split("T")[0];
 
-  const incomeAll = transactions.filter((t) => t.type === "income");
+  // Cash-basis: only count income that was actually received.
+  // Pending/overdue receivables are tracked separately under "open balance"
+  // (so they don't double-count or inflate analytics revenue).
+  const isCollected = (t: Row) => t.status !== "pending" && t.status !== "overdue";
+  const incomeAll = transactions.filter((t) => t.type === "income" && isCollected(t));
   const expenseAll = transactions.filter((t) => t.type === "expense");
 
   // Transactions within the selected period
@@ -470,7 +474,7 @@ function DetailModal({
   const fromStr = fromDate.toISOString().split("T")[0];
 
   const incomeTx = rawData.transactions.filter(
-    (t) => t.type === "income" && (t.transaction_date as string) >= fromStr
+    (t) => t.type === "income" && t.status !== "pending" && t.status !== "overdue" && (t.transaction_date as string) >= fromStr
   ).sort((a, b) => ((b.transaction_date as string) > (a.transaction_date as string) ? 1 : -1));
 
   const expenseTx = rawData.transactions.filter(
