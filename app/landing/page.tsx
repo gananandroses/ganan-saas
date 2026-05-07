@@ -449,10 +449,10 @@ export default function LandingPage() {
 
               <div className="flex flex-wrap gap-3 mb-8">
                 <Link
-                  href="/demo"
+                  href="/tour"
                   className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-7 py-3.5 rounded-xl font-bold text-base transition-all shadow-lg shadow-green-200 hover:shadow-green-300 hover:-translate-y-0.5"
                 >
-                  כנס לדמו חי — בלי הרשמה
+                  ראה את האפליקציה בלייב
                   <ArrowRight size={18} />
                 </Link>
                 <Link
@@ -489,14 +489,14 @@ export default function LandingPage() {
           <div>
             <p className="text-base sm:text-lg font-bold">רוצה לראות איך זה עובד?</p>
             <p className="text-xs sm:text-sm text-gray-400 mt-1">
-              חשבון דמו עם 8 לקוחות, 30+ עבודות, פרויקט פעיל ופיננסים מלאים — מתאפס בלילה
+              סיור חי עם 8 לקוחות, 30+ עבודות, פרויקט פעיל ופיננסים מלאים — בלי הרשמה
             </p>
           </div>
           <Link
-            href="/demo"
+            href="/tour"
             className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-gray-900 px-6 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition shadow-lg shadow-green-500/30"
           >
-            כנס לדמו עכשיו
+            כנס לסיור עכשיו
             <ArrowRight size={16} />
           </Link>
         </div>
@@ -678,14 +678,14 @@ export default function LandingPage() {
             מוכן להתחיל?
           </h2>
           <p className="text-green-100 text-lg mb-8 leading-relaxed">
-            תכנס לדמו, תשחק, תרגיש את האפליקציה — ואז תחליט.
+            צא לסיור, ראה איך נראה עסק גינון מצליח באפליקציה, ואז תחליט.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/demo"
+              href="/tour"
               className="inline-flex items-center justify-center gap-2 bg-white text-green-700 hover:bg-green-50 px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
             >
-              כנס לדמו חי
+              כנס לסיור חי
               <ArrowRight size={20} />
             </Link>
             <Link

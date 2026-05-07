@@ -12,6 +12,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (PUBLIC_PATHS.includes(pathname)) return;
+    // /tour and any sub-route are public (read-only marketing tour)
+    if (pathname === "/tour" || pathname.startsWith("/tour/")) return;
     // Public quote share links — no auth required
     if (pathname.startsWith("/q/")) return;
 
