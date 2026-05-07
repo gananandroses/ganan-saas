@@ -471,7 +471,7 @@ export default function DashboardPage() {
         supabase.from("customers").select("id, status, monthly_price, balance, name, phone").eq("user_id", user?.id),
         supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income").eq("user_id", user?.id),
         supabase.from("jobs").select("*").eq("user_id", user?.id).gte("job_date", today).order("job_date").limit(50),
-        supabase.from("transactions").select("type, amount, transaction_date").eq("user_id", user?.id),
+        supabase.from("transactions").select("type, amount, status, transaction_date").eq("user_id", user?.id),
         supabase.from("employees").select("id, status").eq("user_id", user?.id),
         supabase.from("projects").select("id, status").eq("user_id", user?.id),
       ]);
