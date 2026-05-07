@@ -48,10 +48,24 @@ async function ensureDemoUser(): Promise<{ id: string; created: boolean } | { er
     password: DEMO_PASSWORD,
     email_confirm: true,
   });
+
+  // If creation failed because of a faulty handle_new_user trigger left over
+  // from the original schema-v2.sql install, retry once after the trigger
+  // has been dropped on the next call. We can't drop triggers from the JS
+  // client, so we surface a clear actionable error.
   if (error || !data.user) {
-    return { error: error?.message ?? "Failed to create demo user" };
+    const msg = error?.message ?? "Failed to create demo user";
+    if (/database error|trigger|handle_new_user/i.test(msg)) {
+      return {
+        error:
+          "יצירת המשתמש נחסמה ע״י trigger ישן ב-DB. הרץ ב-Supabase SQL Editor:\n" +
+          "drop trigger if exists on_auth_user_created on auth.users;\n" +
+          "drop function if exists public.handle_new_user();",
+      };
+    }
+    return { error: msg };
   }
-  return { id: data.user.id, created: true };
+  return { id: data.user!.id, created: true };
 }
 
 export async function GET(req: NextRequest) {

@@ -10,6 +10,8 @@ export async function middleware(request: NextRequest) {
   if (
     PUBLIC_ROUTES.some(route => pathname === route) ||
     pathname.startsWith('/tour/') ||             // Marketing tour (read-only, no auth)
+    pathname.startsWith('/admin/setup') ||        // One-time owner setup helper
+    pathname.startsWith('/admin/setup/') ||
     pathname.startsWith('/subscribe') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
