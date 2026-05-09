@@ -6,6 +6,7 @@ import {
   FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 import { PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 import { loadPricerSettings, buildEffectivePriceList, buildEffectiveCategories, type PricerSettings } from "@/lib/pricer-merge";
 
@@ -151,7 +152,7 @@ export default function QuoteEditPage() {
           setNewCustomerAddress(q.customer_address ?? "");
         }
       } else {
-        alert("הצעת המחיר לא נמצאה");
+        toast.error("הצעת המחיר לא נמצאה");
         router.push("/quote");
         return;
       }
@@ -238,9 +239,9 @@ export default function QuoteEditPage() {
       ? (selectedCustomer?.address ?? "")
       : newCustomerAddress.trim();
 
-    if (!customerName) { alert("חובה לבחור לקוח"); setSaving(false); return; }
-    if (!title.trim()) { alert("חובה להזין כותרת להצעה"); setSaving(false); return; }
-    if (items.length === 0) { alert("חובה להוסיף לפחות פריט אחד"); setSaving(false); return; }
+    if (!customerName) { toast.error("חובה לבחור לקוח"); setSaving(false); return; }
+    if (!title.trim()) { toast.error("חובה להזין כותרת להצעה"); setSaving(false); return; }
+    if (items.length === 0) { toast.error("חובה להוסיף לפחות פריט אחד"); setSaving(false); return; }
 
     // Decide new status:
     // - If user clicked "save as draft" → draft
@@ -273,7 +274,7 @@ export default function QuoteEditPage() {
 
     setSaving(false);
     if (error) {
-      alert(`שגיאה בשמירה: ${error.message}`);
+      toast.error(`שגיאה בשמירה: ${error.message}`);
       return;
     }
     setSuccessMode(asDraft ? "draft" : "saved");
@@ -284,7 +285,7 @@ export default function QuoteEditPage() {
   function sendWhatsApp() {
     const phone = customerMode === "existing" ? selectedCustomer?.phone : newCustomerPhone;
     const customerName = customerMode === "existing" ? selectedCustomer?.name : newCustomerName;
-    if (!phone) { alert("אין טלפון ללקוח"); return; }
+    if (!phone) { toast.error("אין טלפון ללקוח"); return; }
     const cleaned = phone.replace(/\D/g, "");
     let intl = cleaned;
     if (cleaned.startsWith("0")) intl = "972" + cleaned.slice(1);

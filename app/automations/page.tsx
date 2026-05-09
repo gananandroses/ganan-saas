@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Header from "@/components/Header";
+import { toast, confirmDialog } from "@/components/Toaster";
 import { supabase } from "@/lib/supabase/client";
 import {
   Calendar,
@@ -462,7 +463,7 @@ export default function AutomationsPage() {
   function openSend(action: ActionItem) {
     const intl = normalizePhone(action.phone);
     if (!intl) {
-      alert(`לא נמצא טלפון ללקוח "${action.customerName}".\nודא שהלקוח רשום ב-CRM עם טלפון תקין.`);
+      toast.error(`לא נמצא טלפון ללקוח "${action.customerName}".`, "ודא שהלקוח רשום ב-CRM עם טלפון תקין.");
       return;
     }
     // Rebuild message fresh from action's own data — defensively per-click
@@ -525,7 +526,7 @@ export default function AutomationsPage() {
   function startWizard() {
     const allActions = visibleActions.flatMap(g => g.list).filter(a => !!normalizePhone(a.phone));
     if (allActions.length === 0) {
-      alert("אין פעולות זמינות לשליחה (רק ללקוחות עם טלפון רשום).");
+      toast.info("אין פעולות זמינות לשליחה (רק ללקוחות עם טלפון רשום).");
       return;
     }
     setWizard({ actions: allActions, index: 0, editedMessage: rebuildMessage(allActions[0]) });

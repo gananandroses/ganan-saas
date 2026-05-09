@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import BackButton from "@/components/BackButton";
+import { toast, confirmDialog } from "@/components/Toaster";
 import {
   AlertTriangle,
   Plus,
@@ -622,7 +623,7 @@ export default function InventoryPage() {
     setSchedulingEquipment(null);
     setMaintenanceDate("");
     fetchEquipment();
-    alert(`✅ תחזוקה נוספה ליומן בתאריך ${maintenanceDate}`);
+    toast.success(`תחזוקה נוספה ליומן בתאריך ${maintenanceDate}`);
   }
 
   const fetchEquipment = async () => {
@@ -644,7 +645,7 @@ export default function InventoryPage() {
   };
 
   const handleDeleteEquipment = async (id: string) => {
-    if (!confirm("למחוק ציוד זה?")) return;
+    if (!await confirmDialog({ title: "למחוק ציוד זה?", confirmLabel: "מחק", destructive: true })) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("equipment").delete().eq("id", id).eq("user_id", user.id);
@@ -751,7 +752,7 @@ export default function InventoryPage() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!confirm("למחוק פריט זה מהמלאי?")) return;
+    if (!await confirmDialog({ title: "למחוק פריט זה מהמלאי?", confirmLabel: "מחק", destructive: true })) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("inventory").delete().eq("id", id).eq("user_id", user.id);
@@ -870,7 +871,7 @@ export default function InventoryPage() {
           <button
             onClick={() => {
               const list = lowStockItems.map(i => `• ${i.name} (כמות נוכחית: ${i.quantity} ${i.unit}, מינימום: ${i.minStock} ${i.unit})`).join("\n");
-              alert(`פריטים לרכישה דחופה:\n\n${list}`);
+              toast.info("פריטים לרכישה דחופה", list);
             }}
             className="text-xs text-red-600 hover:text-red-800 font-medium border border-red-300 hover:border-red-400 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 flex-shrink-0"
           >

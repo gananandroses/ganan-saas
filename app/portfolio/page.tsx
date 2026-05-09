@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 import {
   Loader2, ImageIcon, X, ChevronLeft, ChevronRight, Camera,
   Folder, FolderPlus, Upload, Trash2, Share2, Plus, Search, Play,
@@ -345,7 +346,7 @@ export default function PortfolioPage() {
                   </button>
                   {/* Delete folder button — always visible */}
                   <button
-                    onClick={async (e) => { e.stopPropagation(); if (confirm(`למחוק את התיקייה "${folder.name}" וכל תמונותיה?`)) await deleteFolder(folder.name); }}
+                    onClick={async (e) => { e.stopPropagation(); if (await confirmDialog({ title: `למחוק את התיקייה "${folder.name}" וכל תמונותיה?`, confirmLabel: "מחק", destructive: true })) await deleteFolder(folder.name); }}
                     className="absolute top-2 left-2 w-7 h-7 bg-black/60 hover:bg-red-600 text-white rounded-lg flex items-center justify-center transition-colors"
                   >
                     <Trash2 size={12} />

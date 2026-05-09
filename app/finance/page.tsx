@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
+import { toast, confirmDialog } from "@/components/Toaster";
 
 import { supabase } from "@/lib/supabase/client";
 import {
@@ -693,7 +694,7 @@ export default function FinancePage() {
     else if (num.startsWith("972")) intl = num;
     else if (num.length === 9) intl = "972" + num;
     if (!intl) {
-      alert(`לא נמצא טלפון ללקוח "${tx.customerName}".\n\nודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.`);
+      toast.error(`לא נמצא טלפון ללקוח "${tx.customerName}".`, "ודא שהלקוח רשום ב-CRM (לקוחות) עם מספר טלפון תקין, ושהשם בדיוק תואם.");
       return;
     }
     const customTemplate = typeof window !== "undefined" ? localStorage.getItem("whatsapp_reminder_template") : null;
@@ -740,7 +741,7 @@ export default function FinancePage() {
   }
 
   const deleteTransaction = async (id: string) => {
-    if (!confirm("למחוק עסקה זו?")) return;
+    if (!await confirmDialog({ title: "למחוק עסקה זו?", confirmLabel: "מחק", destructive: true })) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
@@ -996,7 +997,7 @@ export default function FinancePage() {
                         <MessageSquare size={12} />
                         {intl ? "שלח" : "אין טלפון"}
                       </button>
-                      <button onClick={() => { if (confirm(`לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`)) markAsPaid(tx.id); }}
+                      <button onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(tx.id); }}
                         title="סמן כשולם"
                         className="flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
                         <CheckCircle size={14} />
@@ -1458,7 +1459,7 @@ export default function FinancePage() {
                                   שלח תזכורת
                                 </button>
                                 <button
-                                  onClick={() => { if (confirm(`לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`)) markAsPaid(tx.id); }}
+                                  onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(tx.id); }}
                                   className="flex items-center gap-1 text-xs text-emerald-600 font-semibold hover:text-emerald-800 whitespace-nowrap">
                                   <CheckCircle size={12} />
                                   שולם
@@ -1542,7 +1543,7 @@ export default function FinancePage() {
                         שלח תזכורת
                       </button>
                       <button
-                        onClick={() => { if (confirm(`לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`)) markAsPaid(tx.id); }}
+                        onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(tx.id); }}
                         className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-xs font-semibold py-2 rounded-lg transition-colors">
                         <CheckCircle size={12} />
                         שולם

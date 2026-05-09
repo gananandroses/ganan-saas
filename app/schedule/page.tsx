@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
@@ -440,14 +441,14 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
 
     if (error) {
       console.error("[schedule] failed to cancel job:", error);
-      alert("לא הצלחנו לבטל את העבודה. נסה שוב בעוד רגע.");
+      toast.error("לא הצלחנו לבטל את העבודה, נסה שוב בעוד רגע.");
       return;
     }
 
     onDeleted(job.id);
     onClose();
     const reasonLabel = reason === "no_show" ? "לא הופיע" : "בלת״מ";
-    alert(`העבודה של ${job.customerName} סומנה כ"${reasonLabel}".`);
+    toast.success(`העבודה של ${job.customerName} סומנה כ"${reasonLabel}".`);
   }
 
   return (
@@ -622,8 +623,13 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
                 </button>
 
                 <button
-                  onClick={() => {
-                    if (confirm(`למחוק לצמיתות את העבודה עם ${job.customerName}?\nפעולה זו לא ניתנת לביטול.`)) {
+                  onClick={async () => {
+                    if (await confirmDialog({
+                      title: `למחוק לצמיתות את העבודה עם ${job.customerName}?`,
+                      description: "פעולה זו לא ניתנת לביטול.",
+                      confirmLabel: "מחק",
+                      destructive: true,
+                    })) {
                       handleDelete();
                       setShowCancelModal(false);
                     }

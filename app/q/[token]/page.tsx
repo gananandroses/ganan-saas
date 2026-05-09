@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, CheckCircle2, Phone, MapPin, FileText, Printer, X, Copy, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 
 interface QuoteItemDB {
   id: string;
@@ -358,19 +359,19 @@ export default function PublicQuotePage() {
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/heic", "image/webp"];
     const isImageType = allowedTypes.includes(file.type) || file.type.startsWith("image/");
     if (!isImageType) {
-      alert("יש להעלות תמונה בלבד (JPG / PNG / HEIC).");
+      toast.error("יש להעלות תמונה בלבד (JPG / PNG / HEIC).");
       e.target.value = "";
       return;
     }
 
     // 2) Validate size — minimum 10KB (rule out empty/blank), maximum 5MB
     if (file.size < 10 * 1024) {
-      alert("הקובץ קטן מדי. ודא שזה צילום מסך אמיתי של אישור התשלום.");
+      toast.error("הקובץ קטן מדי. ודא שזה צילום מסך אמיתי של אישור התשלום.");
       e.target.value = "";
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("הקובץ גדול מדי. מקסימום 5MB.");
+      toast.error("הקובץ גדול מדי. מקסימום 5MB.");
       e.target.value = "";
       return;
     }
@@ -383,14 +384,14 @@ export default function PublicQuotePage() {
       testImg.onload = () => {
         // Reject suspicious dimensions (too small to be a payment screenshot)
         if (testImg.width < 200 || testImg.height < 200) {
-          alert("התמונה קטנה מדי. ודא שזה צילום מסך מלא של האישור.");
+          toast.error("התמונה קטנה מדי. ודא שזה צילום מסך מלא של האישור.");
           return;
         }
         setProofFile(file);
         setProofPreview(dataUrl);
       };
       testImg.onerror = () => {
-        alert("הקובץ אינו תמונה תקינה. נסה צילום מסך אחר.");
+        toast.error("הקובץ אינו תמונה תקינה. נסה צילום מסך אחר.");
         e.target.value = "";
       };
       testImg.src = dataUrl;
@@ -402,7 +403,7 @@ export default function PublicQuotePage() {
   async function submitPaymentProofAndSign() {
     if (!quote || !signerName.trim() || !hasSignature) return;
     if (!paymentReference.trim()) {
-      alert("חובה להזין מספר אסמכתא של התשלום");
+      toast.error("חובה להזין מספר אסמכתא של התשלום");
       return;
     }
     setPaymentMarking(true);
@@ -951,7 +952,7 @@ export default function PublicQuotePage() {
                   <p className="text-sm font-semibold text-gray-800 mb-1">בחר אופציית תשלום:</p>
 
                   {allowMeshulam && (
-                    <button onClick={() => alert("חיבור משולם יושלם בקרוב")}
+                    <button onClick={() => toast.info("חיבור משולם יושלם בקרוב")}
                       className="w-full flex items-center gap-3 p-3 border-2 border-emerald-200 hover:bg-emerald-50 rounded-2xl text-right transition-colors">
                       <div className="text-3xl">💳</div>
                       <div className="flex-1">

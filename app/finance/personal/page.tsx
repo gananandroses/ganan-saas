@@ -12,6 +12,7 @@ import {
   Tooltip, Line, ComposedChart, Cell, PieChart, Pie,
 } from "recharts";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 import {
   PersonalTx, Recurrence, TxType, Scope, RawBusinessTxRow,
   INCOME_CATEGORIES, EXPENSE_CATEGORIES, getCategory, categoryClasses, categoryHex,
@@ -260,7 +261,7 @@ function TxModal({
 
   async function handleDelete() {
     if (!initial) return;
-    if (!confirm("למחוק את התנועה?")) return;
+    if (!await confirmDialog({ title: "למחוק את התנועה?", confirmLabel: "מחק", destructive: true })) return;
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("personal_transactions").delete().eq("id", initial.id).eq("user_id", user?.id);

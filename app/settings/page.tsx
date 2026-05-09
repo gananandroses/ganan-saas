@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -284,11 +285,11 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      alert("הקובץ גדול מדי. מקסימום 2MB.");
+      toast.error("הקובץ גדול מדי. מקסימום 2MB.");
       return;
     }
     if (!file.type.startsWith("image/")) {
-      alert("חובה להעלות קובץ תמונה (PNG, JPG, SVG).");
+      toast.error("חובה להעלות קובץ תמונה (PNG, JPG, SVG).");
       return;
     }
 
@@ -301,7 +302,7 @@ export default function SettingsPage() {
       .upload(path, file, { upsert: true, cacheControl: "3600" });
 
     if (upErr) {
-      alert(`שגיאה בהעלאה: ${upErr.message}`);
+      toast.error(`שגיאה בהעלאה: ${upErr.message}`);
       setLogoUploading(false);
       return;
     }
@@ -324,7 +325,7 @@ export default function SettingsPage() {
   }
 
   async function handleLogoRemove() {
-    if (!confirm("להסיר את הלוגו?")) return;
+    if (!await confirmDialog({ title: "להסיר את הלוגו?", confirmLabel: "הסר", destructive: true })) return;
     setForm(f => ({ ...f, businessLogoUrl: "" }));
     await supabase.from("user_profile").upsert({
       user_id: userId,
@@ -791,7 +792,7 @@ export default function SettingsPage() {
               onClick={async () => {
                 if (!userEmail) return;
                 await supabase.auth.resetPasswordForEmail(userEmail);
-                alert("נשלח קישור לאיפוס סיסמה לאימייל שלך");
+                toast.success("נשלח קישור לאיפוס סיסמה לאימייל שלך");
               }}
               className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-300 px-4 py-2 rounded-xl transition-colors"
             >

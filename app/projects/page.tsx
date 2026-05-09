@@ -10,6 +10,7 @@ import {
   ShoppingCart, Search, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 
 // ── Types ─────────────────────────────────────────────────────
@@ -1125,7 +1126,7 @@ function ProjectCard({ project, onUpdate, onDelete }: { project: Project; onUpda
   const [deleting, setDeleting] = useState(false);
 
   async function handleDelete() {
-    if (!confirm(`למחוק את הפרויקט "${project.name}"?`)) return;
+    if (!await confirmDialog({ title: `למחוק את הפרויקט "${project.name}"?`, confirmLabel: "מחק", destructive: true })) return;
     setDeleting(true);
     const { data: { user } } = await supabase.auth.getUser();
     await supabase.from("projects").delete().eq("id", project.id).eq("user_id", user?.id);

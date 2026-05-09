@@ -6,6 +6,7 @@ import {
   FileText, Plus, ChevronRight, Loader2, Search, Trash2, Calendar, User as UserIcon, MessageSquare, Eye, Edit3, Copy,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 
 interface Quote {
   id: string;
@@ -71,7 +72,7 @@ export default function QuotesListPage() {
   }
 
   async function handleDelete(id: string, title: string) {
-    if (!confirm(`למחוק את ההצעה "${title}"?`)) return;
+    if (!await confirmDialog({ title: `למחוק את ההצעה "${title}"?`, confirmLabel: "מחק", destructive: true })) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("quotes").delete().eq("id", id).eq("user_id", user.id);

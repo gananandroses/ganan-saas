@@ -6,6 +6,7 @@ import {
   Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Calendar, User as UserIcon, Phone, MapPin, Copy, Eye, FileBox, X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { toast, confirmDialog } from "@/components/Toaster";
 
 interface QuoteItemDB {
   id: string;
@@ -104,7 +105,6 @@ export default function QuoteViewPage() {
   });
   const [updating, setUpdating] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -184,7 +184,7 @@ export default function QuoteViewPage() {
           }).eq("id", quote.id);
           setQuote({ ...quote, status, project_id: project.id });
           setUpdating(false);
-          alert(`✅ ההצעה אושרה!\nנוצר אוטומטית פרויקט חדש: "${quote.title}"`);
+          toast.success("ההצעה אושרה!", `נוצר אוטומטית פרויקט חדש: "${quote.title}"`);
           return;
         }
       }
@@ -197,7 +197,7 @@ export default function QuoteViewPage() {
 
   async function handleDelete() {
     if (!quote) return;
-    if (!confirm(`למחוק את ההצעה "${quote.title}"?`)) return;
+    if (!await confirmDialog({ title: `למחוק את ההצעה "${quote.title}"?`, confirmLabel: "מחק", destructive: true })) return;
     await supabase.from("quotes").delete().eq("id", quote.id);
     router.push("/quote");
   }
@@ -250,10 +250,11 @@ export default function QuoteViewPage() {
     }
   }
 
-  // Toast notification system
+  // Backwards-compat shim — old call sites used a local showToast() that
+  // mounted a one-line bar at the bottom of the page. They all show
+  // "✅ ..." messages, so route them through the global toast.success.
   function showToast(message: string) {
-    setToast(message);
-    setTimeout(() => setToast(null), 2500);
+    toast.success(message.replace(/^✅\s*/, ""));
   }
 
   async function copyPublicLink() {
@@ -284,7 +285,7 @@ export default function QuoteViewPage() {
 
   async function verifyPayment() {
     if (!quote) return;
-    if (!confirm("מאשר שקיבלת את התשלום בבנק שלך? ההצעה תאושר ופרויקט ייווצר אוטומטית.")) return;
+    if (!await confirmDialog({ title: "מאשר שקיבלת את התשלום בבנק שלך?", description: "ההצעה תאושר ופרויקט ייווצר אוטומטית.", confirmLabel: "אישור" })) return;
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -361,7 +362,7 @@ export default function QuoteViewPage() {
 
   async function regeneratePin() {
     if (!quote) return;
-    if (!confirm("ייצר קוד חדש? הקוד הנוכחי יבוטל.")) return;
+    if (!await confirmDialog({ title: "ייצר קוד חדש?", description: "הקוד הנוכחי יבוטל.", confirmLabel: "ייצר חדש" })) return;
     const newPin = String(Math.floor(1000 + Math.random() * 9000));
     await supabase.from("quotes").update({
       pin_code: newPin,
@@ -374,7 +375,7 @@ export default function QuoteViewPage() {
   function handlePrint() { window.print(); }
 
   function sendWhatsApp() {
-    if (!quote || !quote.customer_phone) { alert("אין טלפון ללקוח"); return; }
+    if (!quote || !quote.customer_phone) { toast.error("אין טלפון ללקוח"); return; }
     const cleaned = quote.customer_phone.replace(/\D/g, "");
     let intl = cleaned;
     if (cleaned.startsWith("0")) intl = "972" + cleaned.slice(1);
@@ -833,13 +834,6 @@ export default function QuoteViewPage() {
           </div>
         </div>
       </div>
-
-      {/* Toast notification */}
-      {toast && (
-        <div className="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-2xl animate-in fade-in slide-in-from-bottom-4">
-          {toast}
-        </div>
-      )}
 
       {/* Share Modal */}
       {showShareModal && quote.public_token && (

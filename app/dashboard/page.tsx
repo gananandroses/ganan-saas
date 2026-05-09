@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import { toast, confirmDialog } from "@/components/Toaster";
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -398,13 +399,13 @@ export default function DashboardPage() {
     setPushStatus("loading");
     try {
       if (!("Notification" in window)) {
-        alert("הדפדפן לא תומך בהתראות — תזכורות ישלחו במייל אוטומטית ✅");
+        toast.success("הדפדפן לא תומך בהתראות — תזכורות ישלחו במייל אוטומטית");
         setPushStatus("idle"); return;
       }
       const p = await Notification.requestPermission();
       if (p !== "granted") { setPushStatus("denied"); return; }
       if (!("PushManager" in window) || !("serviceWorker" in navigator)) {
-        alert("✅ ההרשמה נרשמה! תזכורות ישלחו במייל.");
+        toast.success("ההרשמה נרשמה! תזכורות ישלחו במייל.");
         setPushStatus("enabled"); return;
       }
       const reg = await navigator.serviceWorker.ready;

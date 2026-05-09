@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import BackButton from "@/components/BackButton";
+import { toast, confirmDialog } from "@/components/Toaster";
 import {
   Leaf, CheckCircle, Clock, CreditCard, Shield,
   Loader2, LogOut, Star, Zap, Users, TrendingUp,
@@ -43,7 +44,7 @@ export default function SubscribePage() {
       window.location.href = url;
     } catch {
       setLoading(false);
-      alert("אירעה שגיאה, אנא נסה שוב");
+      toast.error("אירעה שגיאה, אנא נסה שוב");
     }
   }
 
