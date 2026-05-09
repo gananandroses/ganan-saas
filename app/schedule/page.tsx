@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
+import { getDefaultVatMode } from "@/lib/vat-settings";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
 function holidayStyle(type: HolidayType) {
@@ -675,7 +676,10 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [jobCategory, setJobCategory] = useState<JobCategory>("work");
   const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; city: string; phone: string; monthly_price: number }[]>([]);
   const [showCustomerList, setShowCustomerList] = useState(false);
-  const [priceVatType, setPriceVatType] = useState<"include" | "before">("before");
+  // Initialise from the user's default-VAT preference (set in /settings).
+  // If they never visited settings, getDefaultVatMode falls back to
+  // "include" — the more common case for Israeli small businesses.
+  const [priceVatType, setPriceVatType] = useState<"include" | "before">(() => getDefaultVatMode());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {

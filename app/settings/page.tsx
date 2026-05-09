@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X, FileText } from "lucide-react";
+import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X, FileText, Receipt } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
+import { getDefaultVatMode, setDefaultVatMode, type VatMode } from "@/lib/vat-settings";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -505,6 +506,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* VAT default */}
+      <VatDefaultCard userId={userId} />
+
       {/* Quote Template */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
@@ -923,6 +927,87 @@ export default function SettingsPage() {
           )}
           {saving ? "שומר..." : saved ? "נשמר!" : "שמור הגדרות"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── VAT default card ────────────────────────────────────────────────────────
+// Sets a per-device preference for whether prices entered already include
+// VAT. Every form that creates jobs / customers / quotes will pre-select
+// this mode. Saves immediately on click — no need to hit "save settings".
+
+function VatDefaultCard({ userId }: { userId: string }) {
+  // Lazy initialiser reads localStorage on the client; SSR safely defaults
+  // to "include" via getDefaultVatMode's window guard. Avoids a setState-
+  // in-effect cascade that the eslint rule would otherwise flag.
+  const [mode, setMode] = useState<VatMode>(() => getDefaultVatMode(userId));
+
+  function pick(next: VatMode) {
+    setMode(next);
+    setDefaultVatMode(userId, next);
+    toast.success(next === "include" ? "המחירים שלך כוללים מע״מ" : "המחירים שלך לפני מע״מ");
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+        <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center">
+          <Receipt className="w-4 h-4 text-violet-600" />
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900">מע״מ — ברירת מחדל</h2>
+          <p className="text-xs text-gray-500">איך המחירים שלך מוזנים בכל מקום באפליקציה</p>
+        </div>
+      </div>
+      <div className="p-6 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => pick("include")}
+            className={`text-right rounded-2xl border-2 px-4 py-3.5 transition-colors ${
+              mode === "include"
+                ? "border-green-500 bg-green-50"
+                : "border-gray-200 bg-white hover:bg-gray-50"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                mode === "include" ? "border-green-500 bg-green-500" : "border-gray-300"
+              }`}>
+                {mode === "include" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </span>
+              <span className="text-sm font-bold text-gray-900">כולל מע״מ</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed pr-6">
+              המחירים שאני מקליד הם מה שהלקוח משלם בפועל
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => pick("before")}
+            className={`text-right rounded-2xl border-2 px-4 py-3.5 transition-colors ${
+              mode === "before"
+                ? "border-green-500 bg-green-50"
+                : "border-gray-200 bg-white hover:bg-gray-50"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                mode === "before" ? "border-green-500 bg-green-500" : "border-gray-300"
+              }`}>
+                {mode === "before" && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+              </span>
+              <span className="text-sm font-bold text-gray-900">לפני מע״מ</span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed pr-6">
+              אני עובד עם מחירים נטו, האפליקציה תוסיף 18%
+            </p>
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-400 leading-relaxed">
+          תוכל תמיד לשנות את ההתנהגות בעבודה ספציפית. ההגדרה רק קובעת איך הטופס נפתח כברירת מחדל.
+        </p>
       </div>
     </div>
   );
