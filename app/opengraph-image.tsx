@@ -1,5 +1,10 @@
 // Branded link preview — what shows up when /landing is shared on WhatsApp,
 // Facebook, Telegram, etc. Standard OpenGraph dimensions.
+//
+// IMPORTANT: next/og is strict — every <div> with children must declare
+// display: flex (or display: none). This is enforced at build time, so a
+// missing one fails the whole Vercel deploy. Hence the explicit
+// `display: "flex"` on every container below.
 
 import { ImageResponse } from "next/og";
 
@@ -12,44 +17,19 @@ export default function OGImage() {
     (
       <div
         style={{
+          display: "flex",
           width: 1200,
           height: 630,
           background: "linear-gradient(135deg, #16a34a 0%, #047857 100%)",
-          display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           fontFamily: "system-ui, sans-serif",
           color: "white",
           padding: 80,
-          position: "relative",
         }}
       >
-        {/* Soft decorative circles */}
-        <div
-          style={{
-            position: "absolute",
-            top: -150,
-            right: -150,
-            width: 500,
-            height: 500,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.08)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: -180,
-            left: -120,
-            width: 420,
-            height: 420,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.06)",
-          }}
-        />
-
-        {/* Logo badge */}
+        {/* Logo + brand row */}
         <div
           style={{
             display: "flex",
@@ -60,11 +40,11 @@ export default function OGImage() {
         >
           <div
             style={{
+              display: "flex",
               width: 130,
               height: 130,
               borderRadius: 32,
               background: "white",
-              display: "flex",
               alignItems: "center",
               justifyContent: "center",
               boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
@@ -84,6 +64,7 @@ export default function OGImage() {
         {/* Headline */}
         <div
           style={{
+            display: "flex",
             fontSize: 68,
             fontWeight: 800,
             textAlign: "center",
@@ -92,19 +73,16 @@ export default function OGImage() {
             maxWidth: 1000,
           }}
         >
-          תפסיק לנהל לקוחות.
-          <br />
-          תתחיל לנהל עסק.
+          תפסיק לנהל לקוחות. תתחיל לנהל עסק.
         </div>
 
-        {/* Sub */}
+        {/* Sub-bullets */}
         <div
           style={{
+            display: "flex",
             fontSize: 26,
             opacity: 0.9,
             marginTop: 32,
-            textAlign: "center",
-            display: "flex",
             gap: 24,
           }}
         >
