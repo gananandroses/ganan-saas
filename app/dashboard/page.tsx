@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -386,6 +385,7 @@ export default function DashboardPage() {
   const [weather, setWeather] = useState<{ temp: number; humidity: number; icon: string; city: string } | null>(null);
   const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showInstallSheet, setShowInstallSheet] = useState(false);
   const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied">("idle");
   const [refreshTick, setRefreshTick] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
@@ -613,19 +613,13 @@ export default function DashboardPage() {
       {/* First-run onboarding — only shows for users with zero customers */}
       {userId && <OnboardingFlow userId={userId} ownerName={userName} />}
 
-      {/* ── Push notification floating button (Portal to bypass overflow:hidden) ── */}
-      {(pushStatus === "idle" || pushStatus === "loading") && typeof document !== "undefined" && createPortal(
-        <button
-          onClick={enablePush}
-          disabled={pushStatus === "loading"}
-          style={{position:"fixed",bottom:"90px",left:"16px",zIndex:99999,background:"#16a34a",color:"white",padding:"14px 20px",borderRadius:"999px",fontWeight:"bold",fontSize:"15px",boxShadow:"0 4px 20px rgba(0,0,0,0.3)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:"8px",direction:"rtl"}}
-        >
-          🔔 {pushStatus === "loading" ? "מאשר..." : "הפעל התראות"}
-        </button>,
-        document.body
-      )}
+      {/*
+        Removed: the previous "Portal-based" floating push-notification CTA.
+        It duplicated the inline pill below the greeting and was the most
+        prominent thing on the screen. The inline pill is enough.
+      */}
 
-      <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-screen-xl mx-auto">
 
         {/* ── Greeting + Weather ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -682,43 +676,68 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── Install Banner ── */}
+        {/* ── Install reminder — compact strip ── */}
+        {/* The original banner was a 200px-tall block of platform-specific
+            install instructions. On mobile that pushed every actionable
+            element below the fold. Now: a slim, dismissable strip that
+            opens a sheet with the same instructions on demand. */}
         {showInstallBanner && (
-          <div className="bg-gradient-to-l from-green-600 to-green-700 rounded-2xl px-5 py-4 flex items-start gap-4 shadow-md relative">
-            <div className="text-3xl flex-shrink-0">📲</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-bold text-sm mb-1">הוסף את גנן Pro למסך הבית שלך</p>
-              <p className="text-green-100 text-xs leading-relaxed mb-3">
-                גש לאפליקציה בקליק אחד — בדיוק כמו אפליקציה רגילה
-              </p>
-              <div className="flex flex-col sm:flex-row gap-2">
-                {/* iPhone */}
-                <div className="bg-white/15 rounded-xl px-3 py-2 flex-1">
-                  <p className="text-white text-xs font-bold mb-1">🍎 iPhone (Safari)</p>
-                  <ol className="text-green-100 text-xs space-y-0.5 list-none">
-                    <li>1. לחץ על כפתור השיתוף <span className="font-bold">⬆</span> בתחתית</li>
-                    <li>2. גלול ובחר <span className="font-bold">"הוסף למסך הבית"</span></li>
-                    <li>3. לחץ <span className="font-bold">"הוסף"</span> בפינה הימנית</li>
+          <button
+            onClick={() => setShowInstallSheet(true)}
+            className="w-full bg-gradient-to-l from-green-600 to-emerald-600 text-white rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow text-right"
+          >
+            <span className="text-xl flex-shrink-0">📲</span>
+            <span className="flex-1 text-sm font-semibold truncate">הוסף את גנן Pro למסך הבית — כניסה בקליק אחד</span>
+            <span className="text-xs opacity-80 flex-shrink-0 hidden sm:inline">איך?</span>
+            <span
+              role="button"
+              aria-label="סגור"
+              onClick={(e) => { e.stopPropagation(); dismissInstallBanner(); }}
+              className="hit-44 flex-shrink-0 text-white/70 hover:text-white p-0.5"
+            >
+              <X size={16} />
+            </span>
+          </button>
+        )}
+
+        {/* Install instructions sheet */}
+        {showInstallSheet && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowInstallSheet(false); }}
+          >
+            <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl">
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                <h3 className="text-base font-bold text-gray-900">הוסף למסך הבית</h3>
+                <button
+                  onClick={() => setShowInstallSheet(false)}
+                  aria-label="סגור"
+                  className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
+                >
+                  <X size={16} className="text-gray-500" />
+                </button>
+              </div>
+              <div className="px-5 pb-5 space-y-3">
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-xs font-bold text-gray-800 mb-1">🍎 iPhone (Safari)</p>
+                  <ol className="text-gray-600 text-xs space-y-0.5 list-none leading-relaxed">
+                    <li>1. כפתור השיתוף ⬆ בתחתית</li>
+                    <li>2. &ldquo;הוסף למסך הבית&rdquo;</li>
+                    <li>3. הוסף</li>
                   </ol>
                 </div>
-                {/* Android */}
-                <div className="bg-white/15 rounded-xl px-3 py-2 flex-1">
-                  <p className="text-white text-xs font-bold mb-1">🤖 Android (Chrome)</p>
-                  <ol className="text-green-100 text-xs space-y-0.5 list-none">
-                    <li>1. לחץ על שלוש הנקודות <span className="font-bold">⋮</span> למעלה</li>
-                    <li>2. בחר <span className="font-bold">"הוסף למסך הבית"</span></li>
-                    <li>3. לחץ <span className="font-bold">"הוסף"</span></li>
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-xs font-bold text-gray-800 mb-1">🤖 Android (Chrome)</p>
+                  <ol className="text-gray-600 text-xs space-y-0.5 list-none leading-relaxed">
+                    <li>1. שלוש הנקודות ⋮ למעלה</li>
+                    <li>2. &ldquo;הוסף למסך הבית&rdquo;</li>
+                    <li>3. הוסף</li>
                   </ol>
                 </div>
               </div>
             </div>
-            <button
-              onClick={dismissInstallBanner}
-              aria-label="סגור"
-              className="text-white/60 hover:text-white transition-colors flex-shrink-0 mt-0.5"
-            >
-              <X size={18} />
-            </button>
           </div>
         )}
 
@@ -775,11 +794,16 @@ export default function DashboardPage() {
           onClose={() => setModal(null)}
         />
 
-        {/* ── Main Row: Chart + Today's Jobs ── */}
+        {/* ── Main Row: Chart + Today's Jobs ──
+            On mobile (single column) we want "עבודות קרובות" FIRST — that's
+            the gardener's morning question. On desktop the chart leads
+            because it's the wider, headlining widget. We achieve this with
+            `order` utilities: jobs get `order-1 lg:order-2`, chart `order-2
+            lg:order-1`. */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
           {/* Revenue Bar Chart */}
-          <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="order-2 lg:order-1 lg:col-span-3 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-base font-bold text-gray-900">הכנסות מול הוצאות</h2>
@@ -839,8 +863,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Upcoming Jobs */}
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100 flex flex-col">
+          {/* Upcoming Jobs — order-1 on mobile so "what am I doing today?" leads */}
+          <div className="order-1 lg:order-2 lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-base font-bold text-gray-900">עבודות קרובות</h2>
