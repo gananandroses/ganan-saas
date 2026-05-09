@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { toast, confirmDialog } from "@/components/Toaster";
+import OnboardingFlow from "@/components/OnboardingFlow";
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -387,6 +388,7 @@ export default function DashboardPage() {
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied">("idle");
   const [refreshTick, setRefreshTick] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -437,6 +439,7 @@ export default function DashboardPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        setUserId(user.id);
         const savedSettings = localStorage.getItem(`garden_settings_${user.id}`);
         let userCity = "תל אביב";
         if (savedSettings) {
@@ -606,6 +609,9 @@ export default function DashboardPage() {
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50">
       <Header title="דשבורד" subtitle="סקירה כללית של העסק" />
+
+      {/* First-run onboarding — only shows for users with zero customers */}
+      {userId && <OnboardingFlow userId={userId} ownerName={userName} />}
 
       {/* ── Push notification floating button (Portal to bypass overflow:hidden) ── */}
       {(pushStatus === "idle" || pushStatus === "loading") && typeof document !== "undefined" && createPortal(
