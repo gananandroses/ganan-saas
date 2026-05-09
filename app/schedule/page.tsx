@@ -465,7 +465,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
             <h2 className="text-white font-bold text-lg">{job.customerName}</h2>
             <p className="text-white/80 text-sm">{job.type || "עבודת גינון"}</p>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white p-1">
+          <button onClick={onClose} className="hit-44 text-white/80 hover:text-white p-1">
             <X size={20} />
           </button>
         </div>

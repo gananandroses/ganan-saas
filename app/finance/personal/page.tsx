@@ -278,7 +278,7 @@ function TxModal({
           <h3 className="text-base font-bold text-gray-900">
             {initial ? "עריכת תנועה" : "תנועה חדשה"}
           </h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
             <X size={16} className="text-gray-500" />
           </button>
         </div>

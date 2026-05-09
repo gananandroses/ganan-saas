@@ -218,13 +218,13 @@ function ItemRow({
 
       <div className="flex flex-col items-center gap-1 flex-shrink-0">
         <button onClick={onAdd}
-          className="w-8 h-8 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-colors shadow-sm"
+          className="hit-44 w-8 h-8 rounded-full bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-colors shadow-sm"
           title="הוסף להצעה">
           <Plus size={16} />
         </button>
         {onDelete && (
           <button onClick={onDelete}
-            className="w-6 h-6 rounded-full bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors"
+            className="hit-44 w-6 h-6 rounded-full bg-red-50 hover:bg-red-100 text-red-400 hover:text-red-600 flex items-center justify-center transition-colors"
             title="מחק פריט">
             <Trash2 size={11} />
           </button>

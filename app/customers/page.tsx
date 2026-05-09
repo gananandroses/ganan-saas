@@ -177,7 +177,7 @@ function StatDetailModal({
         </div>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-base font-bold text-gray-900">{titles[type]}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+          <button onClick={onClose} className="hit-44 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>

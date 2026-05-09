@@ -48,3 +48,23 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* Tap target enlargement — keeps the visual size of small icon buttons
+ * but expands the real hit area to the iOS HIG / W3C minimum of 44×44.
+ * Apply with className="hit-44 ..." on any small interactive element.
+ * The pseudo-element doesn't affect layout because it's absolutely
+ * positioned outside the box. */
+.hit-44 { position: relative; }
+.hit-44::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+/* Safe-area aware bottom padding (used by BottomNav). */
+.safe-area-pb { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }

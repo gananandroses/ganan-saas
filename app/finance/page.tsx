@@ -273,7 +273,7 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
             </div>
             <h2 className="text-base font-bold text-gray-900">תנועה חדשה</h2>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+          <button onClick={onClose} className="hit-44 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -421,7 +421,7 @@ function InvoicePanel({ onClose, customers }: { onClose: () => void; customers: 
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100"
+            className="hit-44 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100"
           >
             <X size={16} />
           </button>

@@ -512,7 +512,7 @@ function DetailModal({
           <h2 className="font-bold text-slate-800 text-base">{titles[type]}</h2>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
+            className="hit-44 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
           >
             <X size={14} className="text-slate-500" />
           </button>

@@ -930,7 +930,7 @@ function ActionRow({ action, onSend, onDismiss }: { action: ActionItem; onSend: 
         <button
           onClick={onDismiss}
           title="התעלם להיום"
-          className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50"
+          className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50"
         >
           <X size={14} />
         </button>

@@ -475,7 +475,7 @@ export default function QuoteViewPage() {
               <Printer size={13} /> הדפס
             </button>
             <button onClick={handleDelete}
-              className="w-8 h-8 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-lg">
+              className="hit-44 w-8 h-8 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-lg">
               <Trash2 size={13} />
             </button>
           </div>

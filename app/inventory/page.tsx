@@ -217,7 +217,7 @@ function NewEquipmentModal({ onClose, onSaved }: NewEquipmentModalProps) {
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0"><div className="w-10 h-1 bg-gray-200 rounded-full" /></div>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">ציוד חדש</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
+          <button onClick={onClose} className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
@@ -327,7 +327,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">פריט חדש</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
             <XCircle className="w-5 h-5 text-gray-400" />
           </button>
         </div>
@@ -502,7 +502,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
         </div>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">עריכת פריט</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>

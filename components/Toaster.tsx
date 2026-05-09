@@ -229,7 +229,7 @@ function ToastView({ toast: t, onDismiss }: { toast: Toast; onDismiss: () => voi
       <button
         onClick={onDismiss}
         aria-label="סגור"
-        className={`flex-shrink-0 p-0.5 rounded transition opacity-50 hover:opacity-100 ${t.variant === "action" ? "text-white" : "text-gray-400"}`}
+        className={`hit-44 flex-shrink-0 p-1 rounded transition opacity-50 hover:opacity-100 ${t.variant === "action" ? "text-white" : "text-gray-400"}`}
       >
         <X size={14} />
       </button>
