@@ -9,23 +9,41 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-const allItems = [
-  { href: "/dashboard",   label: "דשבורד", icon: LayoutDashboard },
-  { href: "/customers",   label: "לקוחות (CRM)", icon: Users },
-  { href: "/schedule",    label: "לוח זמנים", icon: Calendar },
-  { href: "/finance",     label: "פיננסים", icon: DollarSign },
-  { href: "/projects",    label: "פרויקטים", icon: FolderKanban },
-  { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
-  { href: "/employees",   label: "עובדים + GPS", icon: UserCheck },
-  { href: "/quote",       label: "הצעת מחיר", icon: FileText },
-  { href: "/pricer",      label: "מחירון", icon: Tag },
-  { href: "/automations", label: "אוטומציות", icon: Zap },
-  { href: "/ai-tools",    label: "כלי AI", icon: Sparkles },
-  { href: "/plants",      label: "עולם הצמחים", icon: Leaf },
-  { href: "/articles",    label: "מרכז ידע", icon: BookOpen },
-  { href: "/portfolio",   label: "תיק עבודות", icon: Camera },
-  { href: "/analytics",   label: "אנליטיקה", icon: BarChart3 },
-  { href: "/settings",    label: "הגדרות", icon: Settings },
+// Same group structure as the desktop Sidebar so the mental model stays
+// consistent across breakpoints. Daily core has no header, the rest do.
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+const navGroups: { title: string | null; items: NavItem[] }[] = [
+  {
+    title: null,
+    items: [
+      { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
+      { href: "/schedule",  label: "לוח זמנים", icon: Calendar },
+      { href: "/customers", label: "לקוחות", icon: Users },
+      { href: "/finance",   label: "פיננסים", icon: DollarSign },
+    ],
+  },
+  {
+    title: "כלי עבודה",
+    items: [
+      { href: "/projects",    label: "פרויקטים", icon: FolderKanban },
+      { href: "/quote",       label: "הצעת מחיר", icon: FileText },
+      { href: "/pricer",      label: "מחירון", icon: Tag },
+      { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
+      { href: "/automations", label: "אוטומציות", icon: Zap },
+      { href: "/ai-tools",    label: "כלי AI", icon: Sparkles },
+    ],
+  },
+  {
+    title: "ידע ועוד",
+    items: [
+      { href: "/employees", label: "עובדים", icon: UserCheck },
+      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
+      { href: "/plants",    label: "צמחים", icon: Leaf },
+      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
+      { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
+      { href: "/settings",  label: "הגדרות", icon: Settings },
+    ],
+  },
 ];
 
 export default function MobileMenu({ onClose }: { onClose: () => void }) {
@@ -62,24 +80,35 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Nav items */}
-        <div className="px-4 py-3 grid grid-cols-3 gap-2">
-          {allItems.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onClose}
-                className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${
-                  active ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
-                }`}
-              >
-                <Icon size={22} className={active ? "text-green-600" : "text-gray-400"} />
-                <span className="text-xs font-medium text-center leading-tight">{label}</span>
-              </Link>
-            );
-          })}
+        {/* Nav groups — header → 3-column grid, repeated per group */}
+        <div className="px-4 py-3 space-y-4">
+          {navGroups.map((group, gi) => (
+            <div key={gi}>
+              {group.title && (
+                <div className="px-1 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                  {group.title}
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2">
+                {group.items.map(({ href, label, icon: Icon }) => {
+                  const active = pathname === href;
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={onClose}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all ${
+                        active ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"
+                      }`}
+                    >
+                      <Icon size={22} className={active ? "text-green-600" : "text-gray-400"} />
+                      <span className="text-xs font-medium text-center leading-tight">{label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Logout */}
