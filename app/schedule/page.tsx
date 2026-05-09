@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 import { getDefaultVatMode } from "@/lib/vat-settings";
+import { SkeletonList } from "@/components/Skeleton";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
 function holidayStyle(type: HolidayType) {
@@ -1258,9 +1259,7 @@ export default function SchedulePage() {
       {/* ── Job list ── */}
       <div className="px-4 py-4 space-y-3 pb-28">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 size={32} className="animate-spin text-green-600" />
-          </div>
+          <SkeletonList rows={3} />
         ) : selectedDayJobs.length === 0 ? (
           <div className="text-center py-16">
             <Calendar size={48} className="mx-auto mb-3 text-gray-200" />

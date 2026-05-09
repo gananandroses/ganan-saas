@@ -33,6 +33,7 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import type { Customer, CustomerStatus } from "@/lib/mock-data";
 import BackButton from "@/components/BackButton";
+import { SkeletonBlock, SkeletonCustomerCard } from "@/components/Skeleton";
 
 // ===== HELPERS =====
 
@@ -1259,9 +1260,16 @@ export default function CustomersPage() {
     setSelectedCustomer(prev => prev ? { ...prev, ...data } : null);
   }
 
+  // Skeleton placeholder while customers load — matches the actual layout
+  // (search bar + grid of cards) so the page doesn't jump after data arrives.
   if (loading) return (
-    <div className="flex items-center justify-center h-screen">
-      <Loader2 className="animate-spin text-green-600" size={40} />
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6" dir="rtl" role="status" aria-label="טוען לקוחות">
+      <div className="max-w-screen-xl mx-auto space-y-4">
+        <SkeletonBlock height={48} className="rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCustomerCard key={i} />)}
+        </div>
+      </div>
     </div>
   );
 

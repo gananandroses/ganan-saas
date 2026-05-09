@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { toast, confirmDialog } from "@/components/Toaster";
 import OnboardingFlow from "@/components/OnboardingFlow";
+import { SkeletonKpi, SkeletonList, SkeletonChart } from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase/client";
 import {
   TrendingUp,
@@ -19,7 +20,6 @@ import {
   Clock,
   Leaf,
   ChevronUp,
-  Loader2,
   X,
   ChevronRight,
   Phone,
@@ -743,6 +743,11 @@ export default function DashboardPage() {
 
         {/* ── KPI Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {loading ? (
+            <>
+              <SkeletonKpi /><SkeletonKpi /><SkeletonKpi /><SkeletonKpi />
+            </>
+          ) : (<>
           <KpiCard
             icon={<TrendingUp size={20} className="text-green-600" />}
             iconBg="bg-green-50"
@@ -780,6 +785,7 @@ export default function DashboardPage() {
             total={stats.openBalance}
             onClick={() => setModal("balance")}
           />
+          </>)}
         </div>
 
         {/* Detail Modal */}
@@ -821,9 +827,7 @@ export default function DashboardPage() {
               </div>
             </div>
             {loading ? (
-              <div className="flex items-center justify-center h-[240px]">
-                <Loader2 size={28} className="animate-spin text-green-500" />
-              </div>
+              <SkeletonChart height={240} />
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={4}>
@@ -876,10 +880,11 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3 flex-1 overflow-y-auto">
+              {loading && <SkeletonList rows={3} />}
               {recentJobs.length === 0 && !loading && (
                 <div className="text-center py-8 text-gray-400 text-sm">אין עבודות קרובות</div>
               )}
-              {recentJobs.map((job) => {
+              {!loading && recentJobs.map((job) => {
                 const j = job as Record<string, unknown>;
                 const jobDate = (j.job_date ?? j.date ?? "") as string;
                 const today = new Date().toISOString().split("T")[0];
