@@ -4,18 +4,15 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, BarChart3, FolderKanban,
-  Settings, Leaf, LogOut, Camera, ClipboardList, FileText,
+  Package, Sparkles, BarChart3, Zap, FolderKanban,
+  Settings, Leaf, LogOut, Camera, ClipboardList, FileText, BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 // Sidebar nav — grouped by frequency-of-use rather than one flat list.
-// Hick's Law: 11 items in one bucket forces every visitor to scan them
-// all. Three labelled buckets (Daily / Tools / Advanced) lets a new
-// gardener home in on the 4 they need most every day.
-//
-// Hidden modules (audit D1) — /ai-tools /automations /articles /plants —
-// stay routable but aren't surfaced until they reach shipping quality.
+// Hick's Law: 15 items in one bucket forces every visitor to scan them
+// all. Three labelled buckets (Daily / Tools / Knowledge & extras) lets
+// a new gardener home in on the 4 they need most every day.
 const navGroups: { title: string | null; items: { href: string; label: string; icon: typeof LayoutDashboard }[] }[] = [
   {
     title: null, // top group has no header — these are the daily core
@@ -29,17 +26,21 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
   {
     title: "כלי עבודה",
     items: [
-      { href: "/projects",  label: "פרויקטים", icon: FolderKanban },
-      { href: "/quote",     label: "הצעת מחיר", icon: FileText },
-      { href: "/pricer",    label: "מחירון", icon: ClipboardList },
-      { href: "/inventory", label: "ציוד ומלאי", icon: Package },
+      { href: "/projects",    label: "פרויקטים", icon: FolderKanban },
+      { href: "/quote",       label: "הצעת מחיר", icon: FileText },
+      { href: "/pricer",      label: "מחירון", icon: ClipboardList },
+      { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
+      { href: "/automations", label: "אוטומציות", icon: Zap },
+      { href: "/ai-tools",    label: "כלי AI", icon: Sparkles },
     ],
   },
   {
-    title: "נוסף",
+    title: "ידע ועוד",
     items: [
       { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
       { href: "/portfolio", label: "תיק עבודות", icon: Camera },
+      { href: "/plants",    label: "עולם הצמחים", icon: Leaf },
+      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
     ],
   },
