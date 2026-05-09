@@ -731,6 +731,7 @@ export default function AutomationsPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">הודעה</label>
                   <textarea
                     rows={9}
+                    autoComplete="off"
                     value={wizard.editedMessage}
                     onChange={(e) => setWizard({ ...wizard, editedMessage: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
@@ -824,6 +825,7 @@ export default function AutomationsPage() {
                     </div>
                     <textarea
                       rows={6}
+                      autoComplete="off"
                       value={templates[type]}
                       onChange={(e) => setTemplates(p => ({ ...p, [type]: e.target.value }))}
                       className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none font-normal"
@@ -864,6 +866,7 @@ export default function AutomationsPage() {
             <div className="p-5 space-y-3 overflow-y-auto flex-1">
               <textarea
                 rows={10}
+                autoComplete="off"
                 value={waModal.message}
                 onChange={(e) => setWaModal({ ...waModal, message: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none"

@@ -85,6 +85,7 @@ function InlineEdit({
     <div className="flex items-center gap-1">
       {prefix && <span className="text-sm text-gray-500">{prefix}</span>}
       <input ref={ref} type={numeric ? "number" : "text"} min={numeric ? 0 : undefined} step={numeric ? "0.01" : undefined}
+        autoComplete="off" inputMode={numeric ? "decimal" : undefined}
         value={draft} onChange={e => setDraft(e.target.value)} onBlur={commit}
         onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
         className={inputClass} />
@@ -243,6 +244,7 @@ function QtyInput({ qty, onChange }: { qty: number; onChange: (n: number) => voi
   function commit() { const v = parseInt(draft, 10); if (!isNaN(v) && v >= 0) onChange(v); setEditing(false); }
   if (editing) return (
     <input ref={ref} type="number" min={0} value={draft}
+      autoComplete="off" inputMode="numeric"
       onChange={e => setDraft(e.target.value)} onBlur={commit}
       onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
       className="w-9 text-center text-sm font-bold text-gray-800 border border-green-400 rounded-lg focus:outline-none py-0.5" />
@@ -287,6 +289,7 @@ function AddCategoryModal({ onClose, onCreate }: {
             <label className="block text-xs text-gray-500 mb-1.5">שם הקטגוריה *</label>
             <input
               autoFocus
+              autoComplete="off"
               placeholder="למשל: תערובת שתילה"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -398,6 +401,7 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
         <div className="px-5 py-4 space-y-3 max-h-[80vh] overflow-y-auto">
           <input
             autoFocus
+            autoComplete="off"
             placeholder="שם הפריט *"
             value={name}
             onChange={e => setName(e.target.value)}
@@ -431,6 +435,7 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
             <div>
               <label className="block text-xs text-gray-500 mb-1">מחיר ליחידה (₪)</label>
               <input type="number" min={0} step="0.01" placeholder="0.00"
+                autoComplete="off" inputMode="decimal"
                 value={price} onChange={e => setPrice(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
             </div>
@@ -445,6 +450,7 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
 
           {unit === "אחר" && (
             <input placeholder="הקלד יחידת מידה..."
+              autoComplete="off"
               value={customUnit} onChange={e => setCustomUnit(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
           )}
@@ -479,6 +485,7 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
             {/* Secondary: save + add to quote */}
             <div className="flex items-center gap-2">
               <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)}
+                autoComplete="off" inputMode="numeric"
                 className="w-16 border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-400"
                 title="כמות" />
               <button
@@ -594,6 +601,7 @@ function SaveToProjectModal({
                   <p className="text-xs font-semibold text-gray-600">שם הפרויקט החדש</p>
                   <input
                     autoFocus
+                    autoComplete="off"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && createAndSave()}
@@ -666,6 +674,7 @@ function SaveDraftModal({ itemCount, total, onClose, onSave }: {
             <label className="block text-xs text-gray-500 mb-1.5">שם הטיוטה</label>
             <input
               autoFocus
+              autoComplete="off"
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSave()}
@@ -798,6 +807,8 @@ function QuotePanel({
                   min={0}
                   max={500}
                   step={5}
+                  autoComplete="off"
+                  inputMode="decimal"
                   value={globalMarkup}
                   onChange={(e) => onMarkupChange(Math.max(0, Math.min(500, parseFloat(e.target.value) || 0)))}
                   className="w-16 border border-amber-300 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -1567,6 +1578,7 @@ export default function PricerPage() {
           <div className="mt-4 relative">
             <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              autoComplete="off" inputMode="search"
               placeholder="חיפוש פריט..."
               className="w-full bg-white border border-gray-200 rounded-xl py-2.5 pr-9 pl-4 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent" />
             {search && (

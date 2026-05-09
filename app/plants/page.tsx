@@ -290,6 +290,8 @@ export default function PlantsPage() {
           />
           <input
             type="text"
+            autoComplete="off"
+            inputMode="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="חיפוש צמח בעברית או בלטינית..."

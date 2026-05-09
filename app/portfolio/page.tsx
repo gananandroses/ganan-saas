@@ -243,6 +243,8 @@ export default function PortfolioPage() {
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
                 type="text"
+                autoComplete="off"
+                inputMode="search"
                 placeholder="חפש תיקייה..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -263,6 +265,7 @@ export default function PortfolioPage() {
             <input
               autoFocus
               type="text"
+              autoComplete="off"
               placeholder='למשל: "גינת גג — בית לוי", "חצר — משפחת כהן"'
               value={newFolderName}
               onChange={e => setNewFolderName(e.target.value)}

@@ -350,7 +350,7 @@ function TxModal({
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">סכום (₪)</label>
             <input
-              type="number" inputMode="decimal" value={form.amount}
+              type="number" inputMode="decimal" autoComplete="off" value={form.amount}
               onChange={e => setForm(p => ({ ...p, amount: e.target.value }))}
               placeholder="0"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-green-400"
@@ -361,6 +361,7 @@ function TxModal({
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1.5">תיאור (אופציונלי)</label>
             <input
+              autoComplete="off"
               value={form.description}
               onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
               placeholder="למשל: שכ״ד דירה / נטפליקס / סופר"

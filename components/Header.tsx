@@ -120,6 +120,8 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         <Search size={15} className="text-gray-400 flex-shrink-0" />
         <input
           type="text"
+          autoComplete="off"
+          inputMode="search"
           placeholder="חיפוש..."
           className="bg-transparent text-sm text-gray-600 outline-none w-full placeholder:text-gray-400"
           dir="rtl"

@@ -319,6 +319,7 @@ function CustomerStep({
             onChange={e => setName(e.target.value)}
             placeholder="משפחת כהן"
             autoFocus
+            autoComplete="name"
             className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </Field>
@@ -350,6 +351,7 @@ function CustomerStep({
               placeholder="450"
               type="number"
               inputMode="decimal"
+              autoComplete="off"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
             />
           </Field>
@@ -405,6 +407,7 @@ function JobStep({
             placeholder="450"
             type="number"
             inputMode="decimal"
+            autoComplete="off"
             className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </Field>

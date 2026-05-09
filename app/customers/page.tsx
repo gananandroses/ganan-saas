@@ -542,34 +542,40 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
               <input value={editForm.name} onChange={e => setEditForm(p => ({...p, name: e.target.value}))}
+                autoComplete="name"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">טלפון *</label>
                 <input value={editForm.phone} onChange={e => setEditForm(p => ({...p, phone: e.target.value}))}
+                  autoComplete="tel" inputMode="tel"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">עיר</label>
                 <input value={editForm.city} onChange={e => setEditForm(p => ({...p, city: e.target.value}))}
+                  autoComplete="address-level2"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
               </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
               <input value={editForm.address} onChange={e => setEditForm(p => ({...p, address: e.target.value}))}
+                autoComplete="street-address"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
               <input type="email" value={editForm.email} onChange={e => setEditForm(p => ({...p, email: e.target.value}))}
+                autoComplete="email" inputMode="email"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">מחיר חודשי (₪)</label>
                 <input type="number" value={editForm.monthly_price} onChange={e => setEditForm(p => ({...p, monthly_price: e.target.value}))}
+                  autoComplete="off" inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
                 <div className="flex gap-1 mt-2">
                   <button type="button" onClick={() => setEditVatType("include")}
@@ -612,6 +618,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
               <textarea value={editForm.notes} onChange={e => setEditForm(p => ({...p, notes: e.target.value}))}
+                autoComplete="off"
                 rows={3} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500 resize-none" />
             </div>
             <button onClick={handleSave} disabled={saving}
@@ -1010,6 +1017,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                 </h4>
                 <textarea
                   rows={3}
+                  autoComplete="off"
                   placeholder="כתוב הערה חדשה..."
                   className="w-full rounded-xl border border-gray-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 />
@@ -1370,6 +1378,8 @@ export default function CustomersPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              autoComplete="off"
+              inputMode="search"
               placeholder="חיפוש לפי שם, עיר, טלפון..."
               className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
             />
@@ -1548,30 +1558,35 @@ export default function CustomersPage() {
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
                   <input required value={newCustomer.name} onChange={e => setNewCustomer(p => ({...p, name: e.target.value}))}
+                    autoComplete="name"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     placeholder="משפחת כהן" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">טלפון *</label>
                   <input required value={newCustomer.phone} onChange={e => setNewCustomer(p => ({...p, phone: e.target.value}))}
+                    autoComplete="tel" inputMode="tel"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="054-0000000" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">עיר</label>
                   <input value={newCustomer.city} onChange={e => setNewCustomer(p => ({...p, city: e.target.value}))}
+                    autoComplete="address-level2"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="רעננה" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
                   <input value={newCustomer.address} onChange={e => setNewCustomer(p => ({...p, address: e.target.value}))}
+                    autoComplete="street-address"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="רחוב הורד 12" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">מחיר חודשי (₪)</label>
                   <input type="number" value={newCustomer.monthly_price} onChange={e => setNewCustomer(p => ({...p, monthly_price: e.target.value}))}
+                    autoComplete="off" inputMode="decimal"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="400" />
                   {/* VAT toggle */}
@@ -1618,6 +1633,7 @@ export default function CustomersPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
                   <input type="email" value={newCustomer.email} onChange={e => setNewCustomer(p => ({...p, email: e.target.value}))}
+                    autoComplete="email" inputMode="email"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="email@example.com" />
                 </div>
@@ -1625,6 +1641,7 @@ export default function CustomersPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
                   <textarea value={newCustomer.notes} onChange={e => setNewCustomer(p => ({...p, notes: e.target.value}))}
                     rows={2}
+                    autoComplete="off"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500 resize-none"
                     placeholder="הערות מיוחדות, דרישות, שעות עדיפות..." />
                 </div>

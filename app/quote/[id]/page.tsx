@@ -859,6 +859,7 @@ export default function QuoteViewPage() {
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">קישור ציבורי</label>
                 <div className="flex gap-1.5">
                   <input readOnly value={`${typeof window !== "undefined" ? window.location.origin : ""}/q/${quote.public_token}`}
+                    autoComplete="url" inputMode="url"
                     className="flex-1 border border-gray-200 bg-gray-50 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-700 focus:outline-none"
                     onClick={(e) => (e.target as HTMLInputElement).select()} />
                   <button onClick={copyLinkOnly}

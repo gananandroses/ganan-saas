@@ -394,6 +394,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">שם העסק</label>
               <input
                 type="text"
+                autoComplete="organization"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.businessName}
                 onChange={e => setForm(f => ({ ...f, businessName: e.target.value }))}
@@ -403,6 +404,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">שם הבעלים</label>
               <input
                 type="text"
+                autoComplete="name"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.ownerName}
                 onChange={e => setForm(f => ({ ...f, ownerName: e.target.value }))}
@@ -414,6 +416,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
               <input
                 type="tel"
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="054-1234567"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.phone}
@@ -424,6 +428,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">עיר</label>
               <input
                 type="text"
+                autoComplete="address-level2"
                 placeholder="תל אביב"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.city}
@@ -451,6 +456,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Bit (טלפון)</label>
               <input
                 type="tel"
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="054-1234567"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
                 value={form.bitPhone}
@@ -461,6 +468,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">PayBox (טלפון)</label>
               <input
                 type="tel"
+                autoComplete="tel"
+                inputMode="tel"
                 placeholder="054-1234567"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
                 value={form.payboxPhone}
@@ -473,6 +482,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">בנק</label>
               <input
                 type="text"
+                autoComplete="off"
                 placeholder="הפועלים"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
                 value={form.bankName}
@@ -483,6 +493,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">סניף</label>
               <input
                 type="text"
+                autoComplete="off"
+                inputMode="numeric"
                 placeholder="123"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
                 value={form.bankBranch}
@@ -493,6 +505,8 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">מספר חשבון</label>
               <input
                 type="text"
+                autoComplete="off"
+                inputMode="numeric"
                 placeholder="456789"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
                 value={form.bankAccount}
@@ -526,6 +540,7 @@ export default function SettingsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">כותרת המסמך</label>
               <input
                 type="text"
+                autoComplete="off"
                 placeholder="הצעת מחיר"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                 value={form.quoteTitleLabel}
@@ -539,6 +554,8 @@ export default function SettingsPage() {
                 type="number"
                 min={1}
                 max={365}
+                autoComplete="off"
+                inputMode="numeric"
                 placeholder="30"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                 value={form.quoteDefaultValidityDays}
@@ -554,6 +571,8 @@ export default function SettingsPage() {
               min={0}
               max={500}
               step={5}
+              autoComplete="off"
+              inputMode="decimal"
               placeholder="100"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
               value={form.quoteDefaultMarkup}
@@ -566,6 +585,7 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">טקסט פתיחה (אופציונלי)</label>
             <textarea
               rows={2}
+              autoComplete="off"
               placeholder="לדוגמה: 'תודה שפנית אלינו! להלן הצעת המחיר המבוקשת...'"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
               value={form.quoteIntroText}
@@ -578,6 +598,7 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">הערות סטנדרטיות (אופציונלי)</label>
             <textarea
               rows={3}
+              autoComplete="off"
               placeholder="לדוגמה: 'התשלום בסיום העבודה. זמני אספקה: 7 ימי עסקים...'"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
               value={form.quoteDefaultNotes}
@@ -590,6 +611,7 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">טקסט תחתית</label>
             <textarea
               rows={2}
+              autoComplete="off"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none"
               value={form.quoteDefaultFooter}
               onChange={e => setForm(f => ({ ...f, quoteDefaultFooter: e.target.value }))}
@@ -618,12 +640,14 @@ export default function SettingsPage() {
                 next[idx] = { ...next[idx], icon: e.target.value };
                 setForm(f => ({ ...f, trustBadges: next }));
               }} placeholder="🛡️" maxLength={3}
+                autoComplete="off"
                 className="w-14 text-center text-xl border border-gray-200 rounded-xl px-2 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300" />
               <input value={badge.text} onChange={e => {
                 const next = [...form.trustBadges];
                 next[idx] = { ...next[idx], text: e.target.value };
                 setForm(f => ({ ...f, trustBadges: next }));
               }} placeholder="לדוגמה: אחריות 30 יום, ביטוח עבודה, חינם משלוח..."
+                autoComplete="off"
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               <button type="button" onClick={() => setForm(f => ({ ...f, trustBadges: f.trustBadges.filter((_, i) => i !== idx) }))}
                 aria-label="הסר תו אמון"
@@ -663,12 +687,12 @@ export default function SettingsPage() {
                     const next = [...form.testimonials];
                     next[idx] = { ...next[idx], customer_name: e.target.value };
                     setForm(f => ({ ...f, testimonials: next }));
-                  }} placeholder="שם הלקוח" className="flex-1 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                  }} placeholder="שם הלקוח" autoComplete="name" className="flex-1 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
                   <input value={t.location ?? ""} onChange={e => {
                     const next = [...form.testimonials];
                     next[idx] = { ...next[idx], location: e.target.value };
                     setForm(f => ({ ...f, testimonials: next }));
-                  }} placeholder="עיר (אופציונלי)" className="w-32 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                  }} placeholder="עיר (אופציונלי)" autoComplete="address-level2" className="w-32 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
                 </div>
                 <button type="button" onClick={() => setForm(f => ({ ...f, testimonials: f.testimonials.filter((_, i) => i !== idx) }))}
                   aria-label="הסר עדות"
@@ -688,6 +712,7 @@ export default function SettingsPage() {
                 next[idx] = { ...next[idx], text: e.target.value };
                 setForm(f => ({ ...f, testimonials: next }));
               }} rows={2} placeholder="ציטוט מהלקוח..."
+                autoComplete="off"
                 className="w-full border border-amber-200 bg-white rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-300" />
             </div>
           ))}
@@ -738,6 +763,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="לדוגמה: 1234"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                   value={form.paymentGatewayUserId}
@@ -748,6 +774,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Page Code</label>
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="לדוגמה: abc123def"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                   value={form.paymentGatewayPageCode}
@@ -758,6 +785,7 @@ export default function SettingsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
                 <input
                   type="password"
+                  autoComplete="off"
                   placeholder="••••••••••••••••"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                   value={form.paymentGatewayApiKey}
@@ -786,6 +814,8 @@ export default function SettingsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
             <input
               type="email"
+              autoComplete="email"
+              inputMode="email"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
               value={userEmail}
               disabled

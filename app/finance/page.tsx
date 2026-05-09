@@ -283,6 +283,7 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">שם לקוח</label>
             <input type="text"
+              autoComplete="name"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               placeholder="שם הלקוח..."
               value={form.customer_name}
@@ -292,6 +293,7 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">סכום (₪)</label>
             <input type="number"
+              autoComplete="off" inputMode="decimal"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               placeholder="0"
               value={form.amount}
@@ -318,6 +320,7 @@ function NewTransactionModal({ onClose, onSaved }: NewTransactionModalProps) {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">תיאור</label>
             <input type="text"
+              autoComplete="off"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               placeholder="תיאור השירות..."
               value={form.description}
@@ -488,6 +491,7 @@ function InvoicePanel({ onClose, customers }: { onClose: () => void; customers: 
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">סכום נוסף (₪)</label>
                 <input
                   type="number"
+                  autoComplete="off" inputMode="decimal"
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                   placeholder="0"
                   value={form.extraAmount}
@@ -507,6 +511,7 @@ function InvoicePanel({ onClose, customers }: { onClose: () => void; customers: 
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">הערה</label>
               <textarea
                 rows={2}
+                autoComplete="off"
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-300"
                 placeholder="הוסף הערה לחשבונית..."
                 value={form.note}
@@ -913,6 +918,7 @@ export default function FinancePage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">תוכן ההודעה</label>
                 <textarea
                   rows={8}
+                  autoComplete="off"
                   value={waModal.message}
                   onChange={(e) => setWaModal({ ...waModal, message: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none"

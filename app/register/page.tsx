@@ -88,6 +88,7 @@ export default function RegisterPage() {
                 <div className="relative">
                   <User size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input id="register-fullname" required value={form.fullName} onChange={e => update("fullName", e.target.value)}
+                    autoComplete="name"
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="ישראל ישראלי" />
                 </div>
@@ -97,6 +98,7 @@ export default function RegisterPage() {
                 <div className="relative">
                   <Leaf size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input id="register-business" required value={form.businessName} onChange={e => update("businessName", e.target.value)}
+                    autoComplete="organization"
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="גינות ישראל" />
                 </div>
@@ -108,6 +110,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <Phone size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input id="register-phone" type="tel" value={form.phone} onChange={e => update("phone", e.target.value)}
+                  autoComplete="tel" inputMode="tel"
                   className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="054-0000000" />
               </div>
@@ -118,6 +121,7 @@ export default function RegisterPage() {
               <div className="relative">
                 <Mail size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input id="register-email" type="email" required value={form.email} onChange={e => update("email", e.target.value)}
+                  autoComplete="email" inputMode="email"
                   className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="your@email.com" />
               </div>
@@ -129,6 +133,7 @@ export default function RegisterPage() {
                 <div className="relative">
                   <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input id="register-password" type="password" required value={form.password} onChange={e => update("password", e.target.value)}
+                    autoComplete="new-password"
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="לפחות 6 תווים" />
                 </div>
@@ -138,6 +143,7 @@ export default function RegisterPage() {
                 <div className="relative">
                   <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input id="register-confirm" type="password" required value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)}
+                    autoComplete="new-password"
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="חזור על הסיסמה" />
                 </div>

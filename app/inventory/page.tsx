@@ -222,7 +222,7 @@ function NewEquipmentModal({ onClose, onSaved }: NewEquipmentModalProps) {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">שם הציוד</label>
-            <input type="text" placeholder="לדוגמה: מכסחת..." className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+            <input type="text" autoComplete="off" placeholder="לדוגמה: מכסחת..." className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
           </div>
           <div>
@@ -259,7 +259,7 @@ function NewEquipmentModal({ onClose, onSaved }: NewEquipmentModalProps) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">שעות שימוש</label>
-            <input type="number" placeholder="0" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
+            <input type="number" autoComplete="off" inputMode="decimal" placeholder="0" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               value={form.hoursUsed} onChange={(e) => setForm(f => ({ ...f, hoursUsed: e.target.value }))} />
           </div>
         </div>
@@ -337,6 +337,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
             <label className="block text-sm font-medium text-gray-700 mb-1">שם הפריט</label>
             <input
               type="text"
+              autoComplete="off"
               placeholder="לדוגמה: דשן אורגני..."
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
               value={form.name}
@@ -360,6 +361,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               {form.category === "__other__" && (
                 <input
                   type="text"
+                  autoComplete="off"
                   placeholder="שם הקטגוריה..."
                   className="w-full mt-2 border border-green-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                   value={customCategory}
@@ -372,6 +374,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">יחידת מידה</label>
               <input
                 type="text"
+                autoComplete="off"
                 placeholder='ק"ג, ליטר, יח...'
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 value={form.unit}
@@ -385,6 +388,8 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">כמות התחלתית</label>
               <input
                 type="number"
+                autoComplete="off"
+                inputMode="decimal"
                 placeholder="0"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 value={form.quantity}
@@ -395,6 +400,8 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">מלאי מינימלי</label>
               <input
                 type="number"
+                autoComplete="off"
+                inputMode="decimal"
                 placeholder="0"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 value={form.min_stock}
@@ -408,6 +415,8 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">מחיר ליחידה (₪)</label>
               <input
                 type="number"
+                autoComplete="off"
+                inputMode="decimal"
                 placeholder="0"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 value={form.price_per_unit}
@@ -418,6 +427,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">ספק</label>
               <input
                 type="text"
+                autoComplete="organization"
                 placeholder="שם הספק..."
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 value={form.supplier}
@@ -510,6 +520,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">שם הפריט</label>
             <input type="text"
+              autoComplete="off"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
               value={form.name}
               onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -526,6 +537,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
               </select>
               {form.category === "__other__" && (
                 <input type="text" placeholder="שם הקטגוריה..."
+                  autoComplete="off"
                   className="w-full mt-2 border border-green-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)} />
@@ -534,6 +546,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">יחידת מידה</label>
               <input type="text"
+                autoComplete="off"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.unit}
                 onChange={(e) => setForm(f => ({ ...f, unit: e.target.value }))} />
@@ -543,6 +556,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">כמות</label>
               <input type="number"
+                autoComplete="off" inputMode="decimal"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.quantity}
                 onChange={(e) => setForm(f => ({ ...f, quantity: e.target.value }))} />
@@ -550,6 +564,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">מינימום מלאי</label>
               <input type="number"
+                autoComplete="off" inputMode="decimal"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.min_stock}
                 onChange={(e) => setForm(f => ({ ...f, min_stock: e.target.value }))} />
@@ -559,6 +574,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">מחיר ליחידה (₪)</label>
               <input type="number"
+                autoComplete="off" inputMode="decimal"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.price_per_unit}
                 onChange={(e) => setForm(f => ({ ...f, price_per_unit: e.target.value }))} />
@@ -566,6 +582,7 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ספק</label>
               <input type="text"
+                autoComplete="organization"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-300"
                 value={form.supplier}
                 onChange={(e) => setForm(f => ({ ...f, supplier: e.target.value }))} />

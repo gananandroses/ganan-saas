@@ -51,6 +51,7 @@ export default function LoginPage() {
                 <input
                   id="login-email"
                   type="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  autoComplete="email" inputMode="email"
                   className="w-full pr-10 pl-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                   placeholder="your@email.com"
                 />
@@ -65,6 +66,7 @@ export default function LoginPage() {
                 <input
                   id="login-password"
                   type={showPass ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)}
+                  autoComplete="current-password"
                   className="w-full pr-10 pl-10 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                   placeholder="••••••••"
                 />

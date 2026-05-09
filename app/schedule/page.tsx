@@ -184,11 +184,13 @@ function EditJobModal({ job, onClose, onSaved }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">שם לקוח</label>
           <input value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))}
+            autoComplete="name"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">כתובת</label>
           <input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+            autoComplete="street-address"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -207,11 +209,13 @@ function EditJobModal({ job, onClose, onSaved }: {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">משך (שעות)</label>
             <input type="number" min="0.5" step="0.5" value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
+              autoComplete="off" inputMode="decimal"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">מחיר (₪)</label>
             <input type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+              autoComplete="off" inputMode="decimal"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             <div className="flex gap-1 mt-1.5">
               <button type="button" onClick={() => setPriceBeforeVat(false)}
@@ -228,6 +232,7 @@ function EditJobModal({ job, onClose, onSaved }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">הוצאות לעבודה (₪) <span className="text-xs text-gray-400 font-normal">— חומרים, דלק, עובדים</span></label>
           <input type="number" min="0" value={form.expenses} onChange={e => setForm(p => ({ ...p, expenses: e.target.value }))}
+            autoComplete="off" inputMode="decimal"
             placeholder="0"
             className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
@@ -235,6 +240,7 @@ function EditJobModal({ job, onClose, onSaved }: {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">סוג עבודה</label>
             <input value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
+              autoComplete="off"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
           <div>
@@ -251,6 +257,7 @@ function EditJobModal({ job, onClose, onSaved }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
           <textarea rows={3} value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            autoComplete="off"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
         </div>
         <button onClick={handleSave} disabled={saving}
@@ -799,6 +806,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
             <input
               name="customer_name"
               type="text"
+              autoComplete="name"
               value={form.customer_name}
               onChange={e => { handleChange(e); setShowCustomerList(true); }}
               onFocus={() => setShowCustomerList(true)}
@@ -830,6 +838,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">כתובת</label>
           <input name="address" value={form.address} onChange={handleChange}
+            autoComplete="street-address"
             placeholder="רחוב הורד 12, רעננה"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
@@ -849,11 +858,13 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">משך (שעות)</label>
             <input name="duration" type="number" min="0.5" step="0.5" value={form.duration} onChange={handleChange}
+              autoComplete="off" inputMode="decimal"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">מחיר (₪)</label>
             <input name="price" type="number" min="0" value={form.price} onChange={handleChange} placeholder="350"
+              autoComplete="off" inputMode="decimal"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             <div className="flex gap-1 mt-1.5">
               <button type="button" onClick={() => setPriceVatType("include")}
@@ -875,12 +886,14 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">הוצאות לעבודה (₪) <span className="text-xs text-gray-400 font-normal">— חומרים, דלק, עובדים</span></label>
           <input name="expenses" type="number" min="0" value={form.expenses} onChange={handleChange} placeholder="0"
+            autoComplete="off" inputMode="decimal"
             className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">סוג עבודה</label>
             <input name="type" value={form.type} onChange={handleChange} placeholder="גיזום, השקיה..."
+              autoComplete="off"
               className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
           <div>
@@ -897,6 +910,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">הערות</label>
           <textarea name="notes" value={form.notes} onChange={handleChange} rows={3}
+            autoComplete="off"
             placeholder="הערות נוספות..."
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
         </div>

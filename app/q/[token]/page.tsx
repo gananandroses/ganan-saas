@@ -1180,6 +1180,7 @@ export default function PublicQuotePage() {
                     <div>
                       <label className="block text-xs font-bold text-gray-800 mb-1.5">📌 מספר אסמכתא / Reference *</label>
                       <input value={paymentReference} onChange={e => setPaymentReference(e.target.value)}
+                        autoComplete="off" inputMode="numeric"
                         placeholder="לדוגמה: 123456789"
                         className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
                       <p className="text-[11px] text-gray-400 mt-1">המספר שמופיע באישור התשלום שקיבלת</p>
@@ -1208,6 +1209,7 @@ export default function PublicQuotePage() {
                     <div>
                       <label className="block text-xs font-bold text-gray-800 mb-1.5">שם מלא לחתימה *</label>
                       <input value={signerName} onChange={e => setSignerName(e.target.value)}
+                        autoComplete="name"
                         placeholder="שם מלא"
                         className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300" />
                     </div>
@@ -1272,6 +1274,7 @@ export default function PublicQuotePage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1.5">שם מלא *</label>
                 <input value={signerName} onChange={e => setSignerName(e.target.value)}
+                  autoComplete="name"
                   placeholder="שם מלא של החותם"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
               </div>

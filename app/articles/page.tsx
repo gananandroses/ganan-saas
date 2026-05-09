@@ -133,6 +133,8 @@ export default function ArticlesListPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
+            autoComplete="off"
+            inputMode="search"
             placeholder="חפש מאמר, תגית, נושא..."
             className="w-full bg-white border border-gray-200 rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:border-emerald-400"
           />

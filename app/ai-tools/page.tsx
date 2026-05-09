@@ -816,6 +816,7 @@ function VisitSummary() {
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          autoComplete="off"
           placeholder="רשום הערות מהביקור... כיסחנו דשא, גזמנו, בדקנו השקיה, ראינו בעיה ב..."
           className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-700 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-teal-300 min-h-[80px]"
           dir="rtl"
@@ -976,6 +977,7 @@ function AIChat() {
         <div className="flex gap-2">
           <input
             type="text"
+            autoComplete="off"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}

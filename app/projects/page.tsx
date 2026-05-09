@@ -152,6 +152,7 @@ function PricerPickerModal({ onClose, onImport }: {
         <div className="relative">
           <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש פריט..."
+            autoComplete="off" inputMode="search"
             className="w-full bg-white border border-gray-200 rounded-xl py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
         </div>
       </div>
@@ -248,6 +249,7 @@ function MaterialAutocomplete({ value, onSelect, onChange: onTextChange }: {
   return (
     <div className="relative flex-1">
       <input
+        autoComplete="off"
         placeholder="שם חומר (התחל להקליד לחיפוש מהמחירון)"
         value={value}
         onChange={e => {
@@ -348,6 +350,8 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
               />
               <input
                 type="number"
+                autoComplete="off"
+                inputMode="numeric"
                 placeholder="כמות"
                 value={m.qty || ""}
                 onChange={e => update(i, "qty", parseFloat(e.target.value) || 0)}
@@ -362,6 +366,8 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
               </select>
               <input
                 type="number"
+                autoComplete="off"
+                inputMode="decimal"
                 placeholder="מחיר"
                 value={m.price || ""}
                 onChange={e => update(i, "price", parseFloat(e.target.value) || 0)}
@@ -667,6 +673,8 @@ function ProjectFormModal({
                   <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" />
                   <input
                     autoFocus
+                    autoComplete="off"
+                    inputMode="search"
                     value={customerSearch}
                     onChange={e => setCustomerSearch(e.target.value)}
                     placeholder={existingCustomers.length === 0 ? "אין לקוחות במערכת — עבור ל'לקוח חדש'" : `🔍 הקלד שם לקוח לסינון... (${existingCustomers.length} לקוחות)`}
@@ -721,6 +729,7 @@ function ProjectFormModal({
               </div>
             ) : (
               <input name="customer_name" value={form.customer_name} onChange={handleChange} placeholder="שם לקוח חדש"
+                autoComplete="name"
                 className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500" />
             )}
           </div>
@@ -729,10 +738,12 @@ function ProjectFormModal({
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">2️⃣ שם הפרויקט / סוג עבודה <span className="text-red-500">*</span></label>
             <input name="name" value={form.name} onChange={handleChange} placeholder="לדוגמה: הקמת אדניות, גיזום עצים..."
+              autoComplete="off"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
           </div>
 
           <textarea name="description" value={form.description} onChange={handleChange} rows={2} placeholder="תיאור הפרויקט..."
+            autoComplete="off"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -750,6 +761,7 @@ function ProjectFormModal({
             <div>
               <label className="block text-xs text-gray-500 mb-1">תקציב לקוח (₪)</label>
               <input name="budget" type="number" value={form.budget} onChange={handleChange} placeholder="5000"
+                autoComplete="off" inputMode="decimal"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
               {/* VAT toggle */}
               <div className="flex gap-2 mt-2">
@@ -824,11 +836,13 @@ function ProjectFormModal({
             <div>
               <label className="block text-xs text-gray-500 mb-1">מספר שעות</label>
               <input name="labor_hours" type="number" value={form.labor_hours} onChange={handleChange} placeholder="0"
+                autoComplete="off" inputMode="decimal"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">תעריף לשעה (₪)</label>
               <input name="hourly_rate" type="number" value={form.hourly_rate} onChange={handleChange} placeholder="120"
+                autoComplete="off" inputMode="decimal"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
             </div>
           </div>
@@ -897,6 +911,7 @@ function ProjectFormModal({
               <input value={newTask} onChange={e => setNewTask(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) { setTasks([...tasks, newTask.trim()]); setNewTask(""); } }}
                 placeholder="הוסף משימה..."
+                autoComplete="off"
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
               <button onClick={() => { if (newTask.trim()) { setTasks([...tasks, newTask.trim()]); setNewTask(""); } }}
                 className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium">
@@ -912,6 +927,7 @@ function ProjectFormModal({
             <FileText size={14} /> הערות
           </h3>
           <textarea name="notes" value={form.notes} onChange={handleChange} rows={3} placeholder="הערות נוספות על הפרויקט..."
+            autoComplete="off"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
         </section>
 
