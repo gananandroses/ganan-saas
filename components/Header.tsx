@@ -1,6 +1,6 @@
 "use client";
-import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar, Users, FileText, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import BackButton from "@/components/BackButton";
@@ -19,10 +19,90 @@ interface Notif {
   href?: string;
 }
 
+// Search result types ─ a single dropdown shows three buckets
+interface SearchResultCustomer { kind: "customer"; id: string; name: string; phone: string | null; city: string | null }
+interface SearchResultQuote    { kind: "quote";    id: string; title: string; customer_name: string; quote_number: string | null }
+interface SearchResultJob      { kind: "job";      id: string; customer_name: string; type: string | null; job_date: string }
+type SearchResult = SearchResultCustomer | SearchResultQuote | SearchResultJob;
+
 export default function Header({ title, subtitle, action, showBack = false }: HeaderProps) {
   const router = useRouter();
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);
+
+  // ── Global search ─────────────────────────────────────────────────────────
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!searchBoxRef.current) return;
+      if (!searchBoxRef.current.contains(e.target as Node)) setShowResults(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  // Debounced search — runs 220ms after the user stops typing.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      // Sync results back to empty when the query becomes too short.
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSearching(false); return; }
+      const like = `%${q}%`;
+
+      // Three lookups in parallel — kept tight (limit 5 each) so the dropdown
+      // never feels heavy. ilike is case-insensitive across Hebrew text.
+      const [custRes, quoteRes, jobRes] = await Promise.all([
+        supabase.from("customers")
+          .select("id, name, phone, city")
+          .eq("user_id", user.id)
+          .or(`name.ilike.${like},phone.ilike.${like},city.ilike.${like}`)
+          .limit(5),
+        supabase.from("quotes")
+          .select("id, title, customer_name, quote_number")
+          .eq("user_id", user.id)
+          .or(`title.ilike.${like},customer_name.ilike.${like},quote_number.ilike.${like}`)
+          .limit(5),
+        supabase.from("jobs")
+          .select("id, customer_name, type, job_date")
+          .eq("user_id", user.id)
+          .or(`customer_name.ilike.${like},type.ilike.${like}`)
+          .order("job_date", { ascending: false })
+          .limit(5),
+      ]);
+
+      if (cancelled) return;
+      const next: SearchResult[] = [
+        ...(custRes.data ?? []).map(r => ({ kind: "customer" as const, id: String(r.id), name: r.name ?? "", phone: r.phone, city: r.city })),
+        ...(quoteRes.data ?? []).map(r => ({ kind: "quote" as const, id: String(r.id), title: r.title ?? "", customer_name: r.customer_name ?? "", quote_number: r.quote_number })),
+        ...(jobRes.data ?? []).map(r => ({ kind: "job" as const, id: String(r.id), customer_name: r.customer_name ?? "", type: r.type, job_date: r.job_date })),
+      ];
+      setResults(next);
+      setSearching(false);
+    }, 220);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query]);
+
+  function pickResult(r: SearchResult) {
+    setShowResults(false);
+    setQuery("");
+    if (r.kind === "customer")  router.push(`/customers?focus=${r.id}`);
+    else if (r.kind === "quote") router.push(`/quote/${r.id}`);
+    else                          router.push(`/schedule?focus=${r.id}`);
+  }
 
   useEffect(() => {
     async function load() {
@@ -116,16 +196,87 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       </div>
 
       {/* Search */}
-      <div className="hidden md:flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 w-56">
-        <Search size={15} className="text-gray-400 flex-shrink-0" />
-        <input
-          type="text"
-          autoComplete="off"
-          inputMode="search"
-          placeholder="חיפוש..."
-          className="bg-transparent text-sm text-gray-600 outline-none w-full placeholder:text-gray-400"
-          dir="rtl"
-        />
+      <div ref={searchBoxRef} className="hidden md:block relative">
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 w-64 focus-within:ring-2 focus-within:ring-green-300 focus-within:border-green-300 transition-all">
+          <Search size={15} className="text-gray-400 flex-shrink-0" />
+          <input
+            type="text"
+            autoComplete="off"
+            inputMode="search"
+            placeholder="חיפוש לקוח, הצעה, עבודה..."
+            value={query}
+            onChange={e => { setQuery(e.target.value); setShowResults(true); }}
+            onFocus={() => { if (query.trim().length >= 2) setShowResults(true); }}
+            className="bg-transparent text-sm text-gray-700 outline-none w-full placeholder:text-gray-400"
+            dir="rtl"
+          />
+          {searching && <Loader2 size={13} className="animate-spin text-gray-400 flex-shrink-0" />}
+          {query && !searching && (
+            <button onClick={() => { setQuery(""); setResults([]); }} aria-label="נקה" className="text-gray-400 hover:text-gray-600">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        {/* Results dropdown */}
+        {showResults && query.trim().length >= 2 && (
+          <div className="absolute top-full mt-2 right-0 left-0 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-40 max-h-96 overflow-y-auto" dir="rtl">
+            {searching && results.length === 0 && (
+              <div className="px-4 py-6 text-center text-xs text-gray-400">מחפש...</div>
+            )}
+            {!searching && results.length === 0 && (
+              <div className="px-4 py-6 text-center text-xs text-gray-400">לא נמצאו תוצאות עבור &quot;{query}&quot;</div>
+            )}
+            {results.length > 0 && (
+              <ul>
+                {results.map(r => (
+                  <li key={`${r.kind}-${r.id}`}>
+                    <button
+                      onClick={() => pickResult(r)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-right border-b border-gray-50 last:border-0"
+                    >
+                      <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        r.kind === "customer" ? "bg-blue-50 text-blue-600"
+                        : r.kind === "quote"  ? "bg-purple-50 text-purple-600"
+                        :                        "bg-green-50 text-green-600"
+                      }`}>
+                        {r.kind === "customer" ? <Users size={14} />
+                          : r.kind === "quote" ? <FileText size={14} />
+                          :                       <Calendar size={14} />}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        {r.kind === "customer" && (
+                          <>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{r.name}</p>
+                            <p className="text-[11px] text-gray-500 truncate">
+                              {[r.city, r.phone].filter(Boolean).join(" · ") || "לקוח"}
+                            </p>
+                          </>
+                        )}
+                        {r.kind === "quote" && (
+                          <>
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {r.title || "הצעת מחיר"} {r.quote_number && <span className="text-gray-400 text-xs">#{r.quote_number}</span>}
+                            </p>
+                            <p className="text-[11px] text-gray-500 truncate">{r.customer_name || "—"}</p>
+                          </>
+                        )}
+                        {r.kind === "job" && (
+                          <>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{r.customer_name}</p>
+                            <p className="text-[11px] text-gray-500 truncate">
+                              {r.type ?? "עבודה"} · {r.job_date}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Notifications */}
