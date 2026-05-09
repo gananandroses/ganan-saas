@@ -36,7 +36,10 @@ import {
   Loader2,
   Info,
   X,
+  ChevronRight,
+  Phone,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
 // ─── static seasonal patterns (industry benchmarks) ──────────────────────────
@@ -97,11 +100,21 @@ interface TopCustomer {
   monthly: number;
 }
 
+interface CityCustomer {
+  id: string;
+  name: string;
+  status: string;
+  monthly: number;
+  phone: string;
+}
+
 interface CityRow {
   city: string;
   customers: number;
   revenue: number;
   avgMonthly: number;
+  /** the actual customers behind the row — fuels the drilldown sheet */
+  list: CityCustomer[];
 }
 
 interface ServiceRow {
@@ -261,12 +274,21 @@ function compute(
   //
   // City strings are trimmed so "ראשון לציון" and "ראשון לציון " don't
   // split into two rows.
-  const cityMap = new Map<string, { count: number; monthlyTotal: number }>();
+  const cityMap = new Map<string, { count: number; monthlyTotal: number; list: CityCustomer[] }>();
   customers.forEach((c) => {
     const city = (typeof c.city === "string" ? c.city.trim() : "") || "אחר";
     const monthly = Number(c.monthly_price) || 0;
-    const prev = cityMap.get(city) || { count: 0, monthlyTotal: 0 };
-    cityMap.set(city, { count: prev.count + 1, monthlyTotal: prev.monthlyTotal + monthly });
+    const prev = cityMap.get(city) || { count: 0, monthlyTotal: 0, list: [] };
+    prev.count += 1;
+    prev.monthlyTotal += monthly;
+    prev.list.push({
+      id: String(c.id ?? ""),
+      name: String(c.name ?? "ללא שם"),
+      status: String(c.status ?? "active"),
+      monthly,
+      phone: String(c.phone ?? ""),
+    });
+    cityMap.set(city, prev);
   });
   const cities: CityRow[] = Array.from(cityMap.entries())
     .map(([city, d]) => ({
@@ -278,6 +300,9 @@ function compute(
       // "monthly total" for this city — the headline number the gardener
       // recognises ("3 customers in ראשון × 1,850/month combined").
       avgMonthly: Math.round(d.monthlyTotal),
+      // Drill-down list: customers sorted highest-paying first so the
+      // sheet leads with the most valuable account.
+      list: d.list.slice().sort((a, b) => b.monthly - a.monthly),
     }))
     .sort((a, b) => b.revenue - a.revenue);
 
@@ -832,6 +857,8 @@ export default function AnalyticsPage() {
   const [fetching, setFetching] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType | null>(null);
+  // Drill-down for the geographic table. Holds the city the user clicked.
+  const [cityDrill, setCityDrill] = useState<CityRow | null>(null);
 
   // Solo mode: hide every employee-related widget. Persisted in localStorage
   // so it survives reloads without needing a DB column.
@@ -908,6 +935,9 @@ export default function AnalyticsPage() {
           a={analytics}
         />
       )}
+
+      {/* City drilldown sheet */}
+      {cityDrill && <CityDrillSheet city={cityDrill} onClose={() => setCityDrill(null)} />}
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -1360,8 +1390,18 @@ export default function AnalyticsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {a.cityData.map((row) => (
-                        <tr key={row.city} className="hover:bg-slate-50 transition-colors">
-                          <td className="py-2 font-medium text-slate-700 pr-1">{row.city}</td>
+                        <tr
+                          key={row.city}
+                          onClick={() => setCityDrill(row)}
+                          className="hover:bg-slate-50 transition-colors cursor-pointer"
+                          aria-label={`פתח פירוט עבור ${row.city}`}
+                        >
+                          <td className="py-2 font-medium text-slate-700 pr-1">
+                            <span className="inline-flex items-center gap-1.5">
+                              {row.city}
+                              <ChevronRight size={11} className="text-slate-300" />
+                            </span>
+                          </td>
                           <td className="py-2 text-center text-slate-600">{row.customers}</td>
                           {/* "חודשי" column shows the city's monthly contracted total
                               (avgMonthly is reused as monthly total, see compute()).
@@ -1521,6 +1561,134 @@ export default function AnalyticsPage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── City drilldown sheet ─────────────────────────────────────────────────────
+// Bottom-sheet on mobile, centered card on desktop. Shows the full breakdown
+// for a single city: every customer with their monthly contracted amount,
+// status pill, phone link, and the city-level totals at the top.
+
+function CityDrillSheet({ city, onClose }: { city: CityRow; onClose: () => void }) {
+  const router = useRouter();
+
+  // Esc to close + body scroll lock while open
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  function openCustomer(id: string) {
+    if (!id) return;
+    onClose();
+    router.push(`/customers?focus=${encodeURIComponent(id)}`);
+  }
+
+  return (
+    <div
+      dir="rtl"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="city-drill-title"
+      className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white w-full sm:max-w-lg sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92dvh]">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <MapPin size={16} className="text-emerald-600 flex-shrink-0" />
+            <h3 id="city-drill-title" className="text-base font-bold text-gray-900 truncate">{city.city}</h3>
+            <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">
+              {city.customers} {city.customers === 1 ? "לקוח" : "לקוחות"}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="סגור"
+            className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0"
+          >
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Totals row */}
+        <div className="px-5 py-4 grid grid-cols-2 gap-3 bg-gradient-to-l from-emerald-50/50 to-transparent border-b border-gray-100">
+          <div>
+            <p className="text-[11px] text-gray-500">חודשי</p>
+            <p className="text-xl font-extrabold text-gray-900 tabular-nums">₪{city.avgMonthly.toLocaleString("he-IL")}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-gray-500">שנתי</p>
+            <p className="text-xl font-extrabold text-emerald-700 tabular-nums">₪{city.revenue.toLocaleString("he-IL")}</p>
+          </div>
+        </div>
+
+        {/* Customers list */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+          <p className="px-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+            לקוחות בעיר זו
+          </p>
+          {city.list.length === 0 ? (
+            <p className="text-center text-xs text-gray-400 py-6">אין לקוחות לעיר זו</p>
+          ) : (
+            city.list.map(c => {
+              const annual = c.monthly * 12;
+              const statusInfo = STATUS_LABEL[c.status] ?? c.status;
+              return (
+                <button
+                  key={c.id || c.name}
+                  onClick={() => openCustomer(c.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-right"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    {c.name.slice(0, 2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{c.name}</p>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                        c.status === "vip"      ? "bg-purple-100 text-purple-700"
+                        : c.status === "active" ? "bg-green-100 text-green-700"
+                        : c.status === "new"    ? "bg-blue-100 text-blue-700"
+                        :                          "bg-gray-100 text-gray-500"
+                      }`}>{statusInfo}</span>
+                    </div>
+                    {c.phone && (
+                      <a
+                        href={`tel:${c.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] text-gray-400 hover:text-gray-600 inline-flex items-center gap-1 mt-0.5"
+                        dir="ltr"
+                      >
+                        <Phone size={10} /> {c.phone}
+                      </a>
+                    )}
+                  </div>
+                  <div className="text-left flex-shrink-0">
+                    <p className="text-sm font-bold text-gray-900 tabular-nums">₪{c.monthly.toLocaleString("he-IL")}</p>
+                    <p className="text-[10px] text-gray-400 tabular-nums">שנתי ₪{annual.toLocaleString("he-IL")}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-gray-300 flex-shrink-0" />
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer hint */}
+        <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <p className="text-[10px] text-gray-400 text-center">
+            לחץ על לקוח כדי לפתוח את הכרטיס שלו
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
