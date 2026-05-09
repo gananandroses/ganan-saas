@@ -271,7 +271,7 @@ function TxModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90vh] flex flex-col" dir="rtl">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -413,7 +413,7 @@ function TxModal({
         {/* Footer */}
         <div className="px-5 py-4 border-t border-gray-100 flex gap-2 flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {initial && (
-            <button onClick={handleDelete} disabled={saving}
+            <button onClick={handleDelete} disabled={saving} aria-label="מחק"
               className="px-4 py-3 rounded-2xl border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-50">
               <Trash2 size={16} />
             </button>

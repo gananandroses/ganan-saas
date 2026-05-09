@@ -271,13 +271,14 @@ function AddCategoryModal({ onClose, onCreate }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog" aria-modal="true"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
             <Tag size={16} className="text-green-600" /> קטגוריה חדשה
           </h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור"><X size={20} className="text-gray-400" /></button>
         </div>
 
         <div className="px-5 py-4 space-y-4">
@@ -382,6 +383,7 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog" aria-modal="true"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -391,7 +393,7 @@ function AddCustomItemModal({ onClose, onSave, onAdd, defaultCategory = "custom"
               ← {selectedCatLabel}
             </span>
           </h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור"><X size={20} className="text-gray-400" /></button>
         </div>
         <div className="px-5 py-4 space-y-3 max-h-[80vh] overflow-y-auto">
           <input
@@ -548,11 +550,11 @@ function SaveToProjectModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-sm max-h-[75vh] flex flex-col overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900">שמור לפרויקט</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור"><X size={20} className="text-gray-400" /></button>
         </div>
         <p className="px-5 pt-3 pb-1 text-sm text-gray-500">{materials.length} פריטים · בחר פרויקט או צור חדש</p>
 
@@ -647,13 +649,14 @@ function SaveDraftModal({ itemCount, total, onClose, onSave }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog" aria-modal="true"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
             <Save size={16} className="text-amber-500" /> שמור טיוטה
           </h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור"><X size={20} className="text-gray-400" /></button>
         </div>
         <div className="px-5 py-4 space-y-4">
           <div className="bg-amber-50 rounded-xl px-4 py-3 text-sm text-amber-800">
@@ -689,13 +692,14 @@ function DraftsListModal({ drafts, onClose, onLoad, onDelete }: {
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog" aria-modal="true"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col overflow-hidden" dir="rtl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-900 flex items-center gap-2">
             <BookOpen size={16} className="text-amber-500" /> טיוטות שמורות
           </h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור"><X size={20} className="text-gray-400" /></button>
         </div>
 
         {drafts.length === 0 ? (

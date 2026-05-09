@@ -149,6 +149,8 @@ function PlantModal({ plant, onClose }: { plant: Plant; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
       onClick={onClose}
     >
       <div
@@ -160,6 +162,7 @@ function PlantModal({ plant, onClose }: { plant: Plant; onClose: () => void }) {
           <PlantImage plant={plant} className="absolute inset-0 w-full h-full" />
           <button
             onClick={onClose}
+            aria-label="סגור"
             className="absolute top-3 left-3 w-9 h-9 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center transition-colors"
           >
             <X size={18} />

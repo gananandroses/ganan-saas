@@ -130,6 +130,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       <div className="relative">
         <button
           onClick={() => setShowNotif(!showNotif)}
+          aria-label="התראות"
           className="relative p-2 rounded-xl hover:bg-gray-50 transition-colors"
         >
           <Bell size={20} className="text-gray-500" />
@@ -175,6 +176,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                     <p className="text-sm text-gray-700 flex-1 leading-snug">{n.text}</p>
                     <button
                       onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
+                      aria-label="סגור התראה"
                       className="text-gray-300 hover:text-gray-500 flex-shrink-0 mt-0.5 transition-colors"
                     >
                       <X size={14} />

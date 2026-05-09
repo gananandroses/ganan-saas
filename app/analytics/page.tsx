@@ -500,6 +500,8 @@ function DetailModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
+      role="dialog"
+      aria-modal="true"
       onClick={onClose}
     >
       <div
@@ -512,6 +514,7 @@ function DetailModal({
           <h2 className="font-bold text-slate-800 text-base">{titles[type]}</h2>
           <button
             onClick={onClose}
+            aria-label="סגור"
             className="hit-44 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors"
           >
             <X size={14} className="text-slate-500" />

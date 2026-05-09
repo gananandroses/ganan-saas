@@ -133,10 +133,10 @@ function PricerPickerModal({ onClose, onImport }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl">
+    <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl" role="dialog" aria-modal="true">
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-700"><X size={20} /></button>
+        <button onClick={onClose} aria-label="סגור" className="text-gray-500 hover:text-gray-700"><X size={20} /></button>
         <h2 className="font-bold text-gray-900 flex-1">בחר מהמחירון</h2>
         {count > 0 && (
           <button onClick={handleImport}
@@ -635,7 +635,7 @@ function ProjectFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl" role="dialog" aria-modal="true">
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
         <button onClick={onClose} className="text-gray-500 font-medium text-sm px-2 py-1">ביטול</button>
         <h2 className="text-base font-bold text-gray-900">{isEdit ? "עריכת פרויקט" : "פרויקט חדש"}</h2>
@@ -1060,11 +1060,11 @@ function UpdateProgressModal({ project, onClose, onUpdated }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full rounded-t-3xl p-6 space-y-5" dir="rtl">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-gray-900">עדכון התקדמות</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור"><X size={20} className="text-gray-400" /></button>
         </div>
         <p className="text-sm text-gray-500">{project.name}</p>
         <div>
@@ -1280,7 +1280,7 @@ function ProjectCard({ project, onUpdate, onDelete }: { project: Project; onUpda
           className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-2">
           <BarChart2 size={13} /> התקדמות
         </button>
-        <button onClick={handleDelete} disabled={deleting}
+        <button onClick={handleDelete} disabled={deleting} aria-label="מחק פרויקט"
           className="py-2.5 px-3 rounded-xl text-sm font-semibold border border-red-100 text-red-400 hover:bg-red-50 flex items-center justify-center">
           <Trash2 size={14} />
         </button>
@@ -1378,7 +1378,7 @@ export default function ProjectsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={fetchProjects} className="p-2.5 rounded-xl bg-gray-100 text-gray-500">
+            <button onClick={fetchProjects} aria-label="רענן" className="p-2.5 rounded-xl bg-gray-100 text-gray-500">
               <RefreshCw size={16} />
             </button>
             <button onClick={() => setShowNew(true)}
@@ -1416,7 +1416,7 @@ export default function ProjectsPage() {
 
         {/* KPI Modal */}
         {kpiModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setKpiModal(null)}>
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setKpiModal(null)}>
             <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <h3 className="font-bold text-gray-800 text-base">

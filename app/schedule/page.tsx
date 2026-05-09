@@ -157,7 +157,7 @@ function EditJobModal({ job, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-white overflow-y-auto" dir="rtl">
+    <div className="fixed inset-0 z-[60] bg-white overflow-y-auto" dir="rtl" role="dialog" aria-modal="true">
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
         <button onClick={onClose} className="text-gray-500 font-medium text-sm px-2 py-1">ביטול</button>
         <h2 className="text-base font-bold text-gray-900">עריכת עבודה</h2>
@@ -452,7 +452,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center pb-[88px] sm:pb-0" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center pb-[88px] sm:pb-0" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-3xl shadow-2xl max-h-[80vh] flex flex-col mx-2 sm:mx-4" dir="rtl">
         {/* Handle (mobile) */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
@@ -465,7 +465,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
             <h2 className="text-white font-bold text-lg">{job.customerName}</h2>
             <p className="text-white/80 text-sm">{job.type || "עבודת גינון"}</p>
           </div>
-          <button onClick={onClose} className="hit-44 text-white/80 hover:text-white p-1">
+          <button onClick={onClose} aria-label="סגור" className="hit-44 text-white/80 hover:text-white p-1">
             <X size={20} />
           </button>
         </div>
@@ -589,7 +589,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
 
         {/* Cancel/Delete Modal */}
         {showCancelModal && (
-          <div className="fixed inset-0 z-[70] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowCancelModal(false)}>
+          <div className="fixed inset-0 z-[70] bg-black/60 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setShowCancelModal(false)}>
             <div className="bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" dir="rtl">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-base font-bold text-gray-900">מה לעשות עם העבודה?</h3>
@@ -750,7 +750,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
   return (
     // Full-screen on mobile — most reliable approach for iOS
-    <div className="fixed inset-0 z-[70] bg-white overflow-y-auto" dir="rtl">
+    <div className="fixed inset-0 z-[70] bg-white overflow-y-auto" dir="rtl" role="dialog" aria-modal="true">
 
       {/* Top nav bar — always visible, never hidden by keyboard */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">

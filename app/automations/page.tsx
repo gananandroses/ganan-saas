@@ -706,7 +706,7 @@ export default function AutomationsPage() {
         const progress = ((wizard.index + 1) / total) * 100;
         const sectionLabel = sectionConfig[current.type].title;
         return (
-          <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setWizard(null)}>
+          <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setWizard(null)}>
             <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
               {/* Progress bar */}
               <div className="h-1.5 bg-gray-100 rounded-t-3xl overflow-hidden flex-shrink-0">
@@ -720,7 +720,7 @@ export default function AutomationsPage() {
                   <h2 className="text-base font-bold text-gray-900 mt-0.5">{current.customerName}</h2>
                   <p className="text-xs text-gray-500">{sectionLabel}</p>
                 </div>
-                <button onClick={() => setWizard(null)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setWizard(null)} aria-label="סגור" className="text-gray-400 hover:text-gray-600">
                   <X size={20} />
                 </button>
               </div>
@@ -772,7 +772,7 @@ export default function AutomationsPage() {
 
       {/* Templates Editor Modal */}
       {showTemplates && (
-        <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowTemplates(false)}>
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setShowTemplates(false)}>
           <div className="bg-white w-full sm:max-w-2xl sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
               <div>
@@ -847,7 +847,7 @@ export default function AutomationsPage() {
 
       {/* WhatsApp Modal */}
       {waModal && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setWaModal(null)}>
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setWaModal(null)}>
           <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[90vh]" dir="rtl">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2.5">

@@ -45,10 +45,11 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">אימייל</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1.5">אימייל</label>
               <div className="relative">
                 <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
+                  id="login-email"
                   type="email" required value={email} onChange={e => setEmail(e.target.value)}
                   className="w-full pr-10 pl-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                   placeholder="your@email.com"
@@ -58,15 +59,17 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">סיסמה</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1.5">סיסמה</label>
               <div className="relative">
                 <Lock size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
+                  id="login-password"
                   type={showPass ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)}
                   className="w-full pr-10 pl-10 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                   placeholder="••••••••"
                 />
                 <button type="button" onClick={() => setShowPass(!showPass)}
+                  aria-label={showPass ? "הסתר סיסמה" : "הצג סיסמה"}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

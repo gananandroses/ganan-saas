@@ -84,19 +84,19 @@ export default function RegisterPage() {
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">שם מלא *</label>
+                <label htmlFor="register-fullname" className="block text-sm font-medium text-gray-700 mb-1.5">שם מלא *</label>
                 <div className="relative">
                   <User size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input required value={form.fullName} onChange={e => update("fullName", e.target.value)}
+                  <input id="register-fullname" required value={form.fullName} onChange={e => update("fullName", e.target.value)}
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="ישראל ישראלי" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">שם העסק *</label>
+                <label htmlFor="register-business" className="block text-sm font-medium text-gray-700 mb-1.5">שם העסק *</label>
                 <div className="relative">
                   <Leaf size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input required value={form.businessName} onChange={e => update("businessName", e.target.value)}
+                  <input id="register-business" required value={form.businessName} onChange={e => update("businessName", e.target.value)}
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="גינות ישראל" />
                 </div>
@@ -104,20 +104,20 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">טלפון</label>
+              <label htmlFor="register-phone" className="block text-sm font-medium text-gray-700 mb-1.5">טלפון</label>
               <div className="relative">
                 <Phone size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="tel" value={form.phone} onChange={e => update("phone", e.target.value)}
+                <input id="register-phone" type="tel" value={form.phone} onChange={e => update("phone", e.target.value)}
                   className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="054-0000000" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">אימייל *</label>
+              <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 mb-1.5">אימייל *</label>
               <div className="relative">
                 <Mail size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="email" required value={form.email} onChange={e => update("email", e.target.value)}
+                <input id="register-email" type="email" required value={form.email} onChange={e => update("email", e.target.value)}
                   className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="your@email.com" />
               </div>
@@ -125,19 +125,19 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">סיסמה *</label>
+                <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 mb-1.5">סיסמה *</label>
                 <div className="relative">
                   <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" required value={form.password} onChange={e => update("password", e.target.value)}
+                  <input id="register-password" type="password" required value={form.password} onChange={e => update("password", e.target.value)}
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="לפחות 6 תווים" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">אימות סיסמה *</label>
+                <label htmlFor="register-confirm" className="block text-sm font-medium text-gray-700 mb-1.5">אימות סיסמה *</label>
                 <div className="relative">
                   <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="password" required value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)}
+                  <input id="register-confirm" type="password" required value={form.confirmPassword} onChange={e => update("confirmPassword", e.target.value)}
                     className="w-full pr-9 pl-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="חזור על הסיסמה" />
                 </div>

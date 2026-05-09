@@ -622,6 +622,7 @@ export default function SettingsPage() {
               }} placeholder="לדוגמה: אחריות 30 יום, ביטוח עבודה, חינם משלוח..."
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
               <button type="button" onClick={() => setForm(f => ({ ...f, trustBadges: f.trustBadges.filter((_, i) => i !== idx) }))}
+                aria-label="הסר תו אמון"
                 className="text-gray-300 hover:text-red-500"><X size={16} /></button>
             </div>
           ))}
@@ -666,6 +667,7 @@ export default function SettingsPage() {
                   }} placeholder="עיר (אופציונלי)" className="w-32 border border-amber-200 bg-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300" />
                 </div>
                 <button type="button" onClick={() => setForm(f => ({ ...f, testimonials: f.testimonials.filter((_, i) => i !== idx) }))}
+                  aria-label="הסר עדות"
                   className="text-gray-300 hover:text-red-500 mr-2"><X size={16} /></button>
               </div>
               <div className="flex gap-1">

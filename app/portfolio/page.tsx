@@ -424,7 +424,7 @@ export default function PortfolioPage() {
 
       {/* Lightbox */}
       {lightbox !== null && images[lightbox] && (
-        <div className="fixed inset-0 z-[80] bg-black/95 flex flex-col" onClick={() => setLightbox(null)}>
+        <div className="fixed inset-0 z-[80] bg-black/95 flex flex-col" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
           <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
             <p className="text-white font-semibold text-sm">{currentFolder}</p>
             <div className="flex items-center gap-3">

@@ -657,7 +657,7 @@ export default function QuotePage() {
 
       {/* Success overlay */}
       {successMode && (
-        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center" dir="rtl">
+        <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center" dir="rtl" role="dialog" aria-modal="true">
           <div className="bg-white rounded-3xl shadow-2xl mx-4 px-8 py-10 max-w-sm w-full text-center animate-in fade-in zoom-in-95 duration-300">
             {/* Animated checkmark */}
             <div className="relative w-24 h-24 mx-auto mb-5">
@@ -699,7 +699,7 @@ export default function QuotePage() {
 
       {/* Item picker modal */}
       {pickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setPickerOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setPickerOpen(false)}>
           <div className="bg-white w-full sm:max-w-lg sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh]" dir="rtl">
             <div className="px-5 py-4 border-b flex items-center justify-between">
               <h3 className="font-bold text-gray-900">בחר פריט מהמחירון</h3>

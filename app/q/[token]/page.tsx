@@ -889,7 +889,7 @@ export default function PublicQuotePage() {
         const allowBank = profile?.bank_name || profile?.bank_account;
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowPaymentModal(false)}>
+          <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setShowPaymentModal(false)}>
             <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -899,7 +899,7 @@ export default function PublicQuotePage() {
                     <p className="text-xs text-gray-500">{depositPercent}% מסכום ההצעה</p>
                   </div>
                 </div>
-                <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setShowPaymentModal(false)} aria-label="סגור" className="text-gray-400 hover:text-gray-600">
                   <X size={20} />
                 </button>
               </div>
@@ -1241,7 +1241,7 @@ export default function PublicQuotePage() {
       })()}
 
       {showSignModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowSignModal(false)}>
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setShowSignModal(false)}>
           <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" dir="rtl">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-lg font-bold text-gray-900">אישור הצעת המחיר</h3>

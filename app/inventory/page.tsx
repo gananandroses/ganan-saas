@@ -212,12 +212,12 @@ function NewEquipmentModal({ onClose, onSaved }: NewEquipmentModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0"><div className="w-10 h-1 bg-gray-200 rounded-full" /></div>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">ציוד חדש</h2>
-          <button onClick={onClose} className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
+          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
@@ -318,7 +318,7 @@ function NewItemModal({ onClose, onSaved }: NewItemModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
@@ -495,14 +495,14 @@ function EditItemModal({ item, onClose, onSaved }: EditItemModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{maxHeight: '92dvh'}} dir="rtl">
         <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">עריכת פריט</h2>
-          <button onClick={onClose} className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </div>
@@ -1233,7 +1233,7 @@ export default function InventoryPage() {
 
       {/* ===== MAINTENANCE SCHEDULE MODAL ===== */}
       {schedulingEquipment && (
-        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setSchedulingEquipment(null)}>
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setSchedulingEquipment(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" dir="rtl" onClick={e => e.stopPropagation()}>
             <h3 className="font-bold text-gray-900">תזמן תחזוקה</h3>
             <p className="text-sm text-gray-500">{schedulingEquipment.icon} {schedulingEquipment.name}</p>

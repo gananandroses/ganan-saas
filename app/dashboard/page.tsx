@@ -185,7 +185,7 @@ function DetailModal({ type, data, onClose }: {
   const openBalanceItems = (data.openBalanceItems as { name: string; phone: string; balance: number }[]) || [];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[85vh] flex flex-col" dir="rtl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
@@ -714,6 +714,7 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={dismissInstallBanner}
+              aria-label="סגור"
               className="text-white/60 hover:text-white transition-colors flex-shrink-0 mt-0.5"
             >
               <X size={18} />

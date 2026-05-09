@@ -184,7 +184,7 @@ export default function TourPage() {
           </nav>
 
           {/* Mobile menu button */}
-          <button onClick={() => setMobileMenuOpen(s => !s)} className="md:hidden p-2 rounded-lg bg-gray-100">
+          <button onClick={() => setMobileMenuOpen(s => !s)} aria-label="תפריט" className="md:hidden p-2 rounded-lg bg-gray-100">
             {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>

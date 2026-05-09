@@ -36,7 +36,7 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50" dir="rtl">
+    <div className="fixed inset-0 z-50" dir="rtl" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
@@ -55,7 +55,7 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
             </div>
             <span className="font-bold text-gray-900">גנן Pro</span>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100">
+          <button onClick={onClose} aria-label="סגור" className="p-2 rounded-xl hover:bg-gray-100">
             <X size={20} className="text-gray-500" />
           </button>
         </div>

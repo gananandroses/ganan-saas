@@ -170,14 +170,14 @@ function StatDetailModal({
   const summaryValue = type === "revenue" ? monthlyRevenueNet : type === "gross" ? monthlyRevenueGross : monthlyVat;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "85dvh" }} dir="rtl">
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
         </div>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-base font-bold text-gray-900">{titles[type]}</h2>
-          <button onClick={onClose} className="hit-44 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -493,7 +493,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
   }
 
   return (
-    <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl">
+    <div className="fixed inset-0 z-[60] bg-white flex flex-col" dir="rtl" role="dialog" aria-modal="true">
       {/* Sticky top nav */}
       <div className="sticky top-0 bg-white border-b border-gray-100 flex items-center px-4 py-3 z-10 flex-shrink-0">
         {editing ? (
@@ -1282,6 +1282,7 @@ export default function CustomersPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={loadCustomers}
+              aria-label="רענן"
               className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200"
             >
               <RefreshCw size={16} />
@@ -1526,7 +1527,7 @@ export default function CustomersPage() {
 
       {/* ===== ADD CUSTOMER MODAL ===== */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddModal(false)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={() => setShowAddModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-900">לקוח חדש</h2>

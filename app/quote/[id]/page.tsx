@@ -474,7 +474,7 @@ export default function QuoteViewPage() {
               className="flex items-center gap-1.5 bg-gray-700 hover:bg-gray-800 text-white text-xs font-semibold px-3 py-2 rounded-lg">
               <Printer size={13} /> הדפס
             </button>
-            <button onClick={handleDelete}
+            <button onClick={handleDelete} aria-label="מחק הצעה"
               className="hit-44 w-8 h-8 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-lg">
               <Trash2 size={13} />
             </button>
@@ -837,7 +837,7 @@ export default function QuoteViewPage() {
 
       {/* Share Modal */}
       {showShareModal && quote.public_token && (
-        <div className="no-print fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" onClick={(e) => e.target === e.currentTarget && setShowShareModal(false)}>
+        <div className="no-print fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setShowShareModal(false)}>
           <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" dir="rtl">
             {/* Header */}
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
