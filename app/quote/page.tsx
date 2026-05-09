@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
+import QuoteCreatorModal from "@/components/QuoteCreatorModal";
 
 interface Quote {
   id: string;
@@ -51,6 +52,7 @@ export default function QuotesListPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | Quote["status"]>("all");
+  const [creatorOpen, setCreatorOpen] = useState(false);
 
   useEffect(() => {
     fetchQuotes();
@@ -171,7 +173,7 @@ export default function QuotesListPage() {
               <p className="text-xs text-gray-500">{quotes.length} הצעות סה״כ</p>
             </div>
           </div>
-          <button onClick={() => router.push("/quote/new")}
+          <button onClick={() => setCreatorOpen(true)}
             className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-sm">
             <Plus size={16} /> הצעה חדשה
           </button>
@@ -259,7 +261,7 @@ export default function QuotesListPage() {
             <FileText size={40} className="mx-auto text-gray-300 mb-3" />
             <h3 className="font-bold text-gray-900">אין הצעות מחיר עדיין</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">צור את הצעת המחיר הראשונה שלך</p>
-            <button onClick={() => router.push("/quote/new")}
+            <button onClick={() => setCreatorOpen(true)}
               className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl">
               <Plus size={16} /> הצעה חדשה
             </button>
@@ -334,6 +336,9 @@ export default function QuotesListPage() {
           </div>
         )}
       </div>
+
+      {/* New-quote chooser — pick a template or start blank */}
+      {creatorOpen && <QuoteCreatorModal onClose={() => setCreatorOpen(false)} />}
     </div>
   );
 }

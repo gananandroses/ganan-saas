@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
 } from "lucide-react";
@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
 import { loadPricerSettings, buildEffectivePriceList, buildEffectiveCategories, type PricerSettings } from "@/lib/pricer-merge";
+import { getTemplate } from "@/lib/quote-templates";
 
 const VAT = 0.18;
 
@@ -40,6 +41,8 @@ function fmt(n: number) {
 
 export default function QuotePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const templateId = searchParams.get("template");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -125,8 +128,32 @@ export default function QuotePage() {
       d.setDate(d.getDate() + validityDays);
       setValidUntil(d.toISOString().slice(0, 10));
 
+      // Apply quote template if one was passed via ?template=ID. Template
+      // values overwrite the profile defaults — they're more specific.
+      if (templateId) {
+        const tpl = getTemplate(templateId);
+        if (tpl) {
+          setTitle(tpl.quoteTitle);
+          setNotes(tpl.notes);
+          setItems(tpl.items.map((it, i) => ({
+            id: `tpl-${templateId}-${i}-${Date.now()}`,
+            name: it.name,
+            unit: it.unit,
+            basePrice: it.price,
+            qty: it.qty || 1,
+            customPrice: it.price > 0 ? it.price : undefined,
+            description: it.description,
+            category: "תבנית",
+          })));
+        }
+      }
+
       setLoading(false);
     })();
+  // We deliberately don't depend on templateId here — the page is mounted
+  // fresh for each /quote/new visit, and re-running the loader on a query
+  // string change would clobber the user's typing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter customers
