@@ -255,27 +255,66 @@ function compute(
   // showed as ₪0, looking like a deadbeat. Fixed by aggregating real
   // collected income from the transactions table, scoped to the active
   // dateRange, then mapping each transaction's customer to their city.
+  //
+  // Matching is forgiving on purpose: transactions store customer_name as
+  // free text and may not match the customers row exactly (trailing
+  // whitespace, slight rename after the fact). We:
+  //   1. Try customer_id (cheapest, exact)
+  //   2. Try normalised name (trim + lowercase) — handles "יוסי " vs "יוסי"
+  //   3. Try a substring contains match in either direction — handles
+  //      "ישראל" matching "ישראל ישראלי" etc.
+  // Same trim is applied to city names so "ראשון לציון" and "ראשון לציון "
+  // collapse into one row.
+
+  function normaliseName(s: unknown): string {
+    return typeof s === "string" ? s.trim().toLowerCase() : "";
+  }
+  function normaliseCity(s: unknown): string {
+    return typeof s === "string" ? s.trim() : "";
+  }
+
   const customerByName = new Map<string, Row>();
   const customerById = new Map<string, Row>();
+  const customerList: { norm: string; row: Row }[] = [];
   customers.forEach((c) => {
-    if (c.name) customerByName.set(String(c.name), c);
-    if (c.id)   customerById.set(String(c.id), c);
+    if (c.id) customerById.set(String(c.id), c);
+    const n = normaliseName(c.name);
+    if (n) {
+      customerByName.set(n, c);
+      customerList.push({ norm: n, row: c });
+    }
   });
-  // Sum per-city: real income within the period + customer count.
+
+  function findCustomer(t: Row): Row | undefined {
+    if (t.customer_id) {
+      const exact = customerById.get(String(t.customer_id));
+      if (exact) return exact;
+    }
+    const tName = normaliseName(t.customer_name);
+    if (!tName) return undefined;
+    const exactByName = customerByName.get(tName);
+    if (exactByName) return exactByName;
+    // Substring fallback either way (transaction name contained in customer
+    // name, or vice versa) — only for tName that's at least 2 chars to
+    // avoid runaway false positives on single-letter strings.
+    if (tName.length >= 2) {
+      const partial = customerList.find(({ norm }) => norm.includes(tName) || tName.includes(norm));
+      if (partial) return partial.row;
+    }
+    return undefined;
+  }
+
   const cityMap = new Map<string, { count: number; revenue: number }>();
-  // Count customers per city first (one row per customer, regardless of
-  // whether they had transactions yet — gives us the "X customers" column).
+  // Count customers per city first.
   customers.forEach((c) => {
-    const city = (c.city as string) || "אחר";
+    const city = normaliseCity(c.city) || "אחר";
     const prev = cityMap.get(city) || { count: 0, revenue: 0 };
     cityMap.set(city, { count: prev.count + 1, revenue: prev.revenue });
   });
   // Then add up real collected income, keyed back to each customer's city.
   incomePeriod.forEach((t) => {
-    let cust: Row | undefined;
-    if (t.customer_id) cust = customerById.get(String(t.customer_id));
-    if (!cust && t.customer_name) cust = customerByName.get(String(t.customer_name));
-    const city = (cust && typeof cust.city === "string" ? cust.city : "") || "אחר";
+    const cust = findCustomer(t);
+    const city = (cust ? normaliseCity(cust.city) : "") || "אחר";
     const prev = cityMap.get(city) || { count: 0, revenue: 0 };
     cityMap.set(city, { count: prev.count, revenue: prev.revenue + ((t.amount as number) || 0) });
   });
