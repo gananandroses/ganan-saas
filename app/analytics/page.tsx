@@ -248,22 +248,45 @@ function compute(
       monthly: (c.monthly_price as number) || 0,
     }));
 
-  // ── City aggregation ───────────────────────────────────────────────────────
-  const cityMap = new Map<string, { count: number; totalMonthly: number }>();
+  // ── City aggregation ──────────────────────────────────────────────────────
+  // Earlier version used customers.monthly_price × 12 as "annual revenue per
+  // city" — a theoretical number that ignored what actually came in. Result:
+  // a customer who paid via project transactions but had monthly_price = 0
+  // showed as ₪0, looking like a deadbeat. Fixed by aggregating real
+  // collected income from the transactions table, scoped to the active
+  // dateRange, then mapping each transaction's customer to their city.
+  const customerByName = new Map<string, Row>();
+  const customerById = new Map<string, Row>();
+  customers.forEach((c) => {
+    if (c.name) customerByName.set(String(c.name), c);
+    if (c.id)   customerById.set(String(c.id), c);
+  });
+  // Sum per-city: real income within the period + customer count.
+  const cityMap = new Map<string, { count: number; revenue: number }>();
+  // Count customers per city first (one row per customer, regardless of
+  // whether they had transactions yet — gives us the "X customers" column).
   customers.forEach((c) => {
     const city = (c.city as string) || "אחר";
-    const prev = cityMap.get(city) || { count: 0, totalMonthly: 0 };
-    cityMap.set(city, {
-      count: prev.count + 1,
-      totalMonthly: prev.totalMonthly + ((c.monthly_price as number) || 0),
-    });
+    const prev = cityMap.get(city) || { count: 0, revenue: 0 };
+    cityMap.set(city, { count: prev.count + 1, revenue: prev.revenue });
   });
+  // Then add up real collected income, keyed back to each customer's city.
+  incomePeriod.forEach((t) => {
+    let cust: Row | undefined;
+    if (t.customer_id) cust = customerById.get(String(t.customer_id));
+    if (!cust && t.customer_name) cust = customerByName.get(String(t.customer_name));
+    const city = (cust && typeof cust.city === "string" ? cust.city : "") || "אחר";
+    const prev = cityMap.get(city) || { count: 0, revenue: 0 };
+    cityMap.set(city, { count: prev.count, revenue: prev.revenue + ((t.amount as number) || 0) });
+  });
+  // Monthly average is "income / months in the active range" — actual cash
+  // velocity, not a theoretical per-customer figure.
   const cities: CityRow[] = Array.from(cityMap.entries())
     .map(([city, d]) => ({
       city,
       customers: d.count,
-      revenue: d.totalMonthly * 12,
-      avgMonthly: Math.round(d.totalMonthly / d.count),
+      revenue: Math.round(d.revenue),
+      avgMonthly: numMonths > 0 ? Math.round(d.revenue / numMonths) : 0,
     }))
     .sort((a, b) => b.revenue - a.revenue);
 
@@ -1334,7 +1357,7 @@ export default function AnalyticsPage() {
                           לקוחות
                         </th>
                         <th className="text-left pb-2 text-xs font-semibold text-slate-500">
-                          הכנסה שנתית
+                          הכנסה בפועל
                         </th>
                         <th className="text-left pb-2 text-xs font-semibold text-slate-500">
                           ממוצע חודשי
