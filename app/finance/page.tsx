@@ -831,6 +831,72 @@ export default function FinancePage() {
     return true;
   });
 
+  // ── Project-pair detection ─────────────────────────────────────────────────
+  // When a project is marked completed elsewhere in the app, two transactions
+  // get created: an income row "פרויקט: X" and an expense row "חומרים: X".
+  // Showing them as separate lines is correct accounting but visually noisy
+  // ("why are there two rows about נועם?"). We collapse matched pairs into
+  // a single consolidated row that shows both amounts + the net. Singletons
+  // pass through unchanged.
+  type FinanceRow =
+    | { kind: "single"; tx: Transaction }
+    | { kind: "pair"; project: string; income: Transaction; expense: Transaction };
+
+  const projectsRows: FinanceRow[] = (() => {
+    const pairs: FinanceRow[] = [];
+    const consumed = new Set<string>();
+    // Bucket income txs that look like project income, keyed by
+    // "${customerName}|${projectName}". Then walk expenses and try to find
+    // a match. Only pair when both prefixes are present AND the project
+    // name is identical AND the customer is the same — otherwise keep
+    // them as separate rows.
+    const projectKey = (t: Transaction): string | null => {
+      if (t.type === "income"  && t.description?.startsWith("פרויקט: ")) {
+        return `${t.customerName}|${t.description.slice("פרויקט: ".length).trim()}`;
+      }
+      if (t.type === "expense" && t.description?.startsWith("חומרים: ")) {
+        return `${t.customerName}|${t.description.slice("חומרים: ".length).trim()}`;
+      }
+      return null;
+    };
+
+    const incomeByKey = new Map<string, Transaction>();
+    filteredTx.forEach((t) => {
+      if (t.type !== "income") return;
+      const k = projectKey(t);
+      if (k && !incomeByKey.has(k)) incomeByKey.set(k, t);
+    });
+
+    filteredTx.forEach((t) => {
+      if (consumed.has(t.id)) return;
+      if (t.type === "expense") {
+        const k = projectKey(t);
+        const income = k ? incomeByKey.get(k) : undefined;
+        if (income) {
+          consumed.add(t.id);
+          consumed.add(income.id);
+          const projectName = k!.split("|").slice(1).join("|");
+          pairs.push({ kind: "pair", project: projectName, income, expense: t });
+          return;
+        }
+      }
+    });
+
+    // Walk again to preserve original order, skipping anything we already
+    // emitted as part of a pair.
+    const out: FinanceRow[] = [];
+    filteredTx.forEach((t) => {
+      if (consumed.has(t.id)) {
+        // Emit the pair at the position of whichever transaction came first.
+        const pair = pairs.find(p => p.kind === "pair" && (p.income.id === t.id || p.expense.id === t.id));
+        if (pair && !out.includes(pair)) out.push(pair);
+      } else {
+        out.push({ kind: "single", tx: t });
+      }
+    });
+    return out;
+  })();
+
   // Overdue / pending payments (in range)
   const alerts = txInRange.filter(
     (t) => t.type === "income" && (t.status === "pending" || t.status === "overdue")
@@ -1432,66 +1498,152 @@ export default function FinancePage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {filteredTx.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
-                        <td className="py-3 px-5 text-gray-500 whitespace-nowrap">
-                          {tx.date ? formatDate(tx.date) : "—"}
-                        </td>
-                        <td className="py-3 px-4 font-medium text-gray-900 whitespace-nowrap">
-                          {tx.customerName}
-                        </td>
-                        <td className="py-3 px-4 text-gray-500 max-w-[180px] truncate">
-                          {tx.description}
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span
-                            className={`font-bold ${
-                              tx.type === "income" ? "text-green-600" : "text-red-500"
-                            }`}
-                          >
-                            {tx.type === "income" ? "+" : "-"}₪{tx.amount.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <StatusBadge status={tx.status} />
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            {tx.status === "pending" || tx.status === "overdue" ? (
-                              <>
+                    {projectsRows.map((row) => {
+                      // ── Paired project row: income + materials in one line ──
+                      if (row.kind === "pair") {
+                        const net = row.income.amount - row.expense.amount;
+                        const status = row.income.status; // pair is "settled" when income is settled
+                        return (
+                          <tr key={`pair-${row.income.id}`} className="hover:bg-gray-50/60 transition-colors bg-emerald-50/20">
+                            <td className="py-3 px-5 text-gray-500 whitespace-nowrap">
+                              {row.income.date ? formatDate(row.income.date) : "—"}
+                            </td>
+                            <td className="py-3 px-4 font-medium text-gray-900 whitespace-nowrap">
+                              {row.income.customerName}
+                            </td>
+                            <td className="py-3 px-4 max-w-[260px]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full flex-shrink-0">פרויקט</span>
+                                <span className="text-gray-700 font-medium truncate">{row.project}</span>
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
+                                <span className="text-green-600 font-semibold">+₪{row.income.amount.toLocaleString()}</span>
+                                <span className="text-red-500 font-semibold">−₪{row.expense.amount.toLocaleString()}</span>
+                                <span className="text-gray-400">חומרים</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className={`font-bold ${net >= 0 ? "text-green-600" : "text-red-500"}`}>
+                                {net >= 0 ? "+" : "−"}₪{Math.abs(net).toLocaleString()}
+                              </span>
+                              <p className="text-[10px] text-gray-400 leading-tight mt-0.5">נטו</p>
+                            </td>
+                            <td className="py-3 px-4">
+                              <StatusBadge status={status} />
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                {(status === "pending" || status === "overdue") ? (
+                                  <>
+                                    <button
+                                      onClick={() => openWhatsAppReminder(row.income)}
+                                      className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
+                                      <MessageSquare size={12} />
+                                      שלח תזכורת
+                                    </button>
+                                    <button
+                                      onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${row.income.amount.toLocaleString()} של ${row.income.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(row.income.id); }}
+                                      className="flex items-center gap-1 text-xs text-emerald-600 font-semibold hover:text-emerald-800 whitespace-nowrap">
+                                      <CheckCircle size={12} />
+                                      שולם
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => setShowInvoice(true)}
+                                    className="flex items-center gap-1 text-xs text-gray-500 font-semibold hover:text-gray-700 whitespace-nowrap"
+                                  >
+                                    <FileText size={12} />
+                                    צור חשבונית
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => openWhatsAppReminder(tx)}
-                                  className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
-                                  <MessageSquare size={12} />
-                                  שלח תזכורת
+                                  onClick={async () => {
+                                    // Deleting either side of a project pair removes both — they
+                                    // were created together and only make sense together.
+                                    if (await confirmDialog({
+                                      title: "למחוק את שתי העסקאות של הפרויקט?",
+                                      description: "ההכנסה והוצאת החומרים יוסרו יחד.",
+                                      confirmLabel: "מחק", destructive: true,
+                                    })) {
+                                      deleteTransaction(row.income.id);
+                                      deleteTransaction(row.expense.id);
+                                    }
+                                  }}
+                                  className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                                  aria-label="מחק זוג עסקאות"
+                                >
+                                  <Trash2 size={13} />
                                 </button>
-                                <button
-                                  onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(tx.id); }}
-                                  className="flex items-center gap-1 text-xs text-emerald-600 font-semibold hover:text-emerald-800 whitespace-nowrap">
-                                  <CheckCircle size={12} />
-                                  שולם
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => setShowInvoice(true)}
-                                className="flex items-center gap-1 text-xs text-gray-500 font-semibold hover:text-gray-700 whitespace-nowrap"
-                              >
-                                <FileText size={12} />
-                                צור חשבונית
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteTransaction(tx.id)}
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
-                              title="מחק עסקה"
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      // ── Single transaction row (unchanged) ──
+                      const tx = row.tx;
+                      return (
+                        <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
+                          <td className="py-3 px-5 text-gray-500 whitespace-nowrap">
+                            {tx.date ? formatDate(tx.date) : "—"}
+                          </td>
+                          <td className="py-3 px-4 font-medium text-gray-900 whitespace-nowrap">
+                            {tx.customerName}
+                          </td>
+                          <td className="py-3 px-4 text-gray-500 max-w-[180px] truncate">
+                            {tx.description}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`font-bold ${
+                                tx.type === "income" ? "text-green-600" : "text-red-500"
+                              }`}
                             >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {tx.type === "income" ? "+" : "−"}₪{tx.amount.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <StatusBadge status={tx.status} />
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              {tx.status === "pending" || tx.status === "overdue" ? (
+                                <>
+                                  <button
+                                    onClick={() => openWhatsAppReminder(tx)}
+                                    className="flex items-center gap-1 text-xs text-purple-600 font-semibold hover:text-purple-800 whitespace-nowrap">
+                                    <MessageSquare size={12} />
+                                    שלח תזכורת
+                                  </button>
+                                  <button
+                                    onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(tx.id); }}
+                                    className="flex items-center gap-1 text-xs text-emerald-600 font-semibold hover:text-emerald-800 whitespace-nowrap">
+                                    <CheckCircle size={12} />
+                                    שולם
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => setShowInvoice(true)}
+                                  className="flex items-center gap-1 text-xs text-gray-500 font-semibold hover:text-gray-700 whitespace-nowrap"
+                                >
+                                  <FileText size={12} />
+                                  צור חשבונית
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteTransaction(tx.id)}
+                                className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                                aria-label="מחק עסקה"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 {filteredTx.length === 0 && (
