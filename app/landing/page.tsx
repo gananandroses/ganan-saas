@@ -430,10 +430,12 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Text side */}
             <div className="text-right">
-              {/* Badge */}
+              {/* Badge — honest positioning. The previous "מספר 1 לגננים בישראל"
+                  was an unsupportable claim. Built-by-a-gardener is a true
+                  differentiator that's safer and reads stronger. */}
               <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
                 <Zap size={12} />
-                <span>מספר 1 לגננים בישראל</span>
+                <span>נבנה ע״י גנן, בשביל גננים</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl font-extrabold leading-tight text-gray-900 mb-5">

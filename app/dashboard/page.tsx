@@ -20,6 +20,7 @@ import {
   Clock,
   Leaf,
   ChevronUp,
+  ChevronDown,
   X,
   ChevronRight,
   Phone,
@@ -374,7 +375,7 @@ function getWeatherEmoji(code: number): string {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState({ monthlyIncome: 0, activeCustomers: 0, openBalance: 0, todayJobs: 0, debtorsSub: "טוען..." });
+  const [stats, setStats] = useState({ monthlyIncome: 0, monthlyIncomeMomPct: 0 as number | null, activeCustomers: 0, openBalance: 0, todayJobs: 0, debtorsSub: "טוען..." });
   const [recentJobs, setRecentJobs] = useState<Record<string, unknown>[]>([]);
   const [chartData, setChartData] = useState<{month: string; income: number; expense: number}[]>([]);
   const [chartTotals, setChartTotals] = useState({ totalIncome: 0, totalExpense: 0, netProfit: 0 });
@@ -506,6 +507,23 @@ export default function DashboardPage() {
         )
         .reduce((sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0), 0);
 
+      // Real MoM percent change vs previous calendar month, not a hardcoded
+      // "+12%". Returns null when previous month had no income (avoids
+      // infinite/NaN and lets us hide the trend chip in that case).
+      const prevMonthDate = new Date();
+      prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+      const prevMonth = prevMonthDate.toISOString().slice(0, 7);
+      const prevMonthlyIncome = transactions
+        .filter((t: Record<string, unknown>) =>
+          t.type === "income"
+          && isCollected(t)
+          && (t.transaction_date as string)?.startsWith(prevMonth),
+        )
+        .reduce((sum: number, t: Record<string, unknown>) => sum + ((t.amount as number) || 0), 0);
+      const monthlyIncomeMomPct: number | null = prevMonthlyIncome > 0
+        ? Math.round(((monthlyIncome - prevMonthlyIncome) / prevMonthlyIncome) * 100)
+        : null;
+
       // Open-balance source of truth = pending/overdue income transactions.
       // (The legacy customers.balance field is rarely kept in sync with project/job
       // completions, which auto-create pending transactions.)
@@ -529,6 +547,7 @@ export default function DashboardPage() {
 
       setStats({
         monthlyIncome,
+        monthlyIncomeMomPct,
         activeCustomers: customers.filter((c: Record<string, unknown>) => c.status === "active" || c.status === "vip").length,
         openBalance: openBalanceTotal,
         todayJobs: jobs.filter((j: Record<string, unknown>) =>
@@ -753,9 +772,9 @@ export default function DashboardPage() {
             iconBg="bg-green-50"
             label="הכנסה החודש"
             value={`₪${stats.monthlyIncome.toLocaleString("he-IL")}`}
-            trend="+12%"
-            trendColor="text-green-600"
-            trendIcon={<ChevronUp size={13} />}
+            trend={stats.monthlyIncomeMomPct !== null ? `${stats.monthlyIncomeMomPct >= 0 ? "+" : ""}${stats.monthlyIncomeMomPct}% MoM` : ""}
+            trendColor={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? "text-green-600" : "text-red-500"}
+            trendIcon={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             sub="לחץ לפירוט העסקאות"
             onClick={() => setModal("income")}
           />
