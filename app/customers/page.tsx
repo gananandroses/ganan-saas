@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   Plus,
@@ -1049,7 +1050,19 @@ const filterButtons: { id: FilterType; label: string }[] = [
 
 // ===== MAIN PAGE =====
 
+// Wrapper provides the Suspense boundary required by useSearchParams in
+// Next.js 16. The real component lives in CustomersPageInner.
 export default function CustomersPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomersPageInner />
+    </Suspense>
+  );
+}
+
+function CustomersPageInner() {
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get("focus");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [viewMode, setViewMode] = useState<"list" | "city">("list");
@@ -1062,6 +1075,15 @@ export default function CustomersPage() {
   useEffect(() => {
     loadCustomers();
   }, []);
+
+  // Deep-link from the global Header search: /customers?focus=ID opens
+  // that customer's profile sheet automatically once the list is loaded.
+  // We only run when the list is non-empty so we have something to find.
+  useEffect(() => {
+    if (!focusId || customers.length === 0) return;
+    const match = customers.find(c => String(c.id) === focusId);
+    if (match) setSelectedCustomer(match);
+  }, [focusId, customers]);
 
   async function loadCustomers() {
     setLoading(true);
@@ -1366,13 +1388,16 @@ export default function CustomersPage() {
           onClose={() => setStatModal(null)}
         />
 
-        {/* ===== FILTER BAR ===== */}
-        <div className="flex flex-col sm:flex-row gap-3">
+        {/* ===== FILTER BAR =====
+            On narrow viewports the filter chips line-wrapped and squashed
+            the search field down to ~80px. Forcing a min-width and using
+            flex-wrap on the parent keeps the input usable at every width. */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           {/* Search */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-full sm:min-w-[260px]">
             <Search
               size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
             />
             <input
               type="text"
@@ -1381,12 +1406,13 @@ export default function CustomersPage() {
               autoComplete="off"
               inputMode="search"
               placeholder="חיפוש לפי שם, עיר, טלפון..."
-              className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
+              className="w-full pr-10 pl-9 py-2.5 rounded-xl border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
             />
             {search && (
               <button
                 onClick={() => setSearch("")}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="נקה חיפוש"
+                className="hit-44 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X size={14} />
               </button>

@@ -249,83 +249,35 @@ function compute(
     }));
 
   // ── City aggregation ──────────────────────────────────────────────────────
-  // Earlier version used customers.monthly_price × 12 as "annual revenue per
-  // city" — a theoretical number that ignored what actually came in. Result:
-  // a customer who paid via project transactions but had monthly_price = 0
-  // showed as ₪0, looking like a deadbeat. Fixed by aggregating real
-  // collected income from the transactions table, scoped to the active
-  // dateRange, then mapping each transaction's customer to their city.
+  // The owner pays-by-monthly-price model: each customer has a contracted
+  // monthly_price (before VAT). What they actually want to see in this
+  // table is the contracted income — sum of monthly_price across the
+  // city's customers — multiplied to monthly / annual views.
   //
-  // Matching is forgiving on purpose: transactions store customer_name as
-  // free text and may not match the customers row exactly (trailing
-  // whitespace, slight rename after the fact). We:
-  //   1. Try customer_id (cheapest, exact)
-  //   2. Try normalised name (trim + lowercase) — handles "יוסי " vs "יוסי"
-  //   3. Try a substring contains match in either direction — handles
-  //      "ישראל" matching "ישראל ישראלי" etc.
-  // Same trim is applied to city names so "ראשון לציון" and "ראשון לציון "
-  // collapse into one row.
-
-  function normaliseName(s: unknown): string {
-    return typeof s === "string" ? s.trim().toLowerCase() : "";
-  }
-  function normaliseCity(s: unknown): string {
-    return typeof s === "string" ? s.trim() : "";
-  }
-
-  const customerByName = new Map<string, Row>();
-  const customerById = new Map<string, Row>();
-  const customerList: { norm: string; row: Row }[] = [];
+  // The earlier "real transactions" version was misleading: actual
+  // collections lag behind contracted rates and don't equal what the
+  // gardener planned to earn. The owner explicitly asked for contracted
+  // amounts in the city-level summary.
+  //
+  // City strings are trimmed so "ראשון לציון" and "ראשון לציון " don't
+  // split into two rows.
+  const cityMap = new Map<string, { count: number; monthlyTotal: number }>();
   customers.forEach((c) => {
-    if (c.id) customerById.set(String(c.id), c);
-    const n = normaliseName(c.name);
-    if (n) {
-      customerByName.set(n, c);
-      customerList.push({ norm: n, row: c });
-    }
+    const city = (typeof c.city === "string" ? c.city.trim() : "") || "אחר";
+    const monthly = Number(c.monthly_price) || 0;
+    const prev = cityMap.get(city) || { count: 0, monthlyTotal: 0 };
+    cityMap.set(city, { count: prev.count + 1, monthlyTotal: prev.monthlyTotal + monthly });
   });
-
-  function findCustomer(t: Row): Row | undefined {
-    if (t.customer_id) {
-      const exact = customerById.get(String(t.customer_id));
-      if (exact) return exact;
-    }
-    const tName = normaliseName(t.customer_name);
-    if (!tName) return undefined;
-    const exactByName = customerByName.get(tName);
-    if (exactByName) return exactByName;
-    // Substring fallback either way (transaction name contained in customer
-    // name, or vice versa) — only for tName that's at least 2 chars to
-    // avoid runaway false positives on single-letter strings.
-    if (tName.length >= 2) {
-      const partial = customerList.find(({ norm }) => norm.includes(tName) || tName.includes(norm));
-      if (partial) return partial.row;
-    }
-    return undefined;
-  }
-
-  const cityMap = new Map<string, { count: number; revenue: number }>();
-  // Count customers per city first.
-  customers.forEach((c) => {
-    const city = normaliseCity(c.city) || "אחר";
-    const prev = cityMap.get(city) || { count: 0, revenue: 0 };
-    cityMap.set(city, { count: prev.count + 1, revenue: prev.revenue });
-  });
-  // Then add up real collected income, keyed back to each customer's city.
-  incomePeriod.forEach((t) => {
-    const cust = findCustomer(t);
-    const city = (cust ? normaliseCity(cust.city) : "") || "אחר";
-    const prev = cityMap.get(city) || { count: 0, revenue: 0 };
-    cityMap.set(city, { count: prev.count, revenue: prev.revenue + ((t.amount as number) || 0) });
-  });
-  // Monthly average is "income / months in the active range" — actual cash
-  // velocity, not a theoretical per-customer figure.
   const cities: CityRow[] = Array.from(cityMap.entries())
     .map(([city, d]) => ({
       city,
       customers: d.count,
-      revenue: Math.round(d.revenue),
-      avgMonthly: numMonths > 0 ? Math.round(d.revenue / numMonths) : 0,
+      // "annual revenue" = sum of monthly_price for the city × 12 (pre-VAT,
+      // matching how the gardener enters prices on the customer form).
+      revenue: Math.round(d.monthlyTotal * 12),
+      // "monthly total" for this city — the headline number the gardener
+      // recognises ("3 customers in ראשון × 1,850/month combined").
+      avgMonthly: Math.round(d.monthlyTotal),
     }))
     .sort((a, b) => b.revenue - a.revenue);
 
@@ -1378,7 +1330,10 @@ export default function AnalyticsPage() {
           {/* ── Bottom Section ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Geographic analysis */}
-            <SectionCard title="ניתוח גיאוגרפי — הכנסות לפי עיר">
+            <SectionCard title="ניתוח גיאוגרפי — הכנסה חוזית לפי עיר">
+              <p className="text-[11px] text-slate-400 -mt-1 mb-3">
+                סכום החוזה החודשי של הלקוחות באותה עיר (לפני מע״מ) × 12
+              </p>
               {a.cityData.length === 0 ? (
                 <div className="flex items-center justify-center h-[150px] text-slate-400 text-sm">
                   הוסף עיר ללקוחות כדי לראות ניתוח גיאוגרפי
@@ -1396,10 +1351,10 @@ export default function AnalyticsPage() {
                           לקוחות
                         </th>
                         <th className="text-left pb-2 text-xs font-semibold text-slate-500">
-                          הכנסה בפועל
+                          חודשי
                         </th>
                         <th className="text-left pb-2 text-xs font-semibold text-slate-500">
-                          ממוצע חודשי
+                          שנתי
                         </th>
                       </tr>
                     </thead>
@@ -1408,8 +1363,11 @@ export default function AnalyticsPage() {
                         <tr key={row.city} className="hover:bg-slate-50 transition-colors">
                           <td className="py-2 font-medium text-slate-700 pr-1">{row.city}</td>
                           <td className="py-2 text-center text-slate-600">{row.customers}</td>
+                          {/* "חודשי" column shows the city's monthly contracted total
+                              (avgMonthly is reused as monthly total, see compute()).
+                              "שנתי" is monthly × 12. */}
+                          <td className="py-2 text-slate-700 font-semibold">{fmt(row.avgMonthly)}</td>
                           <td className="py-2 text-slate-700 font-semibold">{fmt(row.revenue)}</td>
-                          <td className="py-2 text-slate-500">{fmt(row.avgMonthly)}</td>
                         </tr>
                       ))}
                     </tbody>

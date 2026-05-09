@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
   Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw, ArrowRight,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
@@ -995,9 +995,21 @@ function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// Wrapper provides the Suspense boundary required by useSearchParams in
+// Next.js 16. The real component lives in SchedulePageInner.
 export default function SchedulePage() {
+  return (
+    <Suspense fallback={null}>
+      <SchedulePageInner />
+    </Suspense>
+  );
+}
+
+function SchedulePageInner() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get("focus");
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showNewJobModal, setShowNewJobModal] = useState(false);
@@ -1028,6 +1040,21 @@ export default function SchedulePage() {
   }, [displayMonth]);
 
   useEffect(() => { fetchJobs(); }, []);
+
+  // Deep-link from the global Header search: /schedule?focus=jobId opens
+  // that job's detail modal once jobs are loaded. Also jumps the calendar
+  // to the job's month so the user sees it in context.
+  useEffect(() => {
+    if (!focusId || jobs.length === 0) return;
+    const job = jobs.find(j => j.id === focusId);
+    if (!job) return;
+    setSelectedJob(job);
+    const jobDate = new Date(job.date + "T00:00:00");
+    const now = new Date();
+    const diffMonths = (jobDate.getFullYear() - now.getFullYear()) * 12 + (jobDate.getMonth() - now.getMonth());
+    setMonthOffset(diffMonths);
+    setSelectedISO(job.date);
+  }, [focusId, jobs]);
 
   async function fetchJobs() {
     setLoading(true);
