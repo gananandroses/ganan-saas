@@ -261,13 +261,38 @@ function TxModal({
 
   async function handleDelete() {
     if (!initial) return;
-    if (!await confirmDialog({ title: "למחוק את התנועה?", confirmLabel: "מחק", destructive: true })) return;
-    setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("personal_transactions").delete().eq("id", initial.id).eq("user_id", user?.id);
-    setSaving(false);
+    // Optimistic delete with undo toast — deletion fires only after the
+    // 6-second window expires. No confirmDialog needed because the
+    // action is reversible.
+    const snapshot = initial;
     onSaved();
     onClose();
+
+    let undone = false;
+    toast.action({
+      message: "התנועה נמחקה",
+      description: "אפשר לבטל תוך 6 שניות",
+      actionLabel: "ביטול",
+      onAction: async () => {
+        undone = true;
+        // We can't restore via local state from inside this isolated modal,
+        // so the cleanest restore is to re-insert the snapshot row.
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await supabase.from("personal_transactions").insert({
+          ...snapshot,
+          user_id: user.id,
+        });
+        onSaved();
+        toast.success("שוחזר");
+      },
+      durationMs: 6000,
+    });
+    setTimeout(async () => {
+      if (undone) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("personal_transactions").delete().eq("id", snapshot.id).eq("user_id", user?.id);
+    }, 6000);
   }
 
   return (

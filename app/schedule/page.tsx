@@ -418,11 +418,26 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   }
 
   async function handleDelete() {
-    setDeleting(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("jobs").delete().eq("id", job.id).eq("user_id", user?.id);
+    // Soft-delete UX: hide the row immediately + show a 6-second undo
+    // toast. Only after the toast expires do we hit Supabase. If the
+    // user clicks "ביטול" we keep the row in place and skip the DB
+    // call entirely. This is the same pattern Gmail uses for archive.
     onDeleted(job.id);
     onClose();
+
+    let undone = false;
+    toast.action({
+      message: `${job.customerName} — נמחק`,
+      description: "אפשר לבטל תוך 6 שניות",
+      actionLabel: "ביטול",
+      onAction: () => { undone = true; onEdited(job); },
+      durationMs: 6000,
+    });
+    setTimeout(async () => {
+      if (undone) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("jobs").delete().eq("id", job.id).eq("user_id", user?.id);
+    }, 6000);
   }
 
   async function handleCancel(reason: "no_show" | "force_majeure") {
