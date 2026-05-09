@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
@@ -39,7 +39,23 @@ function fmt(n: number) {
   return `₪${Math.round(n).toLocaleString("he-IL")}`;
 }
 
-export default function QuotePage() {
+// Next.js 16 requires any component that calls useSearchParams() to be
+// inside a Suspense boundary — otherwise prerendering bails out and the
+// whole route fails to build. The default export is a thin shell that
+// provides the boundary; the real page logic lives in QuotePageInner.
+export default function QuotePageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" dir="rtl">
+        <Loader2 className="animate-spin text-green-600" size={32} />
+      </div>
+    }>
+      <QuotePageInner />
+    </Suspense>
+  );
+}
+
+function QuotePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const templateId = searchParams.get("template");

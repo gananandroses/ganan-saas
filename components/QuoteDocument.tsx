@@ -18,7 +18,6 @@
 // This component is purely presentational — it doesn't fetch, it doesn't
 // mutate. Pass it the data and it draws.
 
-import Image from "next/image";
 import { Phone, Mail, Building2, MapPin, Globe, BadgeCheck } from "lucide-react";
 
 export interface QuoteDocItem {
@@ -299,5 +298,3 @@ export function QuoteDocumentPrintRoot({ children }: { children: React.ReactNode
   return <div className="quote-doc-print-root">{children}</div>;
 }
 
-// Suppress an unused-import warning when consumers don't pass logo
-void Image;
