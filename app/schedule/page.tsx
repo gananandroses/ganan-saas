@@ -418,32 +418,36 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   async function handleCancel(reason: "no_show" | "force_majeure") {
     setDeleting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("jobs")
+    let { error } = await supabase.from("jobs")
       .update({ status: "cancelled", cancellation_reason: reason })
       .eq("id", job.id).eq("user_id", user?.id);
+
+    // Graceful fallback: if the cancellation_reason column was never
+    // migrated, retry without it so the cancellation itself still goes
+    // through. The reason is a "nice to have" — the operation isn't.
+    // Internal error details stay in the console; the user only sees
+    // a friendly toast.
+    if (error && /cancellation_reason|column/i.test(error.message ?? "")) {
+      console.warn("[schedule] cancellation_reason column missing, retrying without it");
+      const retry = await supabase.from("jobs")
+        .update({ status: "cancelled" })
+        .eq("id", job.id).eq("user_id", user?.id);
+      error = retry.error;
+    }
+
     setDeleting(false);
     setShowCancelModal(false);
 
     if (error) {
-      // Most likely the cancellation_reason column doesn't exist yet
-      const isMissingCol = error.message?.toLowerCase().includes("cancellation_reason") || error.message?.toLowerCase().includes("column");
-      if (isMissingCol) {
-        alert(
-          `⚠️ שגיאה: העמודה cancellation_reason חסרה ב-DB.\n\n` +
-          `כדי שזה יעבוד צריך להריץ ב-Supabase SQL Editor:\n\n` +
-          `alter table jobs add column if not exists cancellation_reason text;\n\n` +
-          `אחרי שתריץ — נסה שוב.`
-        );
-      } else {
-        alert(`שגיאה בשמירה: ${error.message}`);
-      }
+      console.error("[schedule] failed to cancel job:", error);
+      alert("לא הצלחנו לבטל את העבודה. נסה שוב בעוד רגע.");
       return;
     }
 
     onDeleted(job.id);
     onClose();
     const reasonLabel = reason === "no_show" ? "לא הופיע" : "בלת״מ";
-    alert(`✅ העבודה של ${job.customerName} סומנה כ"${reasonLabel}".\nהלקוח יופיע בתור הפעולות לתיאום מחדש.`);
+    alert(`העבודה של ${job.customerName} סומנה כ"${reasonLabel}".`);
   }
 
   return (
@@ -613,7 +617,7 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
                   <span className="text-2xl">⛈️</span>
                   <div className="flex-1">
                     <p className="font-bold text-blue-800 text-sm">בלת״מ</p>
-                    <p className="text-xs text-blue-600 mt-0.5">בלתי מתוכנן (גשם, מחלה וכו'). הלקוח יופיע באוטומציות לתיאום מחדש.</p>
+                    <p className="text-xs text-blue-600 mt-0.5">בלתי מתוכנן (גשם, מחלה וכו&rsquo;). הלקוח יופיע באוטומציות לתיאום מחדש.</p>
                   </div>
                 </button>
 

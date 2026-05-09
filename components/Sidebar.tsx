@@ -4,27 +4,45 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, Sparkles, BarChart3, Zap, FolderKanban,
-  Settings, ChevronLeft, Leaf, Bell, LogOut, Camera, ClipboardList, FileText, BookOpen,
+  Package, BarChart3, FolderKanban,
+  Settings, Leaf, LogOut, Camera, ClipboardList, FileText,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
-const navItems = [
-  { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
-  { href: "/customers", label: "לקוחות (CRM)", icon: Users },
-  { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
-  { href: "/schedule", label: "לוח זמנים", icon: Calendar },
-  { href: "/finance", label: "פיננסים", icon: DollarSign },
-  { href: "/inventory", label: "ציוד ומלאי", icon: Package },
-  { href: "/projects", label: "פרויקטים", icon: FolderKanban },
-  { href: "/portfolio", label: "תיק עבודות", icon: Camera },
-  { href: "/plants", label: "עולם הצמחים", icon: Leaf },
-  { href: "/pricer", label: "מחירון גנן", icon: ClipboardList },
-  { href: "/quote", label: "הצעת מחיר ללקוח", icon: FileText },
-  { href: "/articles", label: "מרכז ידע", icon: BookOpen },
-  { href: "/analytics", label: "אנליטיקה BI", icon: BarChart3 },
-  { href: "/ai-tools", label: "כלי AI", icon: Sparkles },
-  { href: "/automations", label: "אוטומציות", icon: Zap },
+// Sidebar nav — grouped by frequency-of-use rather than one flat list.
+// Hick's Law: 11 items in one bucket forces every visitor to scan them
+// all. Three labelled buckets (Daily / Tools / Advanced) lets a new
+// gardener home in on the 4 they need most every day.
+//
+// Hidden modules (audit D1) — /ai-tools /automations /articles /plants —
+// stay routable but aren't surfaced until they reach shipping quality.
+const navGroups: { title: string | null; items: { href: string; label: string; icon: typeof LayoutDashboard }[] }[] = [
+  {
+    title: null, // top group has no header — these are the daily core
+    items: [
+      { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
+      { href: "/schedule",  label: "לוח זמנים", icon: Calendar },
+      { href: "/customers", label: "לקוחות", icon: Users },
+      { href: "/finance",   label: "פיננסים", icon: DollarSign },
+    ],
+  },
+  {
+    title: "כלי עבודה",
+    items: [
+      { href: "/projects",  label: "פרויקטים", icon: FolderKanban },
+      { href: "/quote",     label: "הצעת מחיר", icon: FileText },
+      { href: "/pricer",    label: "מחירון", icon: ClipboardList },
+      { href: "/inventory", label: "ציוד ומלאי", icon: Package },
+    ],
+  },
+  {
+    title: "נוסף",
+    items: [
+      { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
+      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
+      { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -63,30 +81,41 @@ export default function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${
-                active
-                  ? "bg-green-50 text-green-700 shadow-sm"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Icon
-                size={18}
-                className={active ? "text-green-600" : "text-gray-400 group-hover:text-gray-600"}
-              />
-              <span>{label}</span>
-              {active && (
-                <span className="mr-auto w-1.5 h-1.5 rounded-full bg-green-500" />
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {navGroups.map((group, gi) => (
+          <div key={gi} className={gi === 0 ? "" : "mt-5"}>
+            {group.title && (
+              <div className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                {group.title}
+              </div>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map(({ href, label, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${
+                      active
+                        ? "bg-green-50 text-green-700 shadow-sm"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    }`}
+                  >
+                    <Icon
+                      size={18}
+                      className={active ? "text-green-600" : "text-gray-400 group-hover:text-gray-600"}
+                    />
+                    <span>{label}</span>
+                    {active && (
+                      <span className="mr-auto w-1.5 h-1.5 rounded-full bg-green-500" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Bottom */}

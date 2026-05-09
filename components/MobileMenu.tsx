@@ -3,28 +3,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, Sparkles, BarChart3, Zap, FolderKanban,
-  Settings, LogOut, X, Leaf, Camera, Tag, FileText, BookOpen,
+  Package, BarChart3, FolderKanban,
+  Settings, LogOut, X, Leaf, Camera, Tag, FileText,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
+// Hidden until production-ready (audit D1): /ai-tools, /automations,
+// /articles, /plants. Routes still exist; just not surfaced.
 const allItems = [
   { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
-  { href: "/pricer", label: "מחירון גנן", icon: Tag },
-  { href: "/quote", label: "הצעת מחיר ללקוח", icon: FileText },
-  { href: "/articles", label: "מרכז ידע", icon: BookOpen },
-  { href: "/plants", label: "עולם הצמחים", icon: Leaf },
   { href: "/customers", label: "לקוחות (CRM)", icon: Users },
-  { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
   { href: "/schedule", label: "לוח זמנים", icon: Calendar },
   { href: "/finance", label: "פיננסים", icon: DollarSign },
-  { href: "/inventory", label: "ציוד ומלאי", icon: Package },
   { href: "/projects", label: "פרויקטים", icon: FolderKanban },
+  { href: "/inventory", label: "ציוד ומלאי", icon: Package },
+  { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
+  { href: "/quote", label: "הצעת מחיר", icon: FileText },
+  { href: "/pricer", label: "מחירון", icon: Tag },
   { href: "/portfolio", label: "תיק עבודות", icon: Camera },
-  { href: "/analytics", label: "אנליטיקה BI", icon: BarChart3 },
-  { href: "/ai-tools", label: "כלי AI", icon: Sparkles },
-  { href: "/automations", label: "אוטומציות", icon: Zap },
+  { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
   { href: "/settings", label: "הגדרות", icon: Settings },
 ];
 
