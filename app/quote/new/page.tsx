@@ -3,7 +3,8 @@
 import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  FileText, Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, ChevronRight, X, User as UserIcon, Calendar as CalendarIcon, ShoppingCart,
+  Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, X, ShoppingCart,
+  ChevronDown, ChevronUp, Sparkles, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -88,6 +89,16 @@ function QuotePageInner() {
   const [itemSearch, setItemSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
 
+  // Collapsible advanced settings (markup / discount / deposit). Collapsed
+  // by default — most quotes use the user's default markup and don't need
+  // to touch these knobs every time.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+
+  // Preview the next quote number while building (purely cosmetic — the
+  // real number is generated atomically on save to avoid races).
+  const [nextQuoteNumber, setNextQuoteNumber] = useState<string | null>(null);
+
   // Pricer settings (custom items + overrides + hidden) — synced with /pricer page
   const [pricerSettings, setPricerSettings] = useState<PricerSettings>({
     customItems: [], customCategories: [],
@@ -106,11 +117,23 @@ function QuotePageInner() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const [custRes, profileRes, pricerSet] = await Promise.all([
+      const currentYear = new Date().getFullYear();
+      const [custRes, profileRes, pricerSet, lastQ] = await Promise.all([
         supabase.from("customers").select("id, name, address, phone").eq("user_id", user.id).order("name"),
         supabase.from("user_profile").select("business_name, bit_phone, paybox_phone, bank_name, bank_branch, bank_account, quote_default_validity_days, quote_default_markup, quote_default_notes").eq("user_id", user.id).single(),
         loadPricerSettings(),
+        supabase
+          .from("quotes")
+          .select("quote_seq")
+          .eq("user_id", user.id)
+          .eq("quote_year", currentYear)
+          .order("quote_seq", { ascending: false })
+          .limit(1),
       ]);
+
+      // Preview the next quote number — for display only.
+      const nextSeq = ((lastQ.data && lastQ.data[0]?.quote_seq) || 0) + 1;
+      setNextQuoteNumber(`${currentYear}-${String(nextSeq).padStart(3, "0")}`);
       setPricerSettings(pricerSet);
 
       if (custRes.data) {
@@ -353,65 +376,107 @@ function QuotePageInner() {
     );
   }
 
-  return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 print:bg-white">
-      <div className="px-4 py-5 max-w-4xl mx-auto space-y-4 pb-32">
+  // Validation summary — used to gate the save CTA and to show the user
+  // exactly what's missing instead of a generic "fill required fields".
+  const effectiveCustomerName = customerMode === "existing"
+    ? (selectedCustomer?.name ?? "")
+    : newCustomerName.trim();
+  const validation = {
+    customer: !!effectiveCustomerName,
+    title: !!title.trim(),
+    items: items.length > 0,
+  };
+  const allValid = validation.customer && validation.title && validation.items;
+  const missingItems: string[] = [];
+  if (!validation.customer) missingItems.push("לקוח");
+  if (!validation.title) missingItems.push("כותרת");
+  if (!validation.items) missingItems.push("פריטים");
 
-        {/* Header */}
-        <div className="flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.push("/quote")} className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100" title="חזרה לרשימת הצעות">
-              <ChevronRight className="w-5 h-5 text-gray-500" />
+  // Map of itemId → qty already in the quote — used to mark picker rows
+  const itemsInQuoteMap = new Map(items.map(i => [i.id, i.qty]));
+
+  return (
+    <div dir="rtl" className="min-h-screen bg-[#F7F8FA] print:bg-white">
+
+      {/* ── Sticky header — quiet, gives context (number) + primary actions ── */}
+      <header className="no-print sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">הצעה חדשה</h1>
+            {nextQuoteNumber && (
+              <p className="text-[11px] text-gray-400 font-mono tabular-nums mt-0.5">#{nextQuoteNumber}</p>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => router.push("/quote")}
+              className="text-xs text-gray-500 hover:text-gray-800 font-medium px-2 py-1 rounded-lg transition-colors hidden sm:block"
+            >
+              ביטול
             </button>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">הצעת מחיר ללקוח</h1>
-              <p className="text-xs text-gray-500">בנה הצעה מהמחירון, ערוך ושלח</p>
-            </div>
+            <button
+              onClick={() => handleSave(true)}
+              disabled={saving}
+              className="hidden sm:flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 transition-colors disabled:opacity-60"
+              title="שמור כטיוטה — לא נשלח עדיין"
+            >
+              💾 טיוטה
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Customer selector */}
-        <section className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 space-y-3 print:bg-white print:border-0">
-          <label className="block text-sm font-bold text-blue-900 print:text-black">1️⃣ לקוח</label>
-          <div className="flex gap-2 print:hidden">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 space-y-3 sm:space-y-4 pb-32 sm:pb-32">
+
+        {/* ── 1. Customer ── */}
+        <section className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-5 print:border-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-gray-900">לקוח</h2>
+            {validation.customer && (
+              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                <CheckCircle2 size={11} /> נבחר
+              </span>
+            )}
+          </div>
+          <div className="inline-flex w-full sm:w-auto bg-gray-100 rounded-xl p-0.5 mb-3 print:hidden">
             <button onClick={() => setCustomerMode("existing")}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "existing" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200"}`}>
-              👤 לקוח קיים
+              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                customerMode === "existing" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}>
+              לקוח קיים
             </button>
             <button onClick={() => { setCustomerMode("new"); setSelectedCustomer(null); }}
-              className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${customerMode === "new" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-500 border-gray-200"}`}>
-              ✨ לקוח חדש
+              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                customerMode === "new" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}>
+              לקוח חדש
             </button>
           </div>
+
           {customerMode === "existing" ? (
             <div className="space-y-2 print:hidden">
               {selectedCustomer ? (
-                /* Selected customer card with change button */
-                <div className="bg-white rounded-xl border-2 border-green-300 px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold">
-                      ✓
+                <div className="bg-emerald-50/60 rounded-xl border border-emerald-100 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 flex-shrink-0">
+                      <CheckCircle2 size={16} />
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{selectedCustomer.name}</p>
-                      {selectedCustomer.address && (
-                        <p className="text-xs text-gray-500">{selectedCustomer.address}</p>
-                      )}
-                      {selectedCustomer.phone && (
-                        <p className="text-xs text-gray-400">{selectedCustomer.phone}</p>
-                      )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{selectedCustomer.name}</p>
+                      <p className="text-[11px] text-gray-500 truncate">
+                        {[selectedCustomer.address, selectedCustomer.phone].filter(Boolean).join(" · ")}
+                      </p>
                     </div>
                   </div>
                   <button onClick={() => { setSelectedCustomer(null); setCustomerSearch(""); }}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-50">
+                    className="text-xs font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded-lg flex-shrink-0">
                     שנה
                   </button>
                 </div>
               ) : (
-                /* Search + list (only when nothing selected) */
                 <>
                   <div className="relative">
-                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500" />
+                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       autoFocus
                       autoComplete="off"
@@ -419,18 +484,18 @@ function QuotePageInner() {
                       value={customerSearch}
                       onChange={e => setCustomerSearch(e.target.value)}
                       placeholder={`חפש בין ${customers.length} לקוחות...`}
-                      className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-2.5 pr-9 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2.5 pr-9 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
                     />
                   </div>
-                  <div className="bg-white border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+                  <div className="bg-white rounded-xl border border-gray-100 max-h-56 overflow-y-auto">
                     {filteredCustomers.length === 0 ? (
-                      <p className="px-4 py-3 text-center text-sm text-gray-500">לא נמצא לקוח</p>
+                      <p className="px-4 py-3 text-center text-sm text-gray-400">לא נמצא לקוח</p>
                     ) : (
                       filteredCustomers.map(c => (
                         <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(""); }}
-                          className="w-full text-right px-4 py-2 transition-colors border-b border-gray-50 last:border-0 hover:bg-green-50">
+                          className="w-full text-right px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50">
                           <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                          {c.address && <p className="text-xs text-gray-400">{c.address}</p>}
+                          {c.address && <p className="text-[11px] text-gray-400 mt-0.5">{c.address}</p>}
                         </button>
                       ))
                     )}
@@ -442,272 +507,335 @@ function QuotePageInner() {
             <div className="space-y-2 print:hidden">
               <input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)} placeholder="שם הלקוח *"
                 autoComplete="name"
-                className="w-full border-2 border-blue-300 bg-white rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
               <input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="טלפון"
                 autoComplete="tel" inputMode="tel"
-                className="w-full border border-gray-200 bg-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
               <input value={newCustomerAddress} onChange={e => setNewCustomerAddress(e.target.value)} placeholder="כתובת"
                 autoComplete="street-address"
-                className="w-full border border-gray-200 bg-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            </div>
-          )}
-          {(selectedCustomer || (customerMode === "new" && newCustomerName)) && (
-            <div className="bg-white rounded-xl px-3 py-2 text-sm border border-blue-100 print:border-0 print:px-0">
-              <span className="text-gray-500 ml-2">לקוח:</span>
-              <span className="font-bold text-gray-900">
-                {customerMode === "existing" ? selectedCustomer?.name : newCustomerName}
-              </span>
-              {(customerMode === "existing" ? selectedCustomer?.address : newCustomerAddress) && (
-                <span className="text-gray-500 mr-2">· {customerMode === "existing" ? selectedCustomer?.address : newCustomerAddress}</span>
-              )}
+                className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
             </div>
           )}
         </section>
 
-        {/* Title + dates */}
-        <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3 print:border-0">
+        {/* ── 2. Title + valid_until ── */}
+        <section className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-3 print:border-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900">פרטי הצעה</h2>
+            {validation.title && (
+              <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                <CheckCircle2 size={11} /> כותרת מולאה
+              </span>
+            )}
+          </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5 print:hidden">2️⃣ כותרת ההצעה</label>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">כותרת *</label>
             <input value={title} onChange={e => setTitle(e.target.value)}
               autoComplete="off"
               placeholder="לדוגמה: הקמת גינה — משפחת כהן"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:ring-2 focus:ring-green-400" />
+              className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2.5 text-base font-bold focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
           </div>
-          <div className="grid grid-cols-2 gap-3 print:hidden">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">תקף עד</label>
-              <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} dir="ltr"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-            </div>
+          <div className="print:hidden">
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">תקף עד</label>
+            <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)} dir="ltr"
+              className="w-full sm:w-48 bg-gray-50 border border-transparent rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
           </div>
         </section>
 
-        {/* Markup control */}
-        <section className="bg-gradient-to-l from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-4 space-y-3 print:hidden">
+        {/* ── 3. Items — mobile-first cards instead of HTML table ── */}
+        <section className="bg-white rounded-3xl border border-gray-100 p-4 sm:p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-bold text-amber-900">💰 אחוז ייקור על מחיר עלות</label>
-            <div className="flex items-center gap-1.5">
-              <input type="number" min={0} max={500} step={5} value={markup}
-                onChange={e => setMarkup(Math.max(0, Math.min(500, parseFloat(e.target.value) || 0)))}
-                autoComplete="off" inputMode="decimal"
-                className="w-16 border border-amber-300 bg-white rounded-lg px-2 py-1 text-center font-bold text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400" />
-              <span className="text-sm font-bold text-amber-700">%</span>
-            </div>
-          </div>
-          <div className="flex gap-1.5">
-            {[0, 25, 50, 100, 150, 200].map(v => (
-              <button key={v} onClick={() => setMarkup(v)}
-                className={`flex-1 text-xs py-1.5 rounded-lg font-bold transition-colors ${markup === v ? "bg-amber-500 text-white" : "bg-white text-amber-700 border border-amber-200"}`}>
-                {v}%
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-amber-700">
-            ⓘ מחיר מחירון × {markupMultiplier.toFixed(2)}. דוגמה: עציץ ב-₪10 יוצג כ-{fmt(Math.round(10 * markupMultiplier))} (לפני מע״מ)
-          </p>
-        </section>
-
-        {/* Items */}
-        <section className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <ShoppingCart size={16} /> 3️⃣ פריטים בהצעה ({items.length})
-            </label>
-            <button onClick={() => setPickerOpen(true)} className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg print:hidden">
-              <Plus size={14} /> בחר מהמחירון
+            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <ShoppingCart size={15} className="text-gray-400" />
+              פריטים {items.length > 0 && <span className="text-gray-400 font-medium">· {items.length}</span>}
+            </h2>
+            <button onClick={() => setPickerOpen(true)}
+              className="flex items-center gap-1 bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold px-3 py-1.5 rounded-xl print:hidden transition-colors">
+              <Plus size={13} /> הוסף פריט
             </button>
           </div>
 
           {items.length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">
-              <ShoppingCart size={32} className="mx-auto mb-2 opacity-30" />
-              <p>אין פריטים. לחץ "בחר מהמחירון" להוסיף.</p>
-            </div>
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="w-full text-center py-10 border-2 border-dashed border-gray-200 rounded-2xl hover:border-gray-300 hover:bg-gray-50 transition-colors print:hidden"
+            >
+              <ShoppingCart size={28} className="mx-auto mb-2 text-gray-300" />
+              <p className="text-sm font-medium text-gray-500">אין פריטים עדיין</p>
+              <p className="text-xs text-gray-400 mt-1">לחץ כאן להוספה מהמחירון</p>
+            </button>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-500 border-b border-gray-100">
-                    <th className="text-right py-2">פריט</th>
-                    <th className="text-center py-2 w-20">כמות</th>
-                    <th className="text-center py-2 w-24">מחיר ליח'</th>
-                    <th className="text-left py-2 w-24">סה״כ</th>
-                    <th className="w-8 print:hidden"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itemsWithCalc.map((i, idx) => (
-                    <React.Fragment key={i.id}>
-                      <tr className="border-b border-gray-50">
-                        <td className="py-2.5">
-                          <div className="flex items-start gap-2">
-                            <span className="text-xs font-bold text-gray-400 mt-0.5 w-6 flex-shrink-0">#{idx + 1}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-800">{i.name}</p>
-                              <p className="text-xs text-gray-400">{i.unit} · מחירון: {fmt(i.basePrice)}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="text-center py-2.5">
-                          <input type="number" min={0} step={0.5} value={i.qty}
-                            onChange={e => updateItem(i.id, { qty: parseFloat(e.target.value) || 0 })}
-                            autoComplete="off" inputMode="decimal"
-                            className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-400 print:border-0" />
-                        </td>
-                        <td className="text-center py-2.5">
-                          <input type="number" min={0} value={i.finalPrice}
-                            onChange={e => updateItem(i.id, { customPrice: parseFloat(e.target.value) || 0 })}
-                            autoComplete="off" inputMode="decimal"
-                            className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-green-400 print:border-0" />
-                        </td>
-                        <td className="text-left py-2.5 font-bold text-gray-900">{fmt(i.lineTotal)}</td>
-                        <td className="print:hidden">
-                          <button onClick={() => removeItem(i.id)} className="text-gray-300 hover:text-red-500">
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                      <tr className="border-b border-gray-50 print:hidden">
-                        <td colSpan={5} className="py-1 px-1">
-                          <input
-                            type="text"
-                            autoComplete="off"
-                            value={i.description ?? ""}
-                            onChange={e => updateItem(i.id, { description: e.target.value })}
-                            placeholder="📝 תיאור קצר (אופציונלי) — לדוגמה: 'עציץ קרמיקה לבן 12 ס״מ — דגם מודרני'"
-                            className="w-full text-xs text-gray-600 border-0 bg-gray-50 rounded-lg px-2 py-1.5 focus:outline-none focus:bg-white focus:ring-1 focus:ring-green-300"
-                          />
-                        </td>
-                      </tr>
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-2">
+              {itemsWithCalc.map((i, idx) => (
+                <div key={i.id} className="group bg-white border border-gray-100 hover:border-gray-200 rounded-2xl p-3 sm:p-4 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <span className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-400 flex-shrink-0 tabular-nums">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-900 leading-tight">{i.name}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        מחירון: <span className="tabular-nums">{fmt(i.basePrice)}</span> · {i.unit}
+                      </p>
+                    </div>
+                    <button onClick={() => removeItem(i.id)}
+                      className="text-gray-300 hover:text-red-500 transition-colors print:hidden flex-shrink-0">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 print:hidden">
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1">כמות</label>
+                      <input type="number" min={0} step={0.5} value={i.qty}
+                        onChange={e => updateItem(i.id, { qty: parseFloat(e.target.value) || 0 })}
+                        autoComplete="off" inputMode="decimal"
+                        className="w-full bg-gray-50 border border-transparent rounded-lg px-2 py-1.5 text-center text-sm font-medium focus:outline-none focus:bg-white focus:border-gray-200 tabular-nums transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1">מחיר ליח׳</label>
+                      <input type="number" min={0} value={i.finalPrice}
+                        onChange={e => updateItem(i.id, { customPrice: parseFloat(e.target.value) || 0 })}
+                        autoComplete="off" inputMode="decimal"
+                        className="w-full bg-gray-50 border border-transparent rounded-lg px-2 py-1.5 text-center text-sm font-medium focus:outline-none focus:bg-white focus:border-gray-200 tabular-nums transition-colors" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-1">סה״כ</label>
+                      <div className="bg-gray-900 text-white rounded-lg px-2 py-1.5 text-center text-sm font-black tabular-nums">
+                        {fmt(i.lineTotal)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    value={i.description ?? ""}
+                    onChange={e => updateItem(i.id, { description: e.target.value })}
+                    placeholder="📝 תיאור קצר (אופציונלי)"
+                    className="mt-2 w-full text-xs text-gray-600 bg-gray-50 border border-transparent rounded-lg px-3 py-1.5 focus:outline-none focus:bg-white focus:border-gray-200 transition-colors print:hidden"
+                  />
+                </div>
+              ))}
             </div>
           )}
+        </section>
 
-          {/* Discount + Totals */}
-          {items.length > 0 && (
-            <>
-              {/* Discount input */}
-              <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 mt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-rose-800">💸 הנחה (אופציונלי)</label>
-                  <div className="flex items-center gap-1.5">
-                    <input type="number" min={0} step={1} value={discountAmount}
-                      onChange={e => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                      autoComplete="off" inputMode="decimal"
-                      className="w-20 border border-rose-200 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300" />
-                    <div className="flex border border-rose-200 bg-white rounded-lg overflow-hidden">
-                      <button type="button" onClick={() => setDiscountType("amount")}
-                        className={`px-2 py-1 text-xs font-bold ${discountType === "amount" ? "bg-rose-500 text-white" : "text-rose-700"}`}>₪</button>
-                      <button type="button" onClick={() => setDiscountType("percent")}
-                        className={`px-2 py-1 text-xs font-bold ${discountType === "percent" ? "bg-rose-500 text-white" : "text-rose-700"}`}>%</button>
+        {/* ── 4. Advanced settings — collapsible. Most quotes never need to
+              touch markup/discount/deposit; using defaults is the common path. */}
+        {items.length > 0 && (
+          <section className="bg-white rounded-3xl border border-gray-100 print:hidden">
+            <button
+              onClick={() => setAdvancedOpen(o => !o)}
+              className="w-full px-4 sm:px-5 py-4 flex items-center justify-between gap-3 text-right"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles size={15} className="text-gray-400 flex-shrink-0" />
+                <h2 className="text-sm font-bold text-gray-900">התאמות מתקדמות</h2>
+                {!advancedOpen && (
+                  <span className="text-[11px] text-gray-400 truncate">
+                    תוספת רווח · הנחה · מקדמה
+                  </span>
+                )}
+              </div>
+              {advancedOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+            </button>
+
+            {advancedOpen && (
+              <div className="px-4 sm:px-5 pb-5 space-y-4 border-t border-gray-100 pt-4">
+                {/* Markup */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-gray-700">תוספת רווח על מחיר עלות</label>
+                    <div className="flex items-center gap-1">
+                      <input type="number" min={0} max={500} step={5} value={markup}
+                        onChange={e => setMarkup(Math.max(0, Math.min(500, parseFloat(e.target.value) || 0)))}
+                        autoComplete="off" inputMode="decimal"
+                        className="w-14 bg-gray-50 border border-transparent rounded-lg px-2 py-1 text-center text-sm font-bold tabular-nums focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
+                      <span className="text-xs font-bold text-gray-500">%</span>
                     </div>
                   </div>
-                </div>
-                {discountValue > 0 && (
-                  <p className="text-xs text-rose-700">
-                    הנחה: -{fmt(discountValue)} {discountType === "percent" ? `(${discountAmount}% מ-${fmt(subtotalRaw)})` : ""}
-                  </p>
-                )}
-              </div>
-
-              {/* Totals */}
-              <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 mt-3">
-                {discountValue > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">סכום פריטים</span>
-                      <span className="text-gray-700">{fmt(subtotalRaw)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-rose-600">
-                      <span>הנחה</span>
-                      <span>-{fmt(discountValue)}</span>
-                    </div>
-                  </>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">סה״כ לפני מע״מ</span>
-                  <span className="font-semibold text-gray-800">{fmt(subtotalBeforeVat)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">מע״מ (18%)</span>
-                  <span className="font-semibold text-gray-800">{fmt(vatAmount)}</span>
-                </div>
-                <div className="flex justify-between text-base border-t border-gray-200 pt-1.5 mt-1.5">
-                  <span className="font-bold text-gray-900">סה״כ לתשלום</span>
-                  <span className="font-black text-green-700 text-lg">{fmt(totalWithVat)}</span>
-                </div>
-              </div>
-
-              {/* Deposit % */}
-              <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 mt-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-bold text-violet-900">💰 מקדמה לאישור הצעה</label>
-                  <div className="flex items-center gap-1.5">
-                    <input type="number" min={0} max={100} step={5} value={depositPercent}
-                      onChange={e => setDepositPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                      autoComplete="off" inputMode="decimal"
-                      className="w-16 border border-violet-300 bg-white rounded-lg px-2 py-1 text-sm text-center font-bold text-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                    <span className="text-sm font-bold text-violet-700">%</span>
+                  <div className="flex gap-1.5">
+                    {[0, 25, 50, 100, 150, 200].map(v => (
+                      <button key={v} onClick={() => setMarkup(v)}
+                        className={`flex-1 text-xs py-1.5 rounded-lg font-bold transition-colors tabular-nums ${
+                          markup === v ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                        }`}>
+                        {v}%
+                      </button>
+                    ))}
                   </div>
-                </div>
-                <div className="flex gap-1">
-                  {[0, 25, 50, 100].map(v => (
-                    <button key={v} type="button" onClick={() => setDepositPercent(v)}
-                      className={`flex-1 text-xs py-1 rounded-lg font-bold transition-colors ${depositPercent === v ? "bg-violet-500 text-white" : "bg-white text-violet-700 border border-violet-200"}`}>
-                      {v === 0 ? "ללא" : v === 100 ? "מלא" : `${v}%`}
-                    </button>
-                  ))}
-                </div>
-                {depositPercent > 0 && (
-                  <p className="text-xs text-violet-700">
-                    הלקוח ידרש לשלם <strong>{fmt(Math.round((totalWithVat * depositPercent) / 100))}</strong> ({depositPercent}%) לפני אישור ההצעה.
+                  <p className="text-[11px] text-gray-400 mt-2 tabular-nums">
+                    דוגמה: ₪10 → <span className="font-bold text-gray-700">{fmt(Math.round(10 * markupMultiplier))}</span> (לפני מע״מ)
                   </p>
-                )}
-                {depositPercent === 0 && (
-                  <p className="text-xs text-gray-500">
-                    אין מקדמה — הלקוח חותם בלי תשלום. תוכל לבקש תשלום אחרי החתימה.
+                </div>
+
+                {/* Discount */}
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-gray-700">הנחה</label>
+                    <div className="flex items-center gap-1.5">
+                      <input type="number" min={0} step={1} value={discountAmount}
+                        onChange={e => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                        autoComplete="off" inputMode="decimal"
+                        className="w-20 bg-gray-50 border border-transparent rounded-lg px-2 py-1 text-sm text-center font-bold tabular-nums focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
+                      <div className="flex bg-gray-100 rounded-lg overflow-hidden p-0.5">
+                        <button type="button" onClick={() => setDiscountType("amount")}
+                          className={`px-2 py-0.5 text-xs font-bold rounded ${discountType === "amount" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>₪</button>
+                        <button type="button" onClick={() => setDiscountType("percent")}
+                          className={`px-2 py-0.5 text-xs font-bold rounded ${discountType === "percent" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>%</button>
+                      </div>
+                    </div>
+                  </div>
+                  {discountValue > 0 && (
+                    <p className="text-[11px] text-rose-600 mt-1.5 font-medium">
+                      − {fmt(discountValue)} {discountType === "percent" ? `(${discountAmount}% מהסכום)` : ""}
+                    </p>
+                  )}
+                </div>
+
+                {/* Deposit */}
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-gray-700">מקדמה לאישור</label>
+                    <div className="flex items-center gap-1">
+                      <input type="number" min={0} max={100} step={5} value={depositPercent}
+                        onChange={e => setDepositPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                        autoComplete="off" inputMode="decimal"
+                        className="w-14 bg-gray-50 border border-transparent rounded-lg px-2 py-1 text-center text-sm font-bold tabular-nums focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
+                      <span className="text-xs font-bold text-gray-500">%</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[0, 25, 50, 100].map(v => (
+                      <button key={v} type="button" onClick={() => setDepositPercent(v)}
+                        className={`flex-1 text-xs py-1.5 rounded-lg font-bold transition-colors ${
+                          depositPercent === v ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                        }`}>
+                        {v === 0 ? "ללא" : v === 100 ? "מלא" : `${v}%`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    {depositPercent > 0
+                      ? <>הלקוח ידרש לשלם <strong className="text-gray-800 tabular-nums">{fmt(Math.round((totalWithVat * depositPercent) / 100))}</strong> ({depositPercent}%) לפני אישור</>
+                      : "ללא מקדמה — הלקוח חותם בלי תשלום"}
                   </p>
-                )}
+                </div>
               </div>
-            </>
+            )}
+          </section>
+        )}
+
+        {/* ── Notes — collapsible ── */}
+        <section className="bg-white rounded-3xl border border-gray-100 print:border-0">
+          <button
+            onClick={() => setNotesOpen(o => !o)}
+            className="w-full px-4 sm:px-5 py-4 flex items-center justify-between gap-3 text-right print:hidden"
+          >
+            <h2 className="text-sm font-bold text-gray-900">הערות {notes && <span className="text-emerald-600 text-[11px] font-medium">· מולאו</span>}</h2>
+            {notesOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </button>
+          {(notesOpen || notes) && (
+            <div className="px-4 sm:px-5 pb-5 print:p-0">
+              <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
+                autoComplete="off"
+                placeholder="תנאי תשלום, תיאור עבודה, מועד התחלה..."
+                className="w-full bg-gray-50 border border-transparent rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:bg-white focus:border-gray-200 resize-none transition-colors" />
+            </div>
           )}
         </section>
 
-        {/* Notes */}
-        <section className="bg-white rounded-2xl border border-gray-100 p-4 print:border-0">
-          <label className="block text-xs font-semibold text-gray-700 mb-1.5">הערות (אופציונלי)</label>
-          <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
-            autoComplete="off"
-            placeholder="תנאי תשלום, תיאור עבודה, וכו'..."
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none" />
-        </section>
+        {/* ── Live totals card — visible on desktop, summarised in sticky bar on mobile ── */}
+        {items.length > 0 && (
+          <section className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 print:border-0">
+            <h2 className="text-sm font-bold text-gray-900 mb-3">סיכום</h2>
+            <div className="space-y-2">
+              {discountValue > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">סכום פריטים</span>
+                  <span className="text-gray-700 tabular-nums">{fmt(subtotalRaw)}</span>
+                </div>
+              )}
+              {discountValue > 0 && (
+                <div className="flex justify-between text-sm text-rose-600 font-semibold">
+                  <span>הנחה</span>
+                  <span className="tabular-nums">−{fmt(discountValue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">לפני מע״מ</span>
+                <span className="text-gray-700 tabular-nums">{fmt(subtotalBeforeVat)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">מע״מ (18%)</span>
+                <span className="text-gray-700 tabular-nums">{fmt(vatAmount)}</span>
+              </div>
+              <div className="border-t border-gray-200 pt-2 mt-1 flex justify-between items-baseline">
+                <span className="text-sm font-semibold text-gray-600">סה״כ לתשלום</span>
+                <span className="text-3xl font-black text-gray-900 tabular-nums">{fmt(totalWithVat)}</span>
+              </div>
+              {depositPercent > 0 && (
+                <div className="border-t border-gray-100 pt-2 flex items-center justify-between">
+                  <span className="text-xs text-emerald-700 font-semibold">💰 מקדמה לאישור</span>
+                  <span className="text-base font-black text-emerald-700 tabular-nums">{fmt(Math.round((totalWithVat * depositPercent) / 100))}</span>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
-        {/* Actions */}
-        <div className="flex flex-col gap-2 print:hidden">
-          <div className="flex gap-2">
-            <button onClick={() => handleSave(false)} disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-2xl py-3 text-sm">
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              {saving ? "שומר..." : "שמור הצעה"}
-            </button>
-            <button onClick={() => handleSave(true)} disabled={saving}
-              className="px-4 py-3 rounded-2xl bg-purple-50 border-2 border-purple-200 text-purple-700 hover:bg-purple-100 text-sm font-semibold">
-              📝 טיוטה
-            </button>
+        {/* ── Validation hints — only show when something's missing ── */}
+        {!allValid && items.length > 0 && (
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 flex items-center gap-3 print:hidden">
+            <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
+            <p className="text-xs text-amber-800 font-medium">
+              חסר {missingItems.join(" + ")} כדי לשמור
+            </p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={sendWhatsApp} disabled={items.length === 0}
-              className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white font-semibold rounded-2xl py-3 text-sm">
-              <MessageSquare size={16} /> שלח ב-WhatsApp
-            </button>
-            <button onClick={handlePrint} disabled={items.length === 0}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 text-sm font-semibold">
-              <Printer size={16} /> הדפס/PDF
-            </button>
+        )}
+      </div>
+
+      {/* ── Sticky bottom action bar — running total + save, always visible ── */}
+      <div className="no-print fixed bottom-0 right-0 left-0 z-20 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.08)]">
+        <div className="max-w-4xl mx-auto flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-gray-400 leading-tight">סה״כ {items.length} פריטים</p>
+            <p className="text-lg font-black text-gray-900 tabular-nums leading-tight">{fmt(totalWithVat)}</p>
           </div>
+          <button
+            onClick={sendWhatsApp}
+            disabled={items.length === 0}
+            title="שלח ב-WhatsApp"
+            className="hidden sm:flex w-11 h-11 items-center justify-center rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40 transition-colors"
+          >
+            <MessageSquare size={16} />
+          </button>
+          <button
+            onClick={handlePrint}
+            disabled={items.length === 0}
+            title="הדפס"
+            className="hidden sm:flex w-11 h-11 items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 transition-colors"
+          >
+            <Printer size={16} />
+          </button>
+          <button
+            onClick={() => handleSave(true)}
+            disabled={saving}
+            title="שמור כטיוטה"
+            className="sm:hidden w-11 h-11 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 transition-colors text-xs font-bold"
+          >
+            טיוטה
+          </button>
+          <button
+            onClick={() => handleSave(false)}
+            disabled={saving || !allValid}
+            title={!allValid ? `חסר: ${missingItems.join(", ")}` : "שמור הצעה"}
+            className="flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-black rounded-xl px-5 sm:px-6 h-11 text-sm transition-colors"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            <span>שמור</span>
+          </button>
         </div>
       </div>
 
@@ -753,25 +881,35 @@ function QuotePageInner() {
         </div>
       )}
 
-      {/* Item picker modal */}
+      {/* ── Item picker — multi-add: stays open after adding so the gardener
+            can build a whole quote in one flow. Items already in the quote
+            show a count badge so it's clear what's there at a glance. ── */}
       {pickerOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" onClick={(e) => e.target === e.currentTarget && setPickerOpen(false)}>
           <div className="bg-white w-full sm:max-w-lg sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[85vh]" dir="rtl">
-            <div className="px-5 py-4 border-b flex items-center justify-between">
-              <h3 className="font-bold text-gray-900">בחר פריט מהמחירון</h3>
-              <button onClick={() => setPickerOpen(false)}><X size={20} className="text-gray-400" /></button>
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-gray-900">הוסף פריט</h3>
+                {items.length > 0 && <p className="text-[11px] text-gray-400 mt-0.5">{items.length} כבר בהצעה</p>}
+              </div>
+              <button onClick={() => setPickerOpen(false)} className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <X size={16} className="text-gray-500" />
+              </button>
             </div>
-            <div className="px-5 py-3 border-b space-y-2">
+            <div className="px-5 py-3 border-b border-gray-100 space-y-2">
               <div className="relative">
                 <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input value={itemSearch} onChange={e => setItemSearch(e.target.value)} placeholder="חפש פריט..."
+                  autoFocus
                   autoComplete="off" inputMode="search"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2 pr-9 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                  className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2 pr-9 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors" />
               </div>
               <div className="flex gap-1.5 overflow-x-auto pb-1">
                 {categories.map(c => (
                   <button key={c.key} onClick={() => setActiveCategory(c.key)}
-                    className={`text-xs px-2.5 py-1 rounded-lg whitespace-nowrap ${activeCategory === c.key ? "bg-green-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                    className={`text-xs px-3 py-1.5 rounded-xl whitespace-nowrap font-semibold transition-colors ${
+                      activeCategory === c.key ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                    }`}>
                     {c.label}
                   </button>
                 ))}
@@ -784,22 +922,36 @@ function QuotePageInner() {
                 filteredPriceList.slice(0, 100).map(p => {
                   const cat = PRICE_CATEGORIES.find(c => c.key === p.category);
                   const catLabel = cat ? `${cat.emoji} ${cat.label}` : p.category;
+                  const inQuote = itemsInQuoteMap.get(p.id);
                   return (
                     <button key={p.id} onClick={() => addItem(p)}
-                      className="w-full text-right px-5 py-2.5 hover:bg-green-50 border-b border-gray-50 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{p.name}</p>
-                        <p className="text-xs text-gray-400">₪{p.price} / {p.unit} · {catLabel}</p>
+                      className={`w-full text-right px-5 py-3 border-b border-gray-50 flex items-center justify-between gap-2 transition-colors ${
+                        inQuote ? "bg-emerald-50/40 hover:bg-emerald-50/70" : "hover:bg-gray-50"
+                      }`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{p.name}</p>
+                          {inQuote && (
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full tabular-nums flex-shrink-0">
+                              ✓ {inQuote} בהצעה
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-0.5 tabular-nums">₪{p.price} / {p.unit} · {catLabel}</p>
                       </div>
-                      <Plus size={18} className="text-green-600 flex-shrink-0" />
+                      <div className={`w-9 h-9 flex items-center justify-center rounded-xl flex-shrink-0 transition-colors ${
+                        inQuote ? "bg-emerald-100 text-emerald-700" : "bg-gray-900 text-white group-hover:bg-gray-800"
+                      }`}>
+                        <Plus size={16} />
+                      </div>
                     </button>
                   );
                 })
               )}
             </div>
-            <div className="px-5 py-3 border-t">
-              <button onClick={() => setPickerOpen(false)} className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-700 text-sm font-semibold">
-                סיום ({items.length} פריטים)
+            <div className="px-5 py-3 border-t border-gray-100">
+              <button onClick={() => setPickerOpen(false)} className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold transition-colors">
+                סיום · {items.length} פריטים
               </button>
             </div>
           </div>
