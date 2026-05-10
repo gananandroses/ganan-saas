@@ -522,8 +522,36 @@ export default function PublicQuotePage() {
   const isPendingVerification = quote.payment_status === "pending_verification" && !!quote.signed_at;
   const titleLabel = profile?.quote_title_label || "הצעת מחיר";
 
+  const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+  const discountValue = quote.discount_amount && quote.discount_amount > 0
+    ? (quote.discount_type === "percent"
+        ? Math.round((subRaw * (quote.discount_amount || 0)) / 100)
+        : Math.round(quote.discount_amount || 0))
+    : 0;
+
+  // Convert internal phone format → wa.me-friendly intl number once.
+  const profileWaPhone = (() => {
+    if (!profile?.phone) return null;
+    const p = profile.phone.replace(/\D/g, "");
+    if (p.startsWith("0")) return "972" + p.slice(1);
+    if (p.startsWith("972")) return p;
+    return p;
+  })();
+
+  function openAcceptFlow() {
+    if ((quote!.deposit_amount ?? 0) > 0 && quote!.payment_status === "unpaid") {
+      setShowPaymentModal(true);
+    } else {
+      setShowSignModal(true);
+    }
+  }
+
+  // Countdown urgency colour — only goes red in the last 3 days
+  const urgentCountdown = countdown && !countdown.expired && countdown.days <= 3;
+  const showCountdown = !isAccepted && countdown && !countdown.expired && countdown.days <= 7;
+
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 print:bg-white">
+    <div dir="rtl" className="min-h-screen bg-[#F7F8FA] print:bg-white">
       <style jsx global>{`
         @media print {
           @page { size: A4; margin: 1.5cm; }
@@ -532,353 +560,370 @@ export default function PublicQuotePage() {
         }
       `}</style>
 
-      {/* Top action bar */}
-      <div className="no-print sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <span className="text-xs font-bold text-gray-500">
-            {quote.quote_number ? `#${quote.quote_number}` : "הצעת מחיר"}
-          </span>
-          <div className="flex items-center gap-2">
+      {/* ── Top action bar — quiet, sticky, gives status + print + accept ── */}
+      <div className="no-print sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-mono font-bold text-gray-400 tabular-nums">
+              {quote.quote_number ? `#${quote.quote_number}` : "הצעת מחיר"}
+            </span>
+            {showCountdown && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                urgentCountdown ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+              }`}>
+                ⏱ {countdown.days === 0
+                    ? `פוגה היום בעוד ${countdown.hours}:${String(countdown.minutes).padStart(2, "0")}`
+                    : `פוגה בעוד ${countdown.days} ${countdown.days === 1 ? "יום" : "ימים"}`}
+              </span>
+            )}
+            {countdown?.expired && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800">
+                פג תוקף
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg">
+              className="hidden sm:flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
+            >
               <Printer size={13} /> הדפס
             </button>
-            {!isAccepted && !isPendingVerification && (
-              <button onClick={() => {
-                  if ((quote.deposit_amount ?? 0) > 0 && quote.payment_status === "unpaid") {
-                    setShowPaymentModal(true);
-                  } else {
-                    setShowSignModal(true);
-                  }
-                }}
-                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm">
+            {!isAccepted && !isPendingVerification && !countdown?.expired && (
+              <button onClick={openAcceptFlow}
+                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-sm transition-colors"
+              >
                 <CheckCircle2 size={14} /> אשר ההצעה
               </button>
             )}
             {isPendingVerification && (
-              <span className="flex items-center gap-1.5 bg-amber-100 text-amber-800 text-xs font-bold px-3 py-2 rounded-lg">
-                ⏳ ממתין לאימות תשלום
+              <span className="flex items-center gap-1.5 bg-amber-50 text-amber-800 text-xs font-bold px-3 py-2 rounded-xl border border-amber-100">
+                ⏳ ממתין לאימות
               </span>
             )}
             {isAccepted && (
-              <span className="flex items-center gap-1.5 bg-green-100 text-green-800 text-xs font-bold px-3 py-2 rounded-lg">
-                <CheckCircle2 size={14} /> ההצעה אושרה
+              <span className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-xs font-bold px-3 py-2 rounded-xl border border-emerald-100">
+                <CheckCircle2 size={14} /> אושרה
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Main quote document */}
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden print:shadow-none print:border-0 print:rounded-none">
+      {/* ── Main document ── */}
+      <div className="max-w-3xl mx-auto px-4 py-5 sm:py-8 pb-32 sm:pb-8 print:pb-0">
 
-          {/* Hero header */}
-          <div className="bg-gradient-to-l from-emerald-600 via-green-600 to-teal-600 text-white px-8 py-8 print:bg-green-700">
-            <div className="flex items-start justify-between gap-6 flex-wrap">
-              <div className="flex items-center gap-4">
-                {profile?.business_logo_url ? (
-                  <div className="w-16 h-16 rounded-2xl bg-white p-2 flex items-center justify-center shadow-lg flex-shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={profile.business_logo_url} alt="לוגו" className="w-full h-full object-contain" />
-                  </div>
-                ) : (
-                  <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-3xl flex-shrink-0">🌿</div>
-                )}
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-green-100 font-semibold">
-                    {profile?.business_name || "העסק שלי"}
-                  </p>
-                  <h1 className="text-2xl sm:text-3xl font-black mt-1">{titleLabel}</h1>
-                  {profile?.owner_name && <p className="text-sm text-green-50 mt-0.5">{profile.owner_name}</p>}
+        {/* ── HERO — quiet emerald, focused on identity + the headline number ── */}
+        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden print:rounded-none print:border-0 print:shadow-none">
+          <div className="relative bg-gradient-to-bl from-emerald-50 via-white to-white px-6 sm:px-8 pt-7 pb-6 border-b border-gray-100">
+            <div className="flex items-start gap-4">
+              {profile?.business_logo_url ? (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white p-2 flex items-center justify-center border border-gray-100 shadow-sm flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={profile.business_logo_url} alt="לוגו" className="w-full h-full object-contain" />
                 </div>
+              ) : (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                  🌿
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-700 font-bold">
+                  {titleLabel}
+                </p>
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 mt-0.5 leading-tight">
+                  {profile?.business_name || "העסק שלי"}
+                </h1>
+                {profile?.owner_name && (
+                  <p className="text-sm text-gray-500 mt-0.5">{profile.owner_name}</p>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">פרויקט</p>
+                <h2 className="text-lg sm:text-xl font-black text-gray-900 mt-1 leading-snug">{quote.title}</h2>
               </div>
               <div className="text-left">
-                <p className="text-xs text-green-100 uppercase tracking-wider">מספר הצעה</p>
-                <p className="text-lg font-bold">{quote.quote_number ? `#${quote.quote_number}` : "—"}</p>
-                <p className="text-xs text-green-100 mt-2">תאריך: {formatDate(quote.created_at)}</p>
-                {quote.valid_until && <p className="text-xs text-green-100">תקף עד: {formatDate(quote.valid_until)}</p>}
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">מספר</p>
+                <p className="text-sm font-mono font-black text-gray-700 tabular-nums">
+                  {quote.quote_number ? `#${quote.quote_number}` : "—"}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-1 tabular-nums">{formatDate(quote.created_at)}</p>
               </div>
             </div>
           </div>
 
-          {/* Customer + business contact info */}
+          {/* ── Customer / business contact strip ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x sm:divide-x-reverse divide-gray-100">
-            <div className="p-5">
+            <div className="p-5 sm:p-6">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">עבור</p>
-              <p className="text-lg font-bold text-gray-900 mt-1">{quote.customer_name}</p>
+              <p className="text-base font-bold text-gray-900 mt-1">{quote.customer_name}</p>
               {quote.customer_phone && (
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1"><Phone size={12} /> {quote.customer_phone}</p>
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5"><Phone size={11} /> <span dir="ltr">{quote.customer_phone}</span></p>
               )}
               {quote.customer_address && (
-                <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1"><MapPin size={12} /> {quote.customer_address}</p>
+                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5"><MapPin size={11} /> {quote.customer_address}</p>
               )}
             </div>
-            <div className="p-5 sm:text-left">
+            <div className="p-5 sm:p-6 sm:text-left">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">מאת</p>
-              <p className="text-lg font-bold text-gray-900 mt-1">{profile?.business_name || "העסק שלי"}</p>
+              <p className="text-base font-bold text-gray-900 mt-1">{profile?.business_name || "העסק שלי"}</p>
               {profile?.phone && (
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1 sm:justify-end"><Phone size={12} /> {profile.phone}</p>
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5 sm:justify-end"><Phone size={11} /> <span dir="ltr">{profile.phone}</span></p>
               )}
               {profile?.city && (
-                <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1 sm:justify-end"><MapPin size={12} /> {profile.city}</p>
+                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 sm:justify-end"><MapPin size={11} /> {profile.city}</p>
               )}
             </div>
           </div>
 
-          {/* Title */}
-          <div className="px-8 py-5 bg-gradient-to-l from-amber-50 to-orange-50 border-y border-amber-100">
-            <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">פרויקט</p>
-            <h2 className="text-xl font-bold text-gray-900 mt-1">{quote.title}</h2>
-          </div>
-
+          {/* ── Intro text — only if the gardener configured one ── */}
           {profile?.quote_intro_text && (
-            <div className="px-8 py-4 bg-white border-b border-gray-100">
-              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{profile.quote_intro_text}</p>
+            <div className="px-6 sm:px-8 py-4 border-t border-gray-100 bg-gray-50/60">
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                {profile.quote_intro_text}
+              </p>
             </div>
           )}
 
-          {/* Trust badges */}
+          {/* ── Trust signals — subtle inline strip, not a colored box ── */}
           {profile?.trust_badges && profile.trust_badges.length > 0 && (
-            <div className="px-5 sm:px-8 py-4 bg-blue-50 border-b border-blue-100">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="px-6 sm:px-8 py-4 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
                 {profile.trust_badges.map((b, idx) => (
-                  <div key={idx} className="bg-white rounded-xl p-2.5 text-center border border-blue-100">
-                    <div className="text-2xl">{b.icon}</div>
-                    <p className="text-[11px] font-semibold text-gray-700 mt-1 leading-tight">{b.text}</p>
-                  </div>
+                  <span key={idx} className="inline-flex items-center gap-1.5 bg-emerald-50/70 text-emerald-800 text-[11px] font-semibold px-2.5 py-1.5 rounded-full border border-emerald-100">
+                    <span>{b.icon}</span>
+                    {b.text}
+                  </span>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Countdown timer */}
-          {!isAccepted && countdown && !countdown.expired && (countdown.days <= 7) && (
-            <div className="no-print mx-5 sm:mx-8 my-4 bg-gradient-to-l from-orange-500 to-red-500 text-white rounded-2xl p-4 text-center shadow-lg">
-              <p className="text-xs uppercase tracking-widest font-semibold opacity-90">⏰ ההצעה תפוג בעוד</p>
-              <div className="flex items-center justify-center gap-3 mt-2">
-                <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 min-w-14">
-                  <p className="text-2xl font-black">{countdown.days}</p>
-                  <p className="text-[10px] uppercase">ימים</p>
+          {/* ── Items section — mobile-first cards instead of an Excel table ── */}
+          <div className="px-5 sm:px-8 py-6 border-t border-gray-100">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-3">פריטים</p>
+            <div className="space-y-2">
+              {itemsWithCalc.map((i, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 sm:p-4 rounded-2xl border border-gray-100 bg-white hover:border-gray-200 transition-colors">
+                  <span className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-400 flex-shrink-0 tabular-nums">
+                    {idx + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 leading-tight">{i.name}</p>
+                    {i.description && (
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{i.description}</p>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-1.5 tabular-nums">
+                      {i.qty} × {fmt(i.finalPrice)}
+                      {i.unit && <span className="text-gray-400"> · {i.unit}</span>}
+                    </p>
+                  </div>
+                  <div className="text-left flex-shrink-0">
+                    <p className="text-base font-black text-gray-900 tabular-nums">{fmt(i.lineTotal)}</p>
+                  </div>
                 </div>
-                <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 min-w-14">
-                  <p className="text-2xl font-black">{countdown.hours}</p>
-                  <p className="text-[10px] uppercase">שעות</p>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Totals — the headline. Big total dominates. ── */}
+          <div className="px-5 sm:px-8 pb-6">
+            <div className="bg-gray-50 rounded-2xl p-5 space-y-2.5">
+              {discountValue > 0 && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">סכום פריטים</span>
+                    <span className="text-gray-700 tabular-nums">{fmt(subRaw)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-rose-600 font-semibold">
+                    <span>הנחה {quote.discount_type === "percent" ? `(${quote.discount_amount}%)` : ""}</span>
+                    <span className="tabular-nums">-{fmt(discountValue)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">לפני מע״מ</span>
+                <span className="text-gray-700 tabular-nums">{fmt(quote.subtotal_before_vat)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">מע״מ (18%)</span>
+                <span className="text-gray-700 tabular-nums">{fmt(quote.vat_amount)}</span>
+              </div>
+              <div className="border-t border-gray-200 pt-3 mt-1 flex justify-between items-baseline">
+                <span className="text-sm font-semibold text-gray-600">סה״כ לתשלום</span>
+                <span className="text-3xl sm:text-4xl font-black text-gray-900 tabular-nums">{fmt(quote.total_with_vat)}</span>
+              </div>
+              {(quote.deposit_amount ?? 0) > 0 && !isAccepted && (
+                <div className="border-t border-gray-200 pt-2.5 flex items-center justify-between gap-2">
+                  <span className="text-xs text-emerald-700 font-semibold">
+                    💰 מקדמה לאישור ({quote.deposit_percent}%)
+                  </span>
+                  <span className="text-base font-black text-emerald-700 tabular-nums">{fmt(quote.deposit_amount || 0)}</span>
                 </div>
-                <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 min-w-14">
-                  <p className="text-2xl font-black">{countdown.minutes}</p>
-                  <p className="text-[10px] uppercase">דקות</p>
+              )}
+            </div>
+          </div>
+
+          {/* ── Pending verification banner — calm, not panicky ── */}
+          {isPendingVerification && (
+            <div className="mx-5 sm:mx-8 mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+              <div className="flex items-start gap-3">
+                <div className="text-3xl flex-shrink-0">⏳</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-amber-900">תודה! קיבלנו את ההזמנה</p>
+                  <p className="text-xs text-amber-700 mt-1 leading-relaxed">החתימה והוכחת התשלום נשלחו לספק. אישור סופי תוך 24 שעות.</p>
+                  <div className="mt-3 bg-white rounded-xl p-3 text-[11px] text-gray-600 space-y-1 border border-amber-100">
+                    {quote.payment_reference && <p><span className="text-gray-400">אסמכתא:</span> <span className="font-mono font-bold text-gray-700">{quote.payment_reference}</span></p>}
+                    {quote.signed_by_name && <p><span className="text-gray-400">חתימה:</span> <span className="font-bold text-gray-700">{quote.signed_by_name}</span></p>}
+                    {quote.signed_at && <p><span className="text-gray-400">תאריך:</span> <span className="tabular-nums">{formatDate(quote.signed_at)}</span></p>}
+                  </div>
                 </div>
               </div>
-              <p className="text-xs mt-2 opacity-90">חתום עכשיו ושמור על המחיר!</p>
             </div>
           )}
 
-          {!isAccepted && countdown?.expired && (
-            <div className="no-print mx-5 sm:mx-8 my-4 bg-red-50 border-2 border-red-200 rounded-2xl p-4 text-center">
+          {/* ── Big in-body CTA — appears AFTER totals, the natural decision point ── */}
+          {!isAccepted && !isPendingVerification && !countdown?.expired && (
+            <div className="no-print mx-5 sm:mx-8 mb-6">
+              <button
+                onClick={openAcceptFlow}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white font-black text-base sm:text-lg py-4 rounded-2xl shadow-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={18} /> חתום ואשר עכשיו
+              </button>
+              <p className="text-center text-[11px] text-gray-400 mt-2">
+                ⚡ אישור מיידי · ללא צורך בהדפסה · חתימה דיגיטלית מאובטחת
+              </p>
+            </div>
+          )}
+
+          {countdown?.expired && !isAccepted && (
+            <div className="no-print mx-5 sm:mx-8 mb-6 bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
               <p className="text-sm font-bold text-red-700">⚠️ תוקף ההצעה פג</p>
               <p className="text-xs text-red-600 mt-1">צור קשר לקבלת הצעה מעודכנת</p>
             </div>
           )}
 
-          {/* Items */}
-          <div className="px-5 sm:px-8 py-6">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-gray-200">
-                  <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-10">#</th>
-                  <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">פריט</th>
-                  <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-16">כמות</th>
-                  <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-24">מחיר ליח׳</th>
-                  <th className="text-left py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-28">סה״כ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {itemsWithCalc.map((i, idx) => (
-                  <tr key={idx}>
-                    <td className="py-3.5 text-sm font-bold text-gray-400 align-top">{idx + 1}</td>
-                    <td className="py-3.5">
-                      <p className="text-sm font-semibold text-gray-900">{i.name}</p>
-                      {i.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{i.description}</p>}
-                      <p className="text-xs text-gray-400 mt-0.5">{i.unit}</p>
-                    </td>
-                    <td className="text-center py-3.5 text-sm font-medium text-gray-700 align-top">{i.qty}</td>
-                    <td className="text-center py-3.5 text-sm text-gray-700 align-top">{fmt(i.finalPrice)}</td>
-                    <td className="text-left py-3.5 text-sm font-bold text-gray-900 align-top">{fmt(i.lineTotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="mt-6 flex justify-end">
-              <div className="w-full sm:w-80 bg-gray-50 rounded-2xl p-4 space-y-2">
-                {(quote.discount_amount ?? 0) > 0 && (() => {
-                  const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
-                  const disc = quote.discount_type === "percent"
-                    ? Math.round((subRaw * (quote.discount_amount || 0)) / 100)
-                    : Math.round(quote.discount_amount || 0);
-                  return (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">סכום פריטים</span>
-                        <span className="text-gray-700">{fmt(subRaw)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-rose-600 font-semibold">
-                        <span>הנחה {quote.discount_type === "percent" ? `(${quote.discount_amount}%)` : ""}</span>
-                        <span>-{fmt(disc)}</span>
-                      </div>
-                    </>
-                  );
-                })()}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">סה״כ לפני מע״מ</span>
-                  <span className="font-bold text-gray-800">{fmt(quote.subtotal_before_vat)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">מע״מ (18%)</span>
-                  <span className="font-bold text-gray-800">{fmt(quote.vat_amount)}</span>
-                </div>
-                <div className="border-t-2 border-gray-200 pt-2 flex justify-between items-baseline">
-                  <span className="text-sm font-bold text-gray-900">סה״כ לתשלום</span>
-                  <span className="text-2xl font-black text-green-700">{fmt(quote.total_with_vat)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Big CTA inside body */}
-            {!isAccepted && !isPendingVerification && (
-              <div className="no-print mt-6 bg-gradient-to-l from-green-500 to-emerald-600 rounded-2xl p-5 text-white text-center shadow-lg">
-                <p className="text-sm font-semibold mb-3">מאשר את ההצעה?</p>
-                <button onClick={() => {
-                  if ((quote.deposit_amount ?? 0) > 0 && quote.payment_status === "unpaid") {
-                    setShowPaymentModal(true);
-                  } else {
-                    setShowSignModal(true);
-                  }
-                }}
-                  className="bg-white text-green-700 hover:bg-green-50 font-black px-8 py-3 rounded-xl text-base shadow-md inline-flex items-center gap-2">
-                  <CheckCircle2 size={18} /> חתום ואשר עכשיו
-                </button>
-                <p className="text-xs text-green-50 mt-2">⚡ אישור מיידי · ללא צורך בהדפסה</p>
-              </div>
-            )}
-
-            {/* Pending verification banner */}
-            {isPendingVerification && (
-              <div className="mt-6 bg-gradient-to-l from-amber-100 to-yellow-100 border-2 border-amber-300 rounded-2xl p-5 text-center">
-                <div className="text-4xl mb-2">⏳</div>
-                <p className="text-base font-black text-amber-900 mb-1">תודה! קיבלנו את ההזמנה</p>
-                <p className="text-sm text-amber-800 mb-3">החתימה שלך והוכחת התשלום נשלחו לספק.</p>
-                <div className="bg-white rounded-xl p-3 text-right text-xs text-gray-700 space-y-1">
-                  {quote.payment_reference && <p><span className="text-gray-500">אסמכתא:</span> <span className="font-mono font-bold">{quote.payment_reference}</span></p>}
-                  {quote.signed_by_name && <p><span className="text-gray-500">חתימת:</span> <strong>{quote.signed_by_name}</strong></p>}
-                  {quote.signed_at && <p><span className="text-gray-500">תאריך:</span> {formatDate(quote.signed_at)}</p>}
-                </div>
-                <p className="text-xs text-amber-700 mt-3">
-                  הספק יאמת את התשלום בבנק שלו ויעדכן אותך בהקדם (תוך 24 שעות).
-                </p>
-              </div>
-            )}
-
-            {/* Quick contact buttons */}
-            {(profile?.phone || quote.customer_phone) && (
-              <div className="no-print mt-4 grid grid-cols-2 gap-2">
-                {profile?.phone && (
-                  <a href={`tel:${profile.phone.replace(/\D/g, "")}`}
-                    className="flex items-center justify-center gap-2 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-800 text-sm font-semibold py-3 rounded-xl">
-                    <Phone size={14} /> התקשר
-                  </a>
-                )}
-                {profile?.phone && (
-                  <a href={`https://api.whatsapp.com/send?phone=${(() => {
-                    const p = profile.phone.replace(/\D/g, "");
-                    if (p.startsWith("0")) return "972" + p.slice(1);
-                    if (p.startsWith("972")) return p;
-                    return p;
-                  })()}&text=${encodeURIComponent(`היי, יש לי שאלה על הצעת המחיר ${quote.quote_number ? `#${quote.quote_number}` : ""}`)}`}
-                    target="_blank" rel="noreferrer"
-                    className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-3 rounded-xl">
-                    💬 שלח שאלה ב-WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-
-          {quote.notes && (
-            <div className="px-8 py-5 bg-amber-50/50 border-y border-amber-100">
-              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-1.5">הערות</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
+          {/* ── Quick contact buttons — one row, calm ── */}
+          {profile?.phone && !isAccepted && (
+            <div className="no-print px-5 sm:px-8 pb-6 grid grid-cols-2 gap-2">
+              <a href={`tel:${profile.phone.replace(/\D/g, "")}`}
+                className="flex items-center justify-center gap-1.5 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-xs font-semibold py-2.5 rounded-xl transition-colors">
+                <Phone size={12} /> התקשר
+              </a>
+              {profileWaPhone && (
+                <a href={`https://api.whatsapp.com/send?phone=${profileWaPhone}&text=${encodeURIComponent(`היי, יש לי שאלה על הצעת המחיר ${quote.quote_number ? `#${quote.quote_number}` : ""}`)}`}
+                  target="_blank" rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold py-2.5 rounded-xl transition-colors">
+                  💬 שאלה ב-WhatsApp
+                </a>
+              )}
             </div>
           )}
 
+          {/* ── Notes ── */}
+          {quote.notes && (
+            <div className="px-6 sm:px-8 py-5 border-t border-gray-100 bg-amber-50/40">
+              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-2">הערות</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{quote.notes}</p>
+            </div>
+          )}
+
+          {/* ── Payment methods (informational, de-emphasized) ── */}
           {(profile?.bit_phone || profile?.paybox_phone || profile?.bank_name) && (
-            <div className="px-8 py-5">
+            <div className="px-6 sm:px-8 py-5 border-t border-gray-100">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">אמצעי תשלום</p>
-              <div className="space-y-1.5 text-sm text-gray-700">
-                {profile.bit_phone && <p>💳 <span className="font-semibold">Bit:</span> {profile.bit_phone}</p>}
-                {profile.paybox_phone && <p>📱 <span className="font-semibold">PayBox:</span> {profile.paybox_phone}</p>}
+              <div className="flex flex-wrap gap-2">
+                {profile.bit_phone && (
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-100">
+                    💳 Bit · <span dir="ltr" className="font-mono">{profile.bit_phone}</span>
+                  </span>
+                )}
+                {profile.paybox_phone && (
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-100">
+                    📱 PayBox · <span dir="ltr" className="font-mono">{profile.paybox_phone}</span>
+                  </span>
+                )}
                 {(profile.bank_name || profile.bank_account) && (
-                  <p>🏦 <span className="font-semibold">העברה בנקאית:</span> {profile.bank_name}
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-100">
+                    🏦 {profile.bank_name}
                     {profile.bank_branch ? ` · סניף ${profile.bank_branch}` : ""}
                     {profile.bank_account ? ` · חשבון ${profile.bank_account}` : ""}
-                  </p>
+                  </span>
                 )}
               </div>
             </div>
           )}
 
-          {/* Signature display if signed */}
+          {/* ── Signature display once signed ── */}
           {isAccepted && quote.signature_data && (
-            <div className="px-8 py-6 bg-green-50 border-t-2 border-green-200">
+            <div className="px-6 sm:px-8 py-6 border-t border-gray-100 bg-emerald-50/50">
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-green-700 font-bold">✓ ההצעה אושרה</p>
+                  <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-bold flex items-center gap-1">
+                    <CheckCircle2 size={11} /> ההצעה אושרה
+                  </p>
                   <p className="text-sm font-bold text-gray-900 mt-1">{quote.signed_by_name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">חתם בתאריך {formatDate(quote.signed_at)}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5 tabular-nums">חתם בתאריך {formatDate(quote.signed_at)}</p>
                 </div>
-                <div className="bg-white rounded-xl border border-green-200 p-2">
+                <div className="bg-white rounded-xl border border-emerald-200 p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={quote.signature_data} alt="חתימה" className="h-16 w-auto" />
+                  <img src={quote.signature_data} alt="חתימה" className="h-14 w-auto" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Testimonials */}
+          {/* ── Testimonials — moved here, AFTER the CTA, as reinforcement ── */}
           {profile?.testimonials && profile.testimonials.length > 0 && (
-            <div className="px-5 sm:px-8 py-6 bg-amber-50 border-t border-amber-100">
-              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-3 text-center">⭐ לקוחות מרוצים מספרים</p>
-              <div className="space-y-3">
+            <div className="px-5 sm:px-8 py-6 border-t border-gray-100 bg-gray-50/60">
+              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-3 text-center">⭐ לקוחות מרוצים</p>
+              <div className="space-y-2.5">
                 {profile.testimonials.slice(0, 3).map((t, idx) => (
-                  <div key={idx} className="bg-white rounded-xl p-3 border border-amber-100">
-                    <div className="flex items-center gap-1 mb-1">
+                  <div key={idx} className="bg-white rounded-2xl p-4 border border-gray-100">
+                    <div className="flex items-center gap-0.5 mb-1.5">
                       {Array.from({length: 5}, (_, i) => (
-                        <span key={i} className={`text-sm ${i < t.rating ? "text-amber-400" : "text-gray-200"}`}>★</span>
+                        <span key={i} className={`text-xs ${i < t.rating ? "text-amber-400" : "text-gray-200"}`}>★</span>
                       ))}
                     </div>
                     <p className="text-sm text-gray-700 italic leading-relaxed">&quot;{t.text}&quot;</p>
-                    <p className="text-xs text-gray-500 mt-1.5 font-semibold">— {t.customer_name}{t.location ? ` · ${t.location}` : ""}</p>
+                    <p className="text-[11px] text-gray-500 mt-2 font-semibold">— {t.customer_name}{t.location ? ` · ${t.location}` : ""}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Footer */}
-          <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500 mb-3 whitespace-pre-wrap">
+          {/* ── Footer ── */}
+          <div className="px-6 sm:px-8 py-5 border-t border-gray-100 text-center">
+            <p className="text-[11px] text-gray-500 mb-2 whitespace-pre-wrap leading-relaxed">
               {profile?.quote_default_footer || "ההצעה תקפה ל-30 ימים מהיום. חתימה על ההצעה מהווה אישור לביצוע העבודה."}
             </p>
             {profile?.business_name && (
-              <p className="text-sm font-bold text-gray-700">{profile.business_name}</p>
+              <p className="text-xs font-bold text-gray-700">{profile.business_name}</p>
             )}
             <p className="text-[10px] text-gray-400 mt-1">המחירים כוללים מע״מ · המסמך הופק במערכת mygananpro</p>
           </div>
         </div>
       </div>
 
-      {/* Signature modal */}
+      {/* ── Mobile sticky bottom CTA — always-visible decision bar ── */}
+      {!isAccepted && !isPendingVerification && !countdown?.expired && (
+        <div className="no-print sm:hidden fixed bottom-0 right-0 left-0 z-30 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.1)]">
+          <button
+            onClick={openAcceptFlow}
+            className="w-full flex items-center justify-between gap-3 bg-gray-900 hover:bg-gray-800 text-white font-black px-4 py-3.5 rounded-2xl transition-colors"
+          >
+            <span className="flex items-center gap-2 text-sm">
+              <CheckCircle2 size={16} /> אשר ההצעה
+            </span>
+            <span className="text-base tabular-nums">{fmt(quote.total_with_vat)}</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Modals (logic untouched, palette aligned) ── */}
       {/* Payment Modal */}
       {showPaymentModal && quote.deposit_amount && (() => {
         const depositAmount = quote.deposit_amount || 0;
@@ -1301,7 +1346,7 @@ export default function PublicQuotePage() {
               </button>
               <button onClick={handleSign}
                 disabled={signing || !signerName.trim() || !hasSignature}
-                className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-bold">
+                className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-sm font-bold transition-colors">
                 {signing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                 {signing ? "שומר..." : "אשר וחתום"}
               </button>
