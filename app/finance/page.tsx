@@ -1210,14 +1210,13 @@ export default function FinancePage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-gray-500 font-medium ml-1">טווח:</span>
+            {/* Trimmed from 8 presets to 4 — the long row was eating mobile
+                width without delivering meaningful insight. שבוע / חודש /
+                שנה / מותאם covers 95% of cash-flow questions. */}
             {([
               { k: "week" as RangePreset, l: "שבוע" },
-              { k: "2weeks" as RangePreset, l: "שבועיים" },
               { k: "month" as RangePreset, l: "חודש" },
-              { k: "3months" as RangePreset, l: "3 חודשים" },
-              { k: "6months" as RangePreset, l: "חצי שנה" },
               { k: "year" as RangePreset, l: "שנה" },
-              { k: "all" as RangePreset, l: "הכל" },
               { k: "custom" as RangePreset, l: "מותאם" },
             ]).map(({ k, l }) => (
               <button
