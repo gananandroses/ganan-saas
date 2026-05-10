@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Header from "@/components/Header";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { supabase } from "@/lib/supabase/client";
+import { pendingMissedVisits } from "@/lib/missed-visits";
 import {
   Calendar,
   CreditCard,
@@ -420,28 +421,8 @@ export default function AutomationsPage() {
         };
       });
 
-    // 5) Missed visits (cancelled with reason — needs rescheduling).
-    // Auto-clear once the customer has been rescheduled: if any other job
-    // for the same customer exists on/after the cancelled date and isn't
-    // itself cancelled, treat the missed visit as resolved. Match by
-    // customer_id when available, fall back to a normalised name compare
-    // so legacy jobs without an FK still get cleared.
-    const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
-    const isRescheduled = (cancelled: typeof jobs[number]) => {
-      const cancelledDate = cancelled.job_date || "";
-      return jobs.some(other => {
-        if (other.id === cancelled.id) return false;
-        if (other.status === "cancelled") return false;
-        const sameCustomer = cancelled.customer_id
-          ? other.customer_id === cancelled.customer_id
-          : norm(other.customer_name) === norm(cancelled.customer_name);
-        if (!sameCustomer) return false;
-        return (other.job_date || "") >= cancelledDate;
-      });
-    };
-    const missedVisits: ActionItem[] = jobs
-      .filter(j => j.status === "cancelled" && (j.cancellation_reason === "no_show" || j.cancellation_reason === "force_majeure"))
-      .filter(j => !isRescheduled(j))
+    // 5) Missed visits — single source of truth in lib/missed-visits.ts.
+    const missedVisits: ActionItem[] = pendingMissedVisits(jobs)
       .sort((a, b) => (b.job_date || "").localeCompare(a.job_date || ""))
       .map(j => {
         const c = findCustomer(j.customer_id, j.customer_name);
@@ -452,8 +433,8 @@ export default function AutomationsPage() {
           customerId: c?.id ?? "",
           customerName: j.customer_name,
           phone: c?.phone ?? "",
-          meta: { date: j.job_date, reasonLabel, reason: j.cancellation_reason ?? "" },
-          message: buildMissedVisitMsg(j.customer_name, j.job_date, reasonLabel, settings.businessName),
+          meta: { date: j.job_date ?? "", reasonLabel, reason: j.cancellation_reason ?? "" },
+          message: buildMissedVisitMsg(j.customer_name, j.job_date ?? "", reasonLabel, settings.businessName),
         };
       });
 

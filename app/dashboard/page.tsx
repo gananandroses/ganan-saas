@@ -7,12 +7,12 @@ import { toast, confirmDialog } from "@/components/Toaster";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import { SkeletonKpi, SkeletonList, SkeletonChart } from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase/client";
+import { pendingMissedVisits } from "@/lib/missed-visits";
 import {
   TrendingUp,
   Users,
   Briefcase,
   AlertCircle,
-  Sun,
   UserPlus,
   CalendarPlus,
   MessageSquare,
@@ -24,7 +24,10 @@ import {
   X,
   ChevronRight,
   Phone,
-  RefreshCw,
+  Flame,
+  CreditCard,
+  UserX,
+  CheckCircle2,
 } from "lucide-react";
 import {
   BarChart,
@@ -74,28 +77,30 @@ interface KpiCardProps {
 }
 
 function KpiCard({ icon, iconBg, label, value, trend, trendColor, trendIcon, sub, onClick }: KpiCardProps) {
+  // Tighter on mobile so 2x2 grid feels designed, not cramped. Sub line
+  // hidden on small screens — the label + value tell the story; the
+  // explanatory caption is desktop polish.
   return (
     <div
       onClick={onClick}
-      className={`bg-white rounded-2xl shadow-sm p-6 flex flex-col gap-3 border border-gray-100 hover:shadow-md transition-all ${onClick ? "cursor-pointer hover:border-green-200 active:scale-[0.98]" : ""}`}
+      className={`bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 ${onClick ? "cursor-pointer active:scale-[0.98]" : ""}`}
     >
       <div className="flex items-center justify-between">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconBg}`}>
+        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
           {icon}
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className={`flex items-center gap-1 text-xs font-semibold ${trendColor}`}>
+        {trend && (
+          <span className={`flex items-center gap-0.5 text-[10px] sm:text-xs font-semibold ${trendColor}`}>
             {trendIcon}
-            {trend}
+            <span className="truncate">{trend}</span>
           </span>
-          {onClick && <ChevronRight size={14} className="text-gray-300" />}
-        </div>
+        )}
       </div>
       <div>
-        <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
-        <p className="text-sm text-gray-500 mt-0.5">{label}</p>
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight tabular-nums">{value}</p>
+        <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 truncate">{label}</p>
       </div>
-      <p className="text-xs text-gray-400 border-t border-gray-50 pt-2">{sub}</p>
+      <p className="hidden sm:block text-xs text-gray-400 border-t border-gray-50 pt-2">{sub}</p>
     </div>
   );
 }
@@ -109,53 +114,41 @@ interface DebtorsCardProps {
 
 function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
   const hasDebtors = items.length > 0;
-  const visible = items.slice(0, 3);
-  const extraCount = Math.max(0, items.length - visible.length);
+  // On mobile we show 2 names to keep the 2x2 grid balanced. Desktop keeps
+  // the original 3 since there's more vertical room next to the KPIs.
 
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-2xl shadow-sm p-6 flex flex-col gap-3 border border-gray-100 hover:shadow-md hover:border-orange-200 active:scale-[0.98] cursor-pointer transition-all"
+      className="bg-white rounded-2xl border border-gray-100 hover:border-orange-200 hover:shadow-sm transition-all p-4 sm:p-5 flex flex-col gap-2 sm:gap-3 cursor-pointer active:scale-[0.98]"
     >
       <div className="flex items-center justify-between">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-orange-50">
-          <AlertCircle size={20} className="text-orange-500" />
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center bg-orange-50">
+          <AlertCircle size={18} className="text-orange-500" />
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="flex items-center gap-1 text-xs font-semibold text-orange-500">
-            <AlertCircle size={13} />
-            {hasDebtors ? "דורש טיפול" : "הכל שולם ✓"}
+        {hasDebtors && (
+          <span className="text-[10px] sm:text-xs font-bold text-orange-500 tabular-nums">
+            ₪{total.toLocaleString("he-IL")}
           </span>
-          <ChevronRight size={14} className="text-gray-300" />
-        </div>
-      </div>
-
-      <div>
-        <p className="text-sm font-semibold text-gray-700">יתרות פתוחות</p>
-        {hasDebtors ? (
-          <ul className="mt-2 space-y-1.5">
-            {visible.map((item) => (
-              <li key={item.name} className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-gray-700 truncate">{item.name}</span>
-                <span className="font-semibold text-orange-600 whitespace-nowrap">
-                  ₪{item.balance.toLocaleString("he-IL")}
-                </span>
-              </li>
-            ))}
-            {extraCount > 0 && (
-              <li className="text-xs text-gray-400 pt-0.5">+ עוד {extraCount} חייבים</li>
-            )}
-          </ul>
-        ) : (
-          <p className="mt-2 text-sm text-gray-400">🎉 אין חובות פתוחים</p>
         )}
       </div>
 
-      {hasDebtors && (
-        <p className="text-xs text-gray-500 border-t border-gray-50 pt-2 flex items-center justify-between">
-          <span>לחץ לרשימה המלאה</span>
-          <span className="font-semibold text-gray-700">סה&quot;כ ₪{total.toLocaleString("he-IL")}</span>
+      <div className="min-w-0">
+        <p className="text-xl sm:text-2xl font-extrabold text-gray-900 leading-tight tabular-nums">
+          {hasDebtors ? items.length : 0}
         </p>
+        <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 truncate">
+          {hasDebtors ? "יתרות פתוחות" : "אין חובות פתוחים"}
+        </p>
+      </div>
+
+      {hasDebtors && (
+        <p className="hidden sm:block text-xs text-gray-400 border-t border-gray-50 pt-2 truncate">
+          {items.slice(0, 2).map(i => i.name).join(" · ")}{items.length > 2 ? ` · +${items.length - 2}` : ""}
+        </p>
+      )}
+      {!hasDebtors && (
+        <p className="hidden sm:block text-xs text-emerald-600 border-t border-gray-50 pt-2">🎉 הכל שולם</p>
       )}
     </div>
   );
@@ -391,6 +384,24 @@ export default function DashboardPage() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Today snapshot — answers "מה אצלי היום?" in 3 seconds.
+  // todayDone counts completed work (so we can show progress, not just todo).
+  const [todaySnap, setTodaySnap] = useState({
+    total: 0,
+    done: 0,
+    expectedRevenue: 0,
+    nextJobLabel: "" as string,
+  });
+
+  // "Hot actions" — only the things that need YOU today. Hidden when empty.
+  // This is the marquee block of the redesigned dashboard.
+  const [hotActions, setHotActions] = useState({
+    missedCount: 0,
+    debtCount: 0,
+    debtTotal: 0,
+    inactiveCount: 0,
+  });
+
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     if (!("Notification" in window)) return;
@@ -472,13 +483,19 @@ export default function DashboardPage() {
           // weather unavailable — keep null
         }
       }
-      const [custRes, txRes, jobsRes, txRes2, empRes, projRes] = await Promise.all([
+      const [custRes, txRes, jobsRes, txRes2, empRes, projRes, allJobsRes, openTxRes, custFullRes] = await Promise.all([
         supabase.from("customers").select("id, status, monthly_price, balance, name, phone").eq("user_id", user?.id),
         supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income").eq("user_id", user?.id),
         supabase.from("jobs").select("*").eq("user_id", user?.id).gte("job_date", today).order("job_date").limit(50),
         supabase.from("transactions").select("type, amount, status, transaction_date").eq("user_id", user?.id),
         supabase.from("employees").select("id, status").eq("user_id", user?.id),
         supabase.from("projects").select("id, status").eq("user_id", user?.id),
+        // For "hot actions" — pull every job to apply pendingMissedVisits().
+        supabase.from("jobs").select("id, customer_id, customer_name, job_date, status, cancellation_reason").eq("user_id", user?.id),
+        // For "open debt > 7 days" badge.
+        supabase.from("transactions").select("amount, status, transaction_date").eq("user_id", user?.id).eq("type", "income").in("status", ["pending", "overdue"]),
+        // For "inactive customer" badge.
+        supabase.from("customers").select("id, last_visit").eq("user_id", user?.id),
       ]);
 
       const customers = custRes.data || [];
@@ -492,6 +509,50 @@ export default function DashboardPage() {
       const activeEmps = employees.filter((e: Record<string,unknown>) => e.status !== "offline").length;
       const activeProjs = projects.filter((p: Record<string,unknown>) => p.status === "active").length;
       setMiniStats({ activeEmployees: activeEmps, activeProjects: activeProjs });
+
+      // ── Hot actions ── three signals every gardener wants in the morning:
+      //   🔥 missed visits (cancelled, customer not yet rebooked)
+      //   💰 open debts older than 7 days
+      //   🌙 customers who haven't been visited in 30+ days
+      const allJobsForHot = (allJobsRes.data || []) as Array<{ id: string; customer_id: string | null; customer_name: string; job_date: string | null; status: string; cancellation_reason: string | null }>;
+      const missedCount = pendingMissedVisits(allJobsForHot).length;
+
+      const DEBT_DAYS = 7;
+      const INACTIVE_DAYS = 30;
+      const daysSince = (iso: string | null | undefined) => {
+        if (!iso) return Infinity;
+        const ms = Date.now() - new Date(iso).getTime();
+        return Math.floor(ms / (1000 * 60 * 60 * 24));
+      };
+      const openTxs = (openTxRes.data || []) as Array<{ amount: number; status: string; transaction_date: string }>;
+      const stale = openTxs.filter(t => daysSince(t.transaction_date) >= DEBT_DAYS);
+      const debtCount = stale.length;
+      const debtTotal = stale.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+      const allCusts = (custFullRes.data || []) as Array<{ id: string; last_visit: string | null }>;
+      const inactiveCount = allCusts.filter(c => c.last_visit && daysSince(c.last_visit) >= INACTIVE_DAYS).length;
+
+      setHotActions({ missedCount, debtCount, debtTotal, inactiveCount });
+
+      // ── Today snapshot ──
+      const todaysJobs = (allJobsForHot || []).filter(j => j.job_date === today);
+      const todayDone = todaysJobs.filter(j => j.status === "completed").length;
+      const todayActive = todaysJobs.filter(j => j.status !== "cancelled");
+      // Expected revenue from active jobs today — pull price from jobs table directly.
+      const todayJobsFull = (jobs as Record<string, unknown>[]).filter(j => (j.job_date as string) === today && j.status !== "cancelled");
+      const expectedRevenue = todayJobsFull.reduce((s, j) => {
+        const price = (j.price as number) || 0;
+        const beforeVat = (j.price_before_vat as boolean) || false;
+        return s + (beforeVat ? price : Math.round(price / 1.18));
+      }, 0);
+      // Find the next pending job today (ordered by time).
+      const nextJob = todayActive
+        .filter(j => j.status !== "completed")
+        .sort((a, b) => ((a as Record<string, unknown>).job_time as string || "").localeCompare((b as Record<string, unknown>).job_time as string || ""))[0] as Record<string, unknown> | undefined;
+      const nextJobLabel = nextJob ? `${(nextJob.job_time as string) || ""} · ${(nextJob.customer_name as string) || ""}` : "";
+
+      // total = active + done so the "X של Y הושלמו" reflects the full day.
+      setTodaySnap({ total: todayActive.length, done: todayDone, expectedRevenue, nextJobLabel });
 
       // Monthly income counts transactions that have actually been received.
       // We treat anything not explicitly pending/overdue as collected — this
@@ -625,75 +686,197 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const totalHotActions = hotActions.missedCount + hotActions.debtCount + hotActions.inactiveCount;
+  const dayProgress = todaySnap.total > 0 ? Math.round((todaySnap.done / todaySnap.total) * 100) : 0;
+
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50">
+    <div dir="rtl" className="min-h-screen bg-[#F7F8FA]">
       <Header title="דשבורד" subtitle="סקירה כללית של העסק" />
 
       {/* First-run onboarding — only shows for users with zero customers */}
       {userId && <OnboardingFlow userId={userId} ownerName={userName} />}
 
-      {/*
-        Removed: the previous "Portal-based" floating push-notification CTA.
-        It duplicated the inline pill below the greeting and was the most
-        prominent thing on the screen. The inline pill is enough.
-      */}
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 max-w-screen-xl mx-auto">
 
-      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-screen-xl mx-auto">
+        {/* ── HERO — answers "מה אצלי היום?" in 3 seconds ──
+            Greeting + date + weather + today snapshot in a single quiet
+            card. Replaces the four scattered widgets that used to live
+            here (greeting, weather, push pill, refresh button). */}
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+                שלום {userName || "👋"}
+              </h1>
+              <p className="text-sm text-gray-500 mt-1">{hebrewDate()}</p>
+            </div>
+            {weather && (
+              <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-2.5 self-start">
+                <span className="text-2xl leading-none">{weather.icon}</span>
+                <div>
+                  <p className="text-base font-bold text-gray-800 leading-tight">{weather.temp}°</p>
+                  <p className="text-[11px] text-gray-500 leading-tight">{weather.city} · {weather.humidity}%</p>
+                </div>
+              </div>
+            )}
+          </div>
 
-        {/* ── Greeting + Weather ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900">שלום {userName} 👋</h1>
+          {/* Today snapshot strip — only when there's actually something today */}
+          {todaySnap.total > 0 && (
+            <div className="border-t border-gray-100 bg-gradient-to-l from-emerald-50/40 to-transparent px-5 sm:px-6 py-4">
+              <div className="flex items-end justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-700 mb-0.5 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                    היום אצלך
+                  </p>
+                  <p className="text-lg font-bold text-gray-900 leading-tight">
+                    {todaySnap.done}/{todaySnap.total} עבודות הושלמו
+                    {todaySnap.expectedRevenue > 0 && (
+                      <span className="text-gray-400 font-medium"> · ₪{todaySnap.expectedRevenue.toLocaleString()} צפוי</span>
+                    )}
+                  </p>
+                  {todaySnap.nextJobLabel && (
+                    <p className="text-xs text-gray-500 mt-0.5">הבא: {todaySnap.nextJobLabel}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => router.push("/schedule")}
+                  className="text-xs font-semibold text-emerald-700 bg-white border border-emerald-200 rounded-xl px-3 py-2 hover:bg-emerald-50 transition-colors flex items-center gap-1"
+                >
+                  ליומן <ChevronRight size={13} />
+                </button>
+              </div>
+              {/* Progress bar */}
+              <div className="mt-3 h-1.5 bg-white rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${dayProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {todaySnap.total === 0 && !loading && (
+            <div className="border-t border-gray-100 px-5 sm:px-6 py-3 text-xs text-gray-500">
+              אין עבודות היום — יום נעים 🌱
+            </div>
+          )}
+        </div>
+
+        {/* ── HOT ACTIONS — only renders when there's actually something on fire ── */}
+        {!loading && totalHotActions > 0 && (
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-5 sm:px-6 pt-4 pb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
+                  <Flame size={16} className="text-orange-500" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">דורש ממך פעולה</h2>
+                  <p className="text-[11px] text-gray-400">{totalHotActions} פריטים</p>
+                </div>
+              </div>
               <button
-                onClick={() => setRefreshTick(t => t + 1)}
-                disabled={loading}
-                title="רענן נתונים"
-                className="p-2 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 active:scale-95 transition-all disabled:opacity-50"
+                onClick={() => router.push("/automations")}
+                className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1"
               >
-                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                הכל <ChevronRight size={13} />
               </button>
             </div>
-            <p className="text-sm text-gray-500 mt-0.5">{hebrewDate()}</p>
-            <div className="mt-2">
-              {pushStatus === "enabled" && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1.5 font-medium">🔔 התראות פעילות ✓</span>
-              )}
-              {pushStatus === "denied" && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-3 py-1.5">🔕 אפשר התראות בהגדרות הדפדפן</span>
+
+            <div className="px-3 sm:px-4 pb-3 pt-2 space-y-1.5">
+              {hotActions.missedCount > 0 && (
+                <button
+                  onClick={() => router.push("/automations")}
+                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-red-50 hover:bg-red-100 border border-red-100 transition-colors text-right"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+                      <CalendarPlus size={16} className="text-red-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-red-700 leading-tight">דרושים תיאום מחדש</p>
+                      <p className="text-[11px] text-red-500 mt-0.5">לקוחות שלא הופיעו / בלת״מ</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-2xl font-black text-red-700 tabular-nums">{hotActions.missedCount}</span>
+                    <ChevronRight size={16} className="text-red-300" />
+                  </div>
+                </button>
               )}
 
-              {(pushStatus === "idle" || pushStatus === "loading") && (
-                <button onClick={enablePush} disabled={pushStatus === "loading"}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-full px-4 py-2 transition-colors disabled:opacity-60">
-                  {pushStatus === "loading" ? "⏳ מאשר..." : "🔔 הפעל התראות"}
+              {hotActions.debtCount > 0 && (
+                <button
+                  onClick={() => router.push("/automations")}
+                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors text-right"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+                      <CreditCard size={16} className="text-amber-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-amber-800 leading-tight">חובות פתוחים מעל 7 ימים</p>
+                      <p className="text-[11px] text-amber-600 mt-0.5">סה״כ ₪{Math.round(hotActions.debtTotal).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-2xl font-black text-amber-700 tabular-nums">{hotActions.debtCount}</span>
+                    <ChevronRight size={16} className="text-amber-300" />
+                  </div>
+                </button>
+              )}
+
+              {hotActions.inactiveCount > 0 && (
+                <button
+                  onClick={() => router.push("/automations")}
+                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-right"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+                      <UserX size={16} className="text-purple-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-purple-800 leading-tight">לקוחות לא פעילים</p>
+                      <p className="text-[11px] text-purple-600 mt-0.5">לא בוקרו 30+ ימים</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-2xl font-black text-purple-700 tabular-nums">{hotActions.inactiveCount}</span>
+                    <ChevronRight size={16} className="text-purple-300" />
+                  </div>
                 </button>
               )}
             </div>
           </div>
-          {weather ? (
-            <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
-              <span className="text-2xl">{weather.icon}</span>
-              <div>
-                <p className="text-base font-bold text-gray-800">{weather.temp}°C</p>
-                <p className="text-xs text-gray-500">{weather.city}</p>
-              </div>
-              <div className="w-px h-8 bg-gray-100 mx-1" />
-              <div className="text-right">
-                <p className="text-xs text-gray-400">לחות</p>
-                <p className="text-xs font-semibold text-gray-600">{weather.humidity}%</p>
-              </div>
+        )}
+
+        {/* All-clear banner — light, encouraging, only when nothing's pending */}
+        {!loading && totalHotActions === 0 && (
+          <div className="bg-emerald-50/60 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center">
+              <CheckCircle2 size={18} className="text-emerald-500" />
             </div>
-          ) : (
-            <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-5 py-3 shadow-sm self-start sm:self-auto">
-              <Sun className="text-yellow-400" size={22} />
-              <div>
-                <p className="text-xs text-gray-400">מזג האוויר</p>
-                <p className="text-xs text-gray-500">הגדר עיר בהגדרות</p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-emerald-800">הכל תחת שליטה</p>
+              <p className="text-[11px] text-emerald-600">אין פעולות דחופות שמחכות לך</p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Push notifications — moved out of the hero so it doesn't compete
+            with the day snapshot. Shows only if user hasn't acted on it. */}
+        {pushStatus === "idle" && (
+          <button
+            onClick={enablePush}
+            className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-right"
+          >
+            <span className="text-lg flex-shrink-0">🔔</span>
+            <span className="flex-1 text-xs font-semibold text-gray-700">הפעל התראות לתזכורות יומיות</span>
+            <span className="text-xs text-emerald-600 font-bold">הפעל</span>
+          </button>
+        )}
 
         {/* ── Install reminder — compact strip ── */}
         {/* The original banner was a 200px-tall block of platform-specific
@@ -760,41 +943,40 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── KPI Cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* ── KPI Cards — 2x2 on mobile, 4-up on desktop ── */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           {loading ? (
             <>
               <SkeletonKpi /><SkeletonKpi /><SkeletonKpi /><SkeletonKpi />
             </>
           ) : (<>
           <KpiCard
-            icon={<TrendingUp size={20} className="text-green-600" />}
+            icon={<TrendingUp size={18} className="text-green-600" />}
             iconBg="bg-green-50"
             label="הכנסה החודש"
             value={`₪${stats.monthlyIncome.toLocaleString("he-IL")}`}
-            trend={stats.monthlyIncomeMomPct !== null ? `${stats.monthlyIncomeMomPct >= 0 ? "+" : ""}${stats.monthlyIncomeMomPct}% MoM` : ""}
+            trend={stats.monthlyIncomeMomPct !== null ? `${stats.monthlyIncomeMomPct >= 0 ? "+" : ""}${stats.monthlyIncomeMomPct}%` : ""}
             trendColor={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? "text-green-600" : "text-red-500"}
-            trendIcon={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            trendIcon={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
             sub="לחץ לפירוט העסקאות"
             onClick={() => setModal("income")}
           />
           <KpiCard
-            icon={<Users size={20} className="text-blue-600" />}
+            icon={<Users size={18} className="text-blue-600" />}
             iconBg="bg-blue-50"
             label="לקוחות פעילים"
             value={String(stats.activeCustomers)}
-            trend="פעיל + VIP"
+            trend=""
             trendColor="text-blue-600"
-            trendIcon={<ChevronUp size={13} />}
             sub="לחץ לרשימת הלקוחות"
             onClick={() => setModal("customers")}
           />
           <KpiCard
-            icon={<Briefcase size={20} className="text-purple-600" />}
+            icon={<Briefcase size={18} className="text-purple-600" />}
             iconBg="bg-purple-50"
             label="עבודות מתוכננות"
             value={String(stats.todayJobs)}
-            trend="לחץ לכל העבודות"
+            trend=""
             trendColor="text-purple-600"
             sub="היום ועבודות הבאות"
             onClick={() => setModal("jobs")}
@@ -943,11 +1125,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Bottom Row: Quick Actions ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* ── Bottom Row: Quick Actions — desktop only ──
+            On mobile the BottomNav already covers customers/schedule/finance,
+            so this block was pure visual duplication. We hide it below md
+            and the gardener saves a screen of scroll. */}
+        <div className="hidden md:grid md:grid-cols-3 gap-4">
 
           {/* Quick Actions */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 md:col-start-3">
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 md:col-start-3">
             <div className="flex items-center gap-2 mb-5">
               <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center">
                 <Leaf size={16} className="text-blue-600" />

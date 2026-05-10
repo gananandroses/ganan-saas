@@ -3,6 +3,7 @@ import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar, Use
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { pendingMissedVisits } from "@/lib/missed-visits";
 import BackButton from "@/components/BackButton";
 
 interface HeaderProps {
@@ -111,35 +112,15 @@ export default function Header({ title, subtitle, action, showBack = false }: He
 
       const list: Notif[] = [];
 
-      // 🔥 ביקורים שדורשים תיאום מחדש (no_show / force_majeure) — דחוף!
-      // Pull customer_id too so we can match across re-bookings, then
-      // drop any cancelled job whose customer already has a later
-      // non-cancelled job (same auto-clear logic as the automations page).
+      // 🔥 ביקורים שדורשים תיאום מחדש — single source of truth in
+      // lib/missed-visits.ts. Auto-clears once the customer is rebooked.
       const { data: allJobs } = await supabase
         .from("jobs")
         .select("id, customer_id, customer_name, job_date, status, cancellation_reason")
         .eq("user_id", user.id)
         .order("job_date", { ascending: false });
 
-      const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
-      const missed = (allJobs || []).filter(j =>
-        j.status === "cancelled" &&
-        (j.cancellation_reason === "no_show" || j.cancellation_reason === "force_majeure")
-      );
-
-      missed.forEach((j) => {
-        const cancelledDate = j.job_date || "";
-        const rescheduled = (allJobs || []).some(other => {
-          if (other.id === j.id) return false;
-          if (other.status === "cancelled") return false;
-          const sameCustomer = j.customer_id
-            ? other.customer_id === j.customer_id
-            : norm(other.customer_name) === norm(j.customer_name);
-          if (!sameCustomer) return false;
-          return (other.job_date || "") >= cancelledDate;
-        });
-        if (rescheduled) return;
-
+      pendingMissedVisits(allJobs || []).forEach((j) => {
         const reasonLabel = j.cancellation_reason === "no_show" ? "לא הופיע" : "בלת״מ";
         list.push({
           id: `missed-${j.id}`,
