@@ -948,13 +948,14 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
 // ── Job Card (list view) ──────────────────────────────────────────────────────
 
-function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
+function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () => void; onMarkCompleted: (id: string) => void }) {
   const catColors = categoryConfig(job.jobCategory);
   const status = statusConfig(job.status);
-  // Minimalist redesign — no thick coloured stripe, no heavy shadow.
-  // Status colour is reduced to a 6px dot at the right edge of the time
-  // column. Border is a single soft hairline. The card reads as one quiet
-  // row that scans in a fraction of a second on mobile.
+  const [completing, setCompleting] = useState(false);
+  // Minimalist card with inline quick actions. Status is a 6px dot, border
+  // is a single hairline. The action row at the bottom keeps Waze + Done
+  // one tap away so a gardener never has to open the detail modal just to
+  // navigate or close out a job.
   const dotColor =
     job.priority === "urgent"   ? "bg-red-500" :
     job.priority === "high"     ? "bg-orange-400" :
@@ -964,56 +965,127 @@ function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
                                   "bg-emerald-500";
   const isCompleted = job.status === "completed";
   const isCancelled = job.status === "cancelled";
-  return (
-    <button
-      onClick={onClick}
-      className="group w-full text-right bg-white rounded-2xl p-4 border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all flex items-center gap-4"
-    >
-      {/* Time column with status dot */}
-      <div className="flex flex-col items-center gap-1.5 flex-shrink-0 w-14">
-        <span className={`text-base font-bold tabular-nums ${isCompleted || isCancelled ? "text-gray-400" : "text-gray-900"}`}>
-          {job.time}
-        </span>
-        <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden />
-      </div>
+  const showActions = !isCompleted && !isCancelled && (job.address || true);
 
-      {/* Body */}
-      <div className="flex-1 min-w-0 text-right">
-        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-          <h3 className={`font-semibold text-[15px] truncate ${isCompleted ? "text-gray-500 line-through" : "text-gray-900"}`}>
-            {job.customerName}
-          </h3>
-          {job.priority === "urgent" && !isCompleted && !isCancelled && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
-              <AlertCircle size={9} /> דחוף
-            </span>
-          )}
-          {job.jobCategory !== "work" && (
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${catColors.badge}`}>
-              {catColors.label.replace(/^[^\s]+\s/, "")}
-            </span>
-          )}
-          {isCancelled && (
-            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">בוטל</span>
+  async function handleQuickComplete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (completing) return;
+    setCompleting(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
+    setCompleting(false);
+    if (error) {
+      toast.error("שגיאה בעדכון הסטטוס");
+      return;
+    }
+    onMarkCompleted(job.id);
+    toast.success("העבודה סומנה כהושלמה");
+
+    // Auto-complete parent project if all sibling jobs are done
+    if (job.customerId) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("id, name")
+        .eq("user_id", user?.id)
+        .eq("customer_id", job.customerId)
+        .neq("status", "completed")
+        .maybeSingle();
+      if (project) {
+        const { data: siblings } = await supabase
+          .from("jobs")
+          .select("id, status")
+          .eq("project_id", project.id);
+        const stillOpen = (siblings ?? []).some(j => j.id !== job.id && j.status !== "completed" && j.status !== "cancelled");
+        if (!stillOpen) {
+          await supabase.from("projects").update({ status: "completed", progress: 100 }).eq("id", project.id).eq("user_id", user?.id);
+        }
+      }
+    }
+  }
+
+  function handleWaze(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!job.address) return;
+    window.open(`https://waze.com/ul?q=${encodeURIComponent(job.address)}`, "_blank");
+  }
+
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      className="group w-full text-right bg-white rounded-2xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all cursor-pointer overflow-hidden"
+    >
+      <div className="flex items-center gap-4 p-4">
+        {/* Time column with status dot */}
+        <div className="flex flex-col items-center gap-1.5 flex-shrink-0 w-14">
+          <span className={`text-base font-bold tabular-nums ${isCompleted || isCancelled ? "text-gray-400" : "text-gray-900"}`}>
+            {job.time}
+          </span>
+          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden />
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 min-w-0 text-right">
+          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+            <h3 className={`font-semibold text-[15px] truncate ${isCompleted ? "text-gray-500 line-through" : "text-gray-900"}`}>
+              {job.customerName}
+            </h3>
+            {job.priority === "urgent" && !isCompleted && !isCancelled && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+                <AlertCircle size={9} /> דחוף
+              </span>
+            )}
+            {job.jobCategory !== "work" && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${catColors.badge}`}>
+                {catColors.label.replace(/^[^\s]+\s/, "")}
+              </span>
+            )}
+            {isCancelled && (
+              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">בוטל</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 leading-tight truncate">
+            {job.type || "עבודת גינון"}
+            {job.duration ? ` · ${job.duration} ש׳` : ""}
+            {job.address ? ` · ${job.address.split(",")[0]}` : ""}
+          </p>
+        </div>
+
+        {/* Price column */}
+        <div className="text-left flex-shrink-0">
+          <p className={`font-bold text-[15px] tabular-nums ${isCompleted || isCancelled ? "text-gray-400" : "text-gray-900"}`}>
+            ₪{(job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)).toLocaleString()}
+          </p>
+          {!isCompleted && !isCancelled && (
+            <p className="text-[10px] text-gray-400 leading-none mt-0.5">{status.label}</p>
           )}
         </div>
-        <p className="text-xs text-gray-500 leading-tight truncate">
-          {job.type || "עבודת גינון"}
-          {job.duration ? ` · ${job.duration} ש׳` : ""}
-          {job.address ? ` · ${job.address.split(",")[0]}` : ""}
-        </p>
       </div>
 
-      {/* Price column */}
-      <div className="text-left flex-shrink-0">
-        <p className={`font-bold text-[15px] tabular-nums ${isCompleted || isCancelled ? "text-gray-400" : "text-gray-900"}`}>
-          ₪{(job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)).toLocaleString()}
-        </p>
-        {!isCompleted && !isCancelled && (
-          <p className="text-[10px] text-gray-400 leading-none mt-0.5">{status.label}</p>
-        )}
-      </div>
-    </button>
+      {/* Inline quick actions — only on active jobs */}
+      {showActions && (
+        <div className="flex items-stretch gap-px bg-gray-100 border-t border-gray-100">
+          {job.address && (
+            <button
+              onClick={handleWaze}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-blue-50 text-blue-600 text-xs font-semibold transition-colors"
+            >
+              <MapPin size={13} /> נווט
+            </button>
+          )}
+          <button
+            onClick={handleQuickComplete}
+            disabled={completing}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-600 text-xs font-semibold transition-colors disabled:opacity-60"
+          >
+            {completing ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+            סיים
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1304,7 +1376,7 @@ function SchedulePageInner() {
             ) : (
               <div className="space-y-2">
                 {selectedDayJobs.map(job => (
-                  <JobListCard key={job.id} job={job} onClick={() => setSelectedJob(job)} />
+                  <JobListCard key={job.id} job={job} onClick={() => setSelectedJob(job)} onMarkCompleted={handleMarkCompleted} />
                 ))}
               </div>
             )}
