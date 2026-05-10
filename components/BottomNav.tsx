@@ -10,7 +10,7 @@ import MobileMenu from "./MobileMenu";
 const mainItems = [
   { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
   { href: "/customers", label: "לקוחות", icon: Users },
-  { href: "/schedule", label: "לוח זמנים", icon: Calendar },
+  { href: "/schedule", label: "יומן", icon: Calendar },
   { href: "/finance", label: "פיננסים", icon: DollarSign },
 ];
 

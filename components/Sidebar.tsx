@@ -18,7 +18,7 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
     title: null, // top group has no header — these are the daily core
     items: [
       { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
-      { href: "/schedule",  label: "לוח זמנים", icon: Calendar },
+      { href: "/schedule",  label: "יומן", icon: Calendar },
       { href: "/customers", label: "לקוחות", icon: Users },
       { href: "/finance",   label: "פיננסים", icon: DollarSign },
     ],

@@ -949,47 +949,71 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 // ── Job Card (list view) ──────────────────────────────────────────────────────
 
 function JobListCard({ job, onClick }: { job: Job; onClick: () => void }) {
-  const colors = priorityColors(job.priority);
   const catColors = categoryConfig(job.jobCategory);
   const status = statusConfig(job.status);
-  const borderColor = job.jobCategory !== "work" ? catColors.border : colors.border;
+  // Minimalist redesign — no thick coloured stripe, no heavy shadow.
+  // Status colour is reduced to a 6px dot at the right edge of the time
+  // column. Border is a single soft hairline. The card reads as one quiet
+  // row that scans in a fraction of a second on mobile.
+  const dotColor =
+    job.priority === "urgent"   ? "bg-red-500" :
+    job.priority === "high"     ? "bg-orange-400" :
+    job.jobCategory === "quote" ? "bg-purple-500" :
+    job.jobCategory === "followup" ? "bg-amber-400" :
+    job.status === "completed"  ? "bg-gray-300" :
+                                  "bg-emerald-500";
+  const isCompleted = job.status === "completed";
+  const isCancelled = job.status === "cancelled";
   return (
-    <div
+    <button
       onClick={onClick}
-      className={`bg-white rounded-2xl p-4 shadow-sm border-r-4 ${borderColor} cursor-pointer active:scale-[0.98] transition-transform`}
+      className="group w-full text-right bg-white rounded-2xl p-4 border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all flex items-center gap-4"
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${status.color}`}>
-              {status.label}
+      {/* Time column with status dot */}
+      <div className="flex flex-col items-center gap-1.5 flex-shrink-0 w-14">
+        <span className={`text-base font-bold tabular-nums ${isCompleted || isCancelled ? "text-gray-400" : "text-gray-900"}`}>
+          {job.time}
+        </span>
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden />
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 min-w-0 text-right">
+        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+          <h3 className={`font-semibold text-[15px] truncate ${isCompleted ? "text-gray-500 line-through" : "text-gray-900"}`}>
+            {job.customerName}
+          </h3>
+          {job.priority === "urgent" && !isCompleted && !isCancelled && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full">
+              <AlertCircle size={9} /> דחוף
             </span>
-            {job.jobCategory !== "work" && (
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${catColors.badge}`}>
-                {catColors.label}
-              </span>
-            )}
-            {job.priority === "urgent" && (
-              <span className="text-xs font-bold text-red-600 flex items-center gap-0.5">
-                <AlertCircle size={11} /> דחוף
-              </span>
-            )}
-          </div>
-          <h3 className="font-bold text-gray-900 text-base truncate">{job.customerName}</h3>
-          <p className="text-sm text-gray-500 mt-0.5">{job.type || "עבודת גינון"}</p>
+          )}
+          {job.jobCategory !== "work" && (
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${catColors.badge}`}>
+              {catColors.label.replace(/^[^\s]+\s/, "")}
+            </span>
+          )}
+          {isCancelled && (
+            <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">בוטל</span>
+          )}
         </div>
-        <div className="text-left flex-shrink-0">
-          <p className="text-green-700 font-bold text-base">
-            ₪{(job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)).toLocaleString()}
-          </p>
-          <p className="text-xs text-gray-400 text-left">+ מע&quot;מ</p>
-        </div>
+        <p className="text-xs text-gray-500 leading-tight truncate">
+          {job.type || "עבודת גינון"}
+          {job.duration ? ` · ${job.duration} ש׳` : ""}
+          {job.address ? ` · ${job.address.split(",")[0]}` : ""}
+        </p>
       </div>
-      <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><Clock size={12} />{job.time} ({job.duration}ש׳)</span>
-        {job.address && <span className="flex items-center gap-1 truncate"><MapPin size={12} />{job.address.split(",")[0]}</span>}
+
+      {/* Price column */}
+      <div className="text-left flex-shrink-0">
+        <p className={`font-bold text-[15px] tabular-nums ${isCompleted || isCancelled ? "text-gray-400" : "text-gray-900"}`}>
+          ₪{(job.priceBeforeVat ? job.price : Math.round(job.price / 1.18)).toLocaleString()}
+        </p>
+        {!isCompleted && !isCancelled && (
+          <p className="text-[10px] text-gray-400 leading-none mt-0.5">{status.label}</p>
+        )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -1015,6 +1039,7 @@ function SchedulePageInner() {
   const [showNewJobModal, setShowNewJobModal] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedISO, setSelectedISO] = useState(() => formatDateISO(new Date()));
+  const [view, setView] = useState<"day" | "week" | "month">("day");
 
   const today = useMemo(() => {
     const d = new Date(); d.setHours(0,0,0,0); return d;
@@ -1135,205 +1160,301 @@ function SchedulePageInner() {
 
   const dayRevenue = selectedDayJobs.reduce((s, j) => s + (j.priceBeforeVat ? j.price : Math.round(j.price / 1.18)), 0);
   const dayCompleted = selectedDayJobs.filter(j => j.status === "completed").length;
+  const selectedDayHoliday = getHoliday(selectedISO);
+
+  // Week-view scaffolding — derive Sun..Sat for the week containing selectedISO.
+  const weekDays = useMemo(() => {
+    const ref = new Date(selectedISO + "T00:00:00");
+    const start = new Date(ref);
+    start.setDate(ref.getDate() - ref.getDay()); // Sunday
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [selectedISO]);
+
+  // Day view: timeline of the selected day's jobs ordered by time.
+  // We just bin by time-string asc — the selectedDayJobs are already sorted.
+
+  // Header date label, contextual to the active view.
+  const headerDateLabel =
+    view === "day"
+      ? `${HEBREW_DAYS_FULL[selectedDate.getDay()]} · ${selectedDate.getDate()} ${HEBREW_MONTHS[selectedDate.getMonth()]}`
+      : view === "week"
+      ? `${weekDays[0].getDate()}–${weekDays[6].getDate()} ${HEBREW_MONTHS[weekDays[6].getMonth()]}`
+      : `${HEBREW_MONTHS[displayMonth.getMonth()]} ${displayMonth.getFullYear()}`;
+
+  function navigateDate(direction: -1 | 1) {
+    if (view === "day") {
+      const d = new Date(selectedISO + "T00:00:00");
+      d.setDate(d.getDate() + direction);
+      setSelectedISO(formatDateISO(d));
+    } else if (view === "week") {
+      const d = new Date(selectedISO + "T00:00:00");
+      d.setDate(d.getDate() + (direction * 7));
+      setSelectedISO(formatDateISO(d));
+    } else {
+      setMonthOffset(o => o + direction);
+    }
+  }
+
+  function jumpToToday() {
+    setSelectedISO(todayISO);
+    setMonthOffset(0);
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* ── Header ── */}
-      <div className="bg-white border-b border-gray-200 px-4 pt-4 pb-3">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <button onClick={() => router.back()} className="p-2 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200">
-              <ArrowRight size={18} />
-            </button>
-            <h1 className="text-xl font-bold text-gray-900">לוח זמנים</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => fetchJobs()} className="p-2.5 rounded-xl bg-gray-100 text-gray-500 active:bg-gray-200">
-              <RefreshCw size={16} />
-            </button>
+    <div className="min-h-screen bg-[#F7F8FA]" dir="rtl">
+      {/* ── Sticky header — quiet, minimal ────────────────────────────────────
+          Notion / Linear feel: small title, secondary metadata under it,
+          subtle refresh button, no big CTA in the bar (the FAB handles add). */}
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100">
+        <div className="max-w-screen-md mx-auto px-4 sm:px-6 pt-4 pb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">יומן</h1>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {selectedDayJobs.length === 0
+                  ? "אין עבודות ליום זה"
+                  : `${selectedDayJobs.length} ${selectedDayJobs.length === 1 ? "עבודה" : "עבודות"} · ₪${dayRevenue.toLocaleString()}${dayCompleted > 0 ? ` · ${dayCompleted} הושלמו` : ""}`}
+              </p>
+            </div>
             <button
-              onClick={() => setShowNewJobModal(true)}
-              className="flex items-center gap-1.5 bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm"
+              onClick={() => fetchJobs()}
+              className="hit-44 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+              aria-label="רענן"
             >
-              <Plus size={16} />
-              עבודה חדשה
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             </button>
+          </div>
+
+          {/* View tabs + date navigator */}
+          <div className="flex items-center justify-between gap-3 mt-4">
+            <div className="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
+              {(["day","week","month"] as const).map(v => {
+                const label = v === "day" ? "יום" : v === "week" ? "שבוע" : "חודש";
+                const active = view === v;
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                      active ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-1">
+              {(view !== "month" && selectedISO !== todayISO) || (view === "month" && monthOffset !== 0) ? (
+                <button
+                  onClick={jumpToToday}
+                  className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
+                >
+                  היום
+                </button>
+              ) : null}
+              <button
+                onClick={() => navigateDate(-1)}
+                aria-label="קודם"
+                className="hit-44 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center tabular-nums">
+                {headerDateLabel}
+              </span>
+              <button
+                onClick={() => navigateDate(1)}
+                aria-label="הבא"
+                className="hit-44 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
           </div>
         </div>
+      </header>
 
-        {/* Month navigation */}
-        <div className="flex items-center justify-between mb-3">
-          <button onClick={() => setMonthOffset(o => o - 1)} className="p-1.5 rounded-lg bg-gray-100 text-gray-600">
-            <ChevronRight size={18} />
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-gray-900">
-              {HEBREW_MONTHS[displayMonth.getMonth()]} {displayMonth.getFullYear()}
-            </span>
-            {monthOffset !== 0 && (
-              <button
-                onClick={() => { setMonthOffset(0); setSelectedISO(todayISO); }}
-                className="text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-lg border border-green-200 font-semibold"
-              >
-                היום
-              </button>
+      {/* ── Body ──────────────────────────────────────────────────────────── */}
+      <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28">
+
+        {/* DAY VIEW — single column timeline of the selected day */}
+        {view === "day" && (
+          <div className="space-y-3">
+            {selectedDayHoliday && (
+              <div className={`rounded-xl px-3 py-2 text-xs font-semibold ${holidayStyle(selectedDayHoliday.type).pill} flex items-center gap-1.5`}>
+                <span>📅</span> {selectedDayHoliday.name}
+              </div>
+            )}
+            {loading ? (
+              <SkeletonList rows={3} />
+            ) : selectedDayJobs.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gray-100 flex items-center justify-center">
+                  <Calendar size={22} className="text-gray-300" />
+                </div>
+                <p className="text-sm text-gray-500 font-medium">אין עבודות ליום זה</p>
+                <p className="text-xs text-gray-400 mt-1">הוסף עבודה חדשה ב-+ למטה</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {selectedDayJobs.map(job => (
+                  <JobListCard key={job.id} job={job} onClick={() => setSelectedJob(job)} />
+                ))}
+              </div>
             )}
           </div>
-          <button onClick={() => setMonthOffset(o => o + 1)} className="p-1.5 rounded-lg bg-gray-100 text-gray-600">
-            <ChevronLeft size={18} />
-          </button>
-        </div>
-
-        {/* Day-of-week headers */}
-        <div className="grid grid-cols-7 mb-1.5">
-          {["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"].map((d, i) => (
-            <div key={d} className={`text-center text-[11px] font-bold py-1.5 tracking-wide ${
-              i === 6 ? "text-rose-400" : "text-gray-400"
-            }`}>
-              {d}
-            </div>
-          ))}
-        </div>
-
-        {/* Month grid */}
-        <div className="grid grid-cols-7 gap-1">
-          {calendarDays.map((day, i) => {
-            if (!day) return <div key={`empty-${i}`} />;
-            const iso = formatDateISO(day);
-            const isToday = iso === todayISO;
-            const isSelected = iso === selectedISO;
-            const isShabbat = day.getDay() === 6;
-            const dayJobs = jobs.filter(j => j.date === iso);
-            const hasJobs = dayJobs.length > 0;
-            const holiday = getHoliday(iso);
-            const hStyle = holiday ? holidayStyle(holiday.type) : null;
-
-            // Background priority: selected > today > holiday > shabbat > default
-            const bgClass = isSelected
-              ? "bg-green-600 shadow-md ring-2 ring-green-200"
-              : isToday
-              ? "bg-green-50 ring-1 ring-green-400"
-              : holiday && hStyle
-              ? `${hStyle.bg} ring-1 ${hStyle.ring}`
-              : isShabbat
-              ? "bg-gray-50"
-              : "hover:bg-gray-50 active:bg-gray-100";
-
-            const dateColor = isSelected
-              ? "text-white"
-              : isToday
-              ? "text-green-700"
-              : holiday && hStyle
-              ? hStyle.text
-              : isShabbat
-              ? "text-rose-400"
-              : "text-gray-800";
-
-            return (
-              <button
-                key={iso}
-                onClick={() => setSelectedISO(iso)}
-                className={`relative flex flex-col items-center justify-start min-h-[56px] py-1.5 px-0.5 rounded-xl transition-all overflow-hidden ${bgClass}`}
-              >
-                <span className={`text-sm font-bold leading-tight ${dateColor}`}>
-                  {day.getDate()}
-                </span>
-
-                {/* Holiday name — tiny one-liner under the date */}
-                {holiday && hStyle && (
-                  <span className={`text-[9px] leading-tight font-semibold mt-0.5 truncate w-full px-0.5 ${
-                    isSelected ? "text-white/90" : hStyle.text
-                  }`}>
-                    {holiday.name}
-                  </span>
-                )}
-
-                {/* Job indicator dots — anchored at bottom */}
-                {hasJobs && (
-                  <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5">
-                    {dayJobs.slice(0, 3).map((j, idx) => (
-                      <div key={idx} className={`w-1 h-1 rounded-full ${
-                        isSelected ? "bg-white" :
-                        j.jobCategory === "quote" ? "bg-purple-500" :
-                        j.jobCategory === "followup" ? "bg-amber-400" :
-                        j.priority === "urgent" ? "bg-red-500" :
-                        j.priority === "high" ? "bg-orange-400" :
-                        j.status === "completed" ? "bg-gray-300" :
-                        "bg-green-500"
-                      }`} />
-                    ))}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-3 pt-2.5 border-t border-gray-100 text-[10px] text-gray-500">
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500" />עבודה</span>
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-purple-500" />הצעה</span>
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />מעקב</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-50 ring-1 ring-rose-200" />חג</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-sky-50 ring-1 ring-sky-200" />יום לאומי</span>
-        </div>
-      </div>
-
-      {/* ── Day summary bar ── */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-bold text-gray-800">
-              {HEBREW_DAYS_FULL[selectedDate.getDay()]}{" "}
-              {selectedDate.getDate()} {HEBREW_MONTHS[selectedDate.getMonth()]}
-            </p>
-            {(() => {
-              const h = getHoliday(selectedISO);
-              if (!h) return null;
-              const s = holidayStyle(h.type);
-              return (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${s.pill}`}>
-                  {h.name}
-                </span>
-              );
-            })()}
-          </div>
-          <p className="text-xs text-gray-500">{selectedDayJobs.length} עבודות</p>
-        </div>
-        <div className="flex gap-4 text-center">
-          <div>
-            <p className="text-sm font-bold text-green-600">₪{dayRevenue.toLocaleString()}</p>
-            <p className="text-xs text-gray-400">הכנסה</p>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-blue-600">{dayCompleted}/{selectedDayJobs.length}</p>
-            <p className="text-xs text-gray-400">הושלמו</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Job list ── */}
-      <div className="px-4 py-4 space-y-3 pb-28">
-        {loading ? (
-          <SkeletonList rows={3} />
-        ) : selectedDayJobs.length === 0 ? (
-          <div className="text-center py-16">
-            <Calendar size={48} className="mx-auto mb-3 text-gray-200" />
-            <p className="text-gray-500 font-medium">אין עבודות ביום זה</p>
-            <button
-              onClick={() => setShowNewJobModal(true)}
-              className="mt-4 flex items-center gap-2 mx-auto px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold"
-            >
-              <Plus size={15} />
-              הוסף עבודה
-            </button>
-          </div>
-        ) : (
-          selectedDayJobs.map(job => (
-            <JobListCard key={job.id} job={job} onClick={() => setSelectedJob(job)} />
-          ))
         )}
-      </div>
+
+        {/* WEEK VIEW — 7 columns, each a tap-able day card with up to 3 dots */}
+        {view === "week" && (
+          <div className="grid grid-cols-7 gap-1.5">
+            {weekDays.map((day) => {
+              const iso = formatDateISO(day);
+              const isToday = iso === todayISO;
+              const isSelected = iso === selectedISO;
+              const dayJobs = jobs.filter(j => j.date === iso);
+              const holiday = getHoliday(iso);
+              return (
+                <button
+                  key={iso}
+                  onClick={() => { setSelectedISO(iso); setView("day"); }}
+                  className={`relative flex flex-col rounded-xl p-2 min-h-[140px] text-right transition-all ${
+                    isSelected ? "bg-gray-900 text-white" :
+                    isToday   ? "bg-emerald-50 ring-1 ring-emerald-200" :
+                                "bg-white border border-gray-100 hover:border-gray-200"
+                  }`}
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span className={`text-[10px] font-semibold ${isSelected ? "text-white/70" : "text-gray-400"}`}>
+                      {HEBREW_DAYS_SHORT[day.getDay()]}
+                    </span>
+                    <span className={`text-base font-bold tabular-nums ${
+                      isSelected ? "text-white" :
+                      isToday   ? "text-emerald-700" :
+                                  "text-gray-900"
+                    }`}>
+                      {day.getDate()}
+                    </span>
+                  </div>
+                  {holiday && (
+                    <p className={`text-[9px] mt-1 truncate ${
+                      isSelected ? "text-white/80" : holidayStyle(holiday.type).text
+                    }`}>
+                      {holiday.name}
+                    </p>
+                  )}
+                  <div className="mt-auto space-y-0.5 overflow-hidden">
+                    {dayJobs.slice(0, 3).map((j) => (
+                      <div
+                        key={j.id}
+                        className={`text-[9px] truncate rounded px-1 py-0.5 ${
+                          isSelected ? "bg-white/15 text-white" : "bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        {j.time} {j.customerName}
+                      </div>
+                    ))}
+                    {dayJobs.length > 3 && (
+                      <div className={`text-[9px] ${isSelected ? "text-white/60" : "text-gray-400"}`}>
+                        + {dayJobs.length - 3}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* MONTH VIEW — kept the original calendar, softer palette */}
+        {view === "month" && (
+          <div>
+            <div className="grid grid-cols-7 mb-1.5">
+              {["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"].map((d) => (
+                <div key={d} className="text-center text-[10px] font-semibold py-1 tracking-wide text-gray-400">
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {calendarDays.map((day, i) => {
+                if (!day) return <div key={`empty-${i}`} />;
+                const iso = formatDateISO(day);
+                const isToday = iso === todayISO;
+                const isSelected = iso === selectedISO;
+                const dayJobs = jobs.filter(j => j.date === iso);
+                const hasJobs = dayJobs.length > 0;
+                const holiday = getHoliday(iso);
+
+                const bgClass = isSelected
+                  ? "bg-gray-900 text-white"
+                  : isToday
+                  ? "bg-emerald-50 ring-1 ring-emerald-200"
+                  : "bg-white hover:bg-gray-50 border border-transparent hover:border-gray-100";
+
+                const dateColor = isSelected
+                  ? "text-white"
+                  : isToday
+                  ? "text-emerald-700"
+                  : "text-gray-800";
+
+                return (
+                  <button
+                    key={iso}
+                    onClick={() => {
+                      setSelectedISO(iso);
+                      // Tap a day in month view → jump to day view, classic Apple Calendar pattern
+                      if (hasJobs) setView("day");
+                    }}
+                    className={`relative flex flex-col items-center justify-start min-h-[52px] py-1.5 px-0.5 rounded-lg transition-all ${bgClass}`}
+                  >
+                    <span className={`text-sm font-bold leading-tight ${dateColor}`}>
+                      {day.getDate()}
+                    </span>
+                    {holiday && (
+                      <span className={`text-[8px] leading-tight font-semibold mt-0.5 truncate w-full px-0.5 ${
+                        isSelected ? "text-white/80" : holidayStyle(holiday.type).text
+                      }`}>
+                        {holiday.name}
+                      </span>
+                    )}
+                    {hasJobs && (
+                      <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5">
+                        {dayJobs.slice(0, 3).map((j, idx) => (
+                          <div key={idx} className={`w-1 h-1 rounded-full ${
+                            isSelected ? "bg-white" :
+                            j.priority === "urgent" ? "bg-red-500" :
+                            j.status === "completed" ? "bg-gray-300" :
+                            "bg-emerald-500"
+                          }`} />
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* ── Floating add button — gentle, not shouty ────────────────────────
+          Sits above the BottomNav (which is ~64px tall + safe area) so it
+          never overlaps. Soft shadow, dark surface for contrast against the
+          near-white background. */}
+      <button
+        onClick={() => setShowNewJobModal(true)}
+        aria-label="הוסף עבודה חדשה"
+        className="fixed bottom-[max(80px,env(safe-area-inset-bottom))] left-5 z-30 w-14 h-14 rounded-2xl bg-gray-900 text-white shadow-lg shadow-gray-900/20 hover:bg-gray-800 hover:shadow-xl active:scale-95 transition-all flex items-center justify-center md:bottom-6"
+      >
+        <Plus size={22} strokeWidth={2.5} />
+      </button>
 
       {/* Modals */}
       {selectedJob && (

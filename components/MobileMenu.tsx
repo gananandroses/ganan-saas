@@ -17,7 +17,7 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
     title: null,
     items: [
       { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
-      { href: "/schedule",  label: "לוח זמנים", icon: Calendar },
+      { href: "/schedule",  label: "יומן", icon: Calendar },
       { href: "/customers", label: "לקוחות", icon: Users },
       { href: "/finance",   label: "פיננסים", icon: DollarSign },
     ],
