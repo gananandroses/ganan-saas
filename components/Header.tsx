@@ -112,15 +112,34 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       const list: Notif[] = [];
 
       // 🔥 ביקורים שדורשים תיאום מחדש (no_show / force_majeure) — דחוף!
-      const { data: missed } = await supabase
+      // Pull customer_id too so we can match across re-bookings, then
+      // drop any cancelled job whose customer already has a later
+      // non-cancelled job (same auto-clear logic as the automations page).
+      const { data: allJobs } = await supabase
         .from("jobs")
-        .select("id, customer_name, job_date, cancellation_reason")
+        .select("id, customer_id, customer_name, job_date, status, cancellation_reason")
         .eq("user_id", user.id)
-        .eq("status", "cancelled")
-        .in("cancellation_reason", ["no_show", "force_majeure"])
         .order("job_date", { ascending: false });
 
-      (missed || []).forEach((j) => {
+      const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+      const missed = (allJobs || []).filter(j =>
+        j.status === "cancelled" &&
+        (j.cancellation_reason === "no_show" || j.cancellation_reason === "force_majeure")
+      );
+
+      missed.forEach((j) => {
+        const cancelledDate = j.job_date || "";
+        const rescheduled = (allJobs || []).some(other => {
+          if (other.id === j.id) return false;
+          if (other.status === "cancelled") return false;
+          const sameCustomer = j.customer_id
+            ? other.customer_id === j.customer_id
+            : norm(other.customer_name) === norm(j.customer_name);
+          if (!sameCustomer) return false;
+          return (other.job_date || "") >= cancelledDate;
+        });
+        if (rescheduled) return;
+
         const reasonLabel = j.cancellation_reason === "no_show" ? "לא הופיע" : "בלת״מ";
         list.push({
           id: `missed-${j.id}`,
