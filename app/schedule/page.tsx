@@ -1383,64 +1383,130 @@ function SchedulePageInner() {
           </div>
         )}
 
-        {/* WEEK VIEW — 7 columns, each a tap-able day card with up to 3 dots */}
+        {/* WEEK VIEW — 7-column strip + details panel below.
+            Tapping a day selects it but DOESN'T leave the week view — the
+            user keeps the full week visible while drilling into the day's
+            details below. Each cell shows: top-right = day name (ב׳),
+            top-left = date (11/5), and the count of jobs that day. */}
         {view === "week" && (
-          <div className="grid grid-cols-7 gap-1.5">
-            {weekDays.map((day) => {
-              const iso = formatDateISO(day);
-              const isToday = iso === todayISO;
-              const isSelected = iso === selectedISO;
-              const dayJobs = jobs.filter(j => j.date === iso);
-              const holiday = getHoliday(iso);
-              return (
-                <button
-                  key={iso}
-                  onClick={() => { setSelectedISO(iso); setView("day"); }}
-                  className={`relative flex flex-col rounded-xl p-2 min-h-[140px] text-right transition-all ${
-                    isSelected ? "bg-gray-900 text-white" :
-                    isToday   ? "bg-emerald-50 ring-1 ring-emerald-200" :
-                                "bg-white border border-gray-100 hover:border-gray-200"
-                  }`}
-                >
-                  <div className="flex items-baseline justify-between">
-                    <span className={`text-[10px] font-semibold ${isSelected ? "text-white/70" : "text-gray-400"}`}>
-                      {HEBREW_DAYS_SHORT[day.getDay()]}
-                    </span>
-                    <span className={`text-base font-bold tabular-nums ${
-                      isSelected ? "text-white" :
-                      isToday   ? "text-emerald-700" :
-                                  "text-gray-900"
-                    }`}>
-                      {day.getDate()}
-                    </span>
-                  </div>
-                  {holiday && (
-                    <p className={`text-[9px] mt-1 truncate ${
-                      isSelected ? "text-white/80" : holidayStyle(holiday.type).text
-                    }`}>
-                      {holiday.name}
+          <div className="space-y-4">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+              {weekDays.map((day) => {
+                const iso = formatDateISO(day);
+                const isToday = iso === todayISO;
+                const isSelected = iso === selectedISO;
+                const dayJobs = jobs.filter(j => j.date === iso);
+                const holiday = getHoliday(iso);
+                const dateLabel = `${day.getDate()}/${day.getMonth() + 1}`;
+                return (
+                  <button
+                    key={iso}
+                    onClick={() => setSelectedISO(iso)}
+                    className={`relative flex flex-col rounded-xl p-2 min-h-[88px] text-right transition-all ${
+                      isSelected ? "bg-gray-900 text-white shadow-md" :
+                      isToday   ? "bg-emerald-50 ring-1 ring-emerald-200" :
+                                  "bg-white border border-gray-100 hover:border-gray-300"
+                    }`}
+                  >
+                    {/* Top row: day-name on the right, date on the left */}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`text-xs sm:text-sm font-bold ${
+                        isSelected ? "text-white" :
+                        isToday   ? "text-emerald-700" :
+                                    "text-gray-900"
+                      }`}>
+                        {HEBREW_DAYS_SHORT[day.getDay()]}
+                      </span>
+                      <span className={`text-[10px] sm:text-[11px] font-medium tabular-nums ${
+                        isSelected ? "text-white/70" : "text-gray-400"
+                      }`}>
+                        {dateLabel}
+                      </span>
+                    </div>
+
+                    {/* Job count + holiday hint */}
+                    <div className="mt-auto pt-1.5 flex items-end justify-between gap-1">
+                      {dayJobs.length > 0 ? (
+                        <span className={`text-[10px] sm:text-xs font-semibold ${
+                          isSelected ? "text-white/90" :
+                          isToday   ? "text-emerald-700" :
+                                      "text-gray-700"
+                        }`}>
+                          {dayJobs.length} {dayJobs.length === 1 ? "עבודה" : "עבודות"}
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] ${isSelected ? "text-white/40" : "text-gray-300"}`}>—</span>
+                      )}
+                      {holiday && (
+                        <span
+                          aria-label={holiday.name}
+                          title={holiday.name}
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            isSelected ? "bg-white/70" :
+                            holiday.type === "major" || holiday.type === "memorial" ? "bg-amber-400" : "bg-blue-400"
+                          }`}
+                        />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Details panel for the selected day — same content as day view,
+                but presented INSIDE week view so the gardener never loses
+                the week context. */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-gray-50">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    יום {HEBREW_DAYS_FULL[selectedDate.getDay()]}
+                  </h3>
+                  <p className="text-xs text-gray-400 tabular-nums mt-0.5" dir="ltr">
+                    {selectedDate.getDate()}/{selectedDate.getMonth() + 1}/{selectedDate.getFullYear()}
+                  </p>
+                </div>
+                {selectedDayJobs.length > 0 && (
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-gray-900 tabular-nums">
+                      ₪{dayRevenue.toLocaleString()}
                     </p>
-                  )}
-                  <div className="mt-auto space-y-0.5 overflow-hidden">
-                    {dayJobs.slice(0, 3).map((j) => (
-                      <div
-                        key={j.id}
-                        className={`text-[9px] truncate rounded px-1 py-0.5 ${
-                          isSelected ? "bg-white/15 text-white" : "bg-gray-50 text-gray-700"
-                        }`}
-                      >
-                        {j.time} {j.customerName}
-                      </div>
-                    ))}
-                    {dayJobs.length > 3 && (
-                      <div className={`text-[9px] ${isSelected ? "text-white/60" : "text-gray-400"}`}>
-                        + {dayJobs.length - 3}
-                      </div>
-                    )}
+                    <p className="text-[10px] text-gray-400">
+                      {selectedDayJobs.length} {selectedDayJobs.length === 1 ? "עבודה" : "עבודות"}
+                      {dayCompleted > 0 ? ` · ${dayCompleted} הושלמו` : ""}
+                    </p>
                   </div>
-                </button>
-              );
-            })}
+                )}
+              </div>
+
+              {selectedDayHoliday && (
+                <div className={`rounded-xl px-3 py-2 text-xs font-semibold ${holidayStyle(selectedDayHoliday.type).pill} flex items-center gap-1.5`}>
+                  <span>📅</span> {selectedDayHoliday.name}
+                </div>
+              )}
+
+              {loading ? (
+                <SkeletonList rows={2} />
+              ) : selectedDayJobs.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-gray-50 flex items-center justify-center">
+                    <Calendar size={18} className="text-gray-300" />
+                  </div>
+                  <p className="text-sm text-gray-500 font-medium">אין עבודות ביום זה</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedDayJobs.map(job => (
+                    <JobListCard
+                      key={job.id}
+                      job={job}
+                      onClick={() => setSelectedJob(job)}
+                      onMarkCompleted={handleMarkCompleted}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
