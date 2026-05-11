@@ -556,125 +556,134 @@ export default function AutomationsPage() {
   // Render
   // ─────────────────────────────────────────────────────────────
 
-  const sectionConfig: Record<ActionType, { title: string; icon: React.ReactNode; color: string; bgColor: string; emptyText: string }> = {
+  // Sections used to live in five different colored cards (red / blue /
+  // amber / green / pink). All neutral now — the title carries the urgency,
+  // not the entire surface. Only "missed_visit" keeps a soft tinted icon
+  // chip because that's the truly urgent category.
+  const sectionConfig: Record<ActionType, { title: string; icon: React.ReactNode; iconBg: string; iconColor: string; emptyText: string }> = {
     missed_visit: {
-      title: "🔥 דרושים תיאום מחדש (דחוף)",
-      icon: <Calendar size={18} />,
-      color: "text-red-700",
-      bgColor: "bg-red-50 border-red-300",
+      title: "דרושים תיאום מחדש",
+      icon: <Calendar size={16} />,
+      iconBg: "bg-red-50",
+      iconColor: "text-red-500",
       emptyText: "אין ביקורים שצריכים תיאום מחדש",
     },
     tomorrow_visit: {
       title: "ביקורים מחר",
-      icon: <Calendar size={18} />,
-      color: "text-blue-700",
-      bgColor: "bg-blue-50 border-blue-200",
+      icon: <Calendar size={16} />,
+      iconBg: "bg-gray-50",
+      iconColor: "text-gray-500",
       emptyText: "אין ביקורים מתוזמנים למחר",
     },
     open_debt: {
       title: `חובות פתוחים (מעל ${DEBT_THRESHOLD_DAYS} ימים)`,
-      icon: <CreditCard size={18} />,
-      color: "text-amber-700",
-      bgColor: "bg-amber-50 border-amber-200",
+      icon: <CreditCard size={16} />,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-500",
       emptyText: "אין חובות פתוחים מעבר לסף",
     },
     completed_today: {
       title: "עבודות שהושלמו היום",
-      icon: <CheckCircle2 size={18} />,
-      color: "text-green-700",
-      bgColor: "bg-green-50 border-green-200",
+      icon: <CheckCircle2 size={16} />,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-500",
       emptyText: "טרם הושלמו עבודות היום",
     },
     inactive_customer: {
       title: `לקוחות לא פעילים (${INACTIVE_THRESHOLD_DAYS}+ ימים)`,
-      icon: <Sparkles size={18} />,
-      color: "text-pink-700",
-      bgColor: "bg-pink-50 border-pink-200",
+      icon: <Sparkles size={16} />,
+      iconBg: "bg-gray-50",
+      iconColor: "text-gray-500",
       emptyText: "כל הלקוחות פעילים",
     },
   };
 
   return (
-    <div dir="rtl">
+    <div dir="rtl" className="min-h-screen bg-[#F7F8FA]">
       <Header title="אוטומציות" subtitle="תור פעולות יומי — לחץ לבצע" showBack />
 
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
-        {/* Hero */}
-        <div className="bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-100 rounded-2xl p-5 sm:p-6 space-y-4">
+      <div className="px-4 sm:px-6 py-5 sm:py-6 space-y-4 max-w-4xl mx-auto">
+
+        {/* ── Hero — single white card. The previous violet→indigo gradient
+              was loud relative to the rest of the app's quiet palette.
+              Now: white card, gray icon chip, gray-900 brand CTA. ── */}
+        <div className="bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center">
-                <Inbox size={22} className="text-violet-600" />
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-gray-50 flex items-center justify-center flex-shrink-0">
+                <Inbox size={20} className="text-gray-500" />
               </div>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">תור פעולות היום</h1>
-                <p className="text-sm text-gray-500 mt-0.5">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">תור פעולות היום</h1>
+                <p className="text-xs text-gray-400 mt-0.5">
                   {loading ? "טוען..." : totalPending > 0 ? `${totalPending} פעולות ממתינות` : "אין פעולות ממתינות 🎉"}
                 </p>
               </div>
             </div>
-            <div className="text-left">
-              <p className="text-3xl sm:text-4xl font-black text-violet-700">{totalPending}</p>
-              <p className="text-xs text-violet-500 font-medium">לטיפול</p>
+            <div className="text-left flex-shrink-0">
+              <p className="text-3xl sm:text-4xl font-black text-gray-900 tabular-nums">{totalPending}</p>
+              <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">לטיפול</p>
             </div>
           </div>
 
-          {/* Action buttons */}
           {!loading && (
             <div className="flex gap-2">
               {totalPending > 0 && (
                 <button
                   onClick={startWizard}
-                  className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-2xl py-3.5 text-sm shadow-sm transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-2xl py-3 text-sm shadow-sm transition-colors"
                 >
-                  <MessageSquare size={18} />
+                  <MessageSquare size={16} />
                   שלח לכולם — אשף ({totalPending})
                 </button>
               )}
               <button
                 onClick={openTemplatesEditor}
                 title="ערוך תבניות הודעה"
-                className="flex items-center justify-center gap-2 bg-white border border-violet-200 text-violet-700 hover:bg-violet-50 font-semibold rounded-2xl px-4 py-3.5 text-sm shadow-sm transition-colors"
+                className="flex items-center justify-center gap-2 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 font-semibold rounded-2xl px-4 py-3 text-sm transition-colors"
               >
-                ✏️ ערוך תבניות
+                ערוך תבניות
               </button>
             </div>
           )}
         </div>
 
-        {/* Sections */}
+        {/* ── Sections — all white cards, hairline border, gray icon chip
+              (except missed_visit which keeps a soft red icon chip since
+              that's the genuinely urgent bucket). Section header carries
+              the urgency, not the entire surface. ── */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 size={28} className="animate-spin text-gray-400" />
+            <Loader2 size={28} className="animate-spin text-gray-300" />
           </div>
         ) : (
           visibleActions.map(({ type, list }) => {
             const cfg = sectionConfig[type];
             const isCollapsed = collapsed[type];
             return (
-              <div key={type} className={`rounded-2xl border ${cfg.bgColor}`}>
+              <div key={type} className="bg-white border border-gray-100 rounded-3xl overflow-hidden">
                 <button
                   onClick={() => setCollapsed(p => ({ ...p, [type]: !p[type] }))}
-                  className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-black/[0.02] rounded-t-2xl"
+                  className="w-full px-5 py-4 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center ${cfg.color}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.iconBg} ${cfg.iconColor}`}>
                       {cfg.icon}
                     </div>
-                    <div className="text-right">
-                      <h2 className={`font-bold text-sm ${cfg.color}`}>{cfg.title}</h2>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                    <div className="text-right min-w-0">
+                      <h2 className="font-bold text-sm text-gray-900 truncate">{cfg.title}</h2>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
                         {list.length === 0 ? cfg.emptyText : `${list.length} פעולות`}
                       </p>
                     </div>
                   </div>
-                  {isCollapsed ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronUp size={18} className="text-gray-400" />}
+                  {isCollapsed ? <ChevronDown size={16} className="text-gray-400 flex-shrink-0" /> : <ChevronUp size={16} className="text-gray-400 flex-shrink-0" />}
                 </button>
 
                 {!isCollapsed && (
-                  <div className="px-5 pb-4 space-y-2">
+                  <div className="px-5 pb-4 space-y-2 border-t border-gray-100 pt-3">
                     {list.length === 0 ? (
-                      <div className="bg-white/60 rounded-xl px-4 py-3 text-center text-sm text-gray-500">
+                      <div className="bg-gray-50 rounded-xl px-4 py-3 text-center text-xs text-gray-500">
                         {cfg.emptyText}
                       </div>
                     ) : (
@@ -689,12 +698,11 @@ export default function AutomationsPage() {
           })
         )}
 
-        {/* Tip */}
         {!loading && totalPending === 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center">
-            <CheckCircle2 size={36} className="mx-auto text-green-500 mb-3" />
-            <h3 className="font-bold text-gray-900">הכל מסודר 👌</h3>
-            <p className="text-sm text-gray-500 mt-1">כשיהיו פעולות ממתינות הן יופיעו כאן.</p>
+          <div className="bg-white border border-gray-100 rounded-3xl p-8 text-center">
+            <CheckCircle2 size={32} className="mx-auto text-emerald-500 mb-3" />
+            <h3 className="font-bold text-gray-900">הכל מסודר</h3>
+            <p className="text-xs text-gray-500 mt-1">כשיהיו פעולות ממתינות הן יופיעו כאן</p>
           </div>
         )}
       </div>
@@ -710,15 +718,15 @@ export default function AutomationsPage() {
             <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh]" dir="rtl">
               {/* Progress bar */}
               <div className="h-1.5 bg-gray-100 rounded-t-3xl overflow-hidden flex-shrink-0">
-                <div className="h-full bg-violet-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+                <div className="h-full bg-gray-900 transition-all duration-300" style={{ width: `${progress}%` }} />
               </div>
 
               {/* Header */}
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div>
-                  <p className="text-xs text-violet-600 font-semibold">אשף שליחה · {wizard.index + 1} מתוך {total}</p>
+                  <p className="text-xs text-gray-500 font-semibold tabular-nums">אשף שליחה · {wizard.index + 1} מתוך {total}</p>
                   <h2 className="text-base font-bold text-gray-900 mt-0.5">{current.customerName}</h2>
-                  <p className="text-xs text-gray-500">{sectionLabel}</p>
+                  <p className="text-xs text-gray-400">{sectionLabel}</p>
                 </div>
                 <button onClick={() => setWizard(null)} aria-label="סגור" className="text-gray-400 hover:text-gray-600">
                   <X size={20} />
@@ -734,11 +742,11 @@ export default function AutomationsPage() {
                     autoComplete="off"
                     value={wizard.editedMessage}
                     onChange={(e) => setWizard({ ...wizard, editedMessage: e.target.value })}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none"
                   />
                 </div>
-                <div className="bg-violet-50 rounded-xl p-3 text-xs text-violet-700 leading-relaxed">
-                  💡 לחיצה על "פתח ב-WhatsApp" תפתח טאב עם השיחה. שלח שם, וחזור לכאן ולחץ על "הבא". כל הודעה נשלחת בנפרד כדי לא לעורר חסימת דפדפן.
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-600 leading-relaxed">
+                  💡 לחיצה על &quot;פתח ב-WhatsApp&quot; תפתח טאב עם השיחה. שלח שם, וחזור לכאן ולחץ על &quot;הבא&quot;. כל הודעה נשלחת בנפרד כדי לא לעורר חסימת דפדפן.
                 </div>
               </div>
 
@@ -746,7 +754,7 @@ export default function AutomationsPage() {
               <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 space-y-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 <button
                   onClick={wizardSendAndAdvance}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition-colors"
                 >
                   <MessageSquare size={16} />
                   פתח ב-WhatsApp ועבור להבא
@@ -787,7 +795,7 @@ export default function AutomationsPage() {
 
             <div className="p-5 space-y-5 overflow-y-auto flex-1">
               {/* Variables help */}
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-xs text-gray-700 space-y-1">
                 <p className="font-semibold">💡 משתנים זמינים בתבניות (יוחלפו אוטומטית בכל לקוח):</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 mt-1.5 font-mono text-[11px]">
                   <span><code className="bg-white px-1 rounded">{"{name}"}</code> — שם לקוח</span>
@@ -828,7 +836,7 @@ export default function AutomationsPage() {
                       autoComplete="off"
                       value={templates[type]}
                       onChange={(e) => setTemplates(p => ({ ...p, [type]: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none font-normal"
+                      className="w-full border border-gray-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none font-normal"
                     />
                   </div>
                 );
@@ -836,10 +844,10 @@ export default function AutomationsPage() {
             </div>
 
             <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 flex gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              <button onClick={() => setShowTemplates(false)} className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+              <button onClick={() => setShowTemplates(false)} className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
                 ביטול
               </button>
-              <button onClick={saveAllTemplates} className="flex-[2] py-3 rounded-2xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold">
+              <button onClick={saveAllTemplates} className="flex-[2] py-3 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-bold transition-colors">
                 שמור תבניות
               </button>
             </div>
@@ -916,7 +924,7 @@ function ActionRow({ action, onSend, onDismiss }: { action: ActionItem; onSend: 
   }
 
   return (
-    <div className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3 shadow-sm">
+    <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between gap-3 border border-gray-100">
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-gray-900 text-sm truncate">{action.customerName}</p>
         <p className="text-xs text-gray-500 mt-0.5 truncate">{subtitle}</p>
@@ -925,7 +933,11 @@ function ActionRow({ action, onSend, onDismiss }: { action: ActionItem; onSend: 
         <button
           onClick={onSend}
           disabled={!hasPhone}
-          className={`flex items-center gap-1 text-white text-xs font-semibold px-3 py-1.5 rounded-lg ${hasPhone ? "bg-green-500 hover:bg-green-600" : "bg-gray-300 cursor-not-allowed"}`}
+          className={`flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+            hasPhone
+              ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+          }`}
         >
           <MessageSquare size={12} />
           {hasPhone ? "שלח" : "אין טלפון"}
@@ -933,7 +945,7 @@ function ActionRow({ action, onSend, onDismiss }: { action: ActionItem; onSend: 
         <button
           onClick={onDismiss}
           title="התעלם להיום"
-          className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:bg-gray-50"
+          className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
         >
           <X size={14} />
         </button>
