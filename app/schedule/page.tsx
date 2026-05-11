@@ -1235,32 +1235,39 @@ function SchedulePageInner() {
     const customers = custRes.data ?? [];
     const addrById = new Map<string, string>();
     const addrByName = new Map<string, string>();
-    // Phone lookups — keyed by id AND by name so legacy jobs without a
-    // customer_id still get the actions inline on the card.
+    // Phone lookups — keyed by id AND by NORMALISED name. The old code
+    // required exact string equality on the name, which broke whenever
+    // a job was booked with a stray space, different casing, or extra
+    // whitespace vs the customers row. Normalising both sides means
+    // "נטלי " in jobs.customer_name still matches "נטלי" in customers.name.
     const phoneById = new Map<string, string>();
     const phoneByName = new Map<string, string>();
+    const normName = (s: string | null | undefined) =>
+      (s || "").trim().toLowerCase().replace(/\s+/g, " ");
     for (const c of customers) {
       const full = [c.address, c.city].filter(Boolean).join(", ");
+      const nName = normName(c.name);
       if (full) {
         if (c.id) addrById.set(String(c.id), full);
-        if (c.name) addrByName.set(String(c.name), full);
+        if (nName) addrByName.set(nName, full);
       }
       if (c.phone) {
         if (c.id) phoneById.set(String(c.id), String(c.phone));
-        if (c.name) phoneByName.set(String(c.name), String(c.phone));
+        if (nName) phoneByName.set(nName, String(c.phone));
       }
     }
 
     if (jobsRes.data) {
       const mapped = jobsRes.data.map(row => {
         const stored = (row.address ?? "").trim();
+        const nName = normName(row.customer_name);
         const fallback =
           (row.customer_id && addrById.get(String(row.customer_id))) ||
-          (row.customer_name && addrByName.get(String(row.customer_name))) ||
+          (nName && addrByName.get(nName)) ||
           "";
         const phone =
           (row.customer_id && phoneById.get(String(row.customer_id))) ||
-          (row.customer_name && phoneByName.get(String(row.customer_name))) ||
+          (nName && phoneByName.get(nName)) ||
           "";
         return {
           id: row.id, customerId: row.customer_id ?? null,
