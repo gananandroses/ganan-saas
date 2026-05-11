@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Calendar, User as UserIcon, Phone, MapPin, Copy, Eye, FileBox, X,
+  Loader2, ChevronRight, Printer, MessageSquare, CheckCircle2, XCircle, Trash2, Edit3, Phone, MapPin, Copy, Eye, FileBox, X, MoreHorizontal, AlertTriangle, KeyRound, Share2, Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -74,11 +74,11 @@ interface PaymentSettings {
   quoteDefaultFooter: string;
 }
 
-const STATUS_CONFIG: Record<QuoteData["status"], { label: string; bg: string; text: string }> = {
-  draft:    { label: "טיוטה",  bg: "bg-purple-100", text: "text-purple-800" },
-  sent:     { label: "נשלחה ללקוח",  bg: "bg-blue-100",   text: "text-blue-800" },
-  accepted: { label: "אושרה",  bg: "bg-green-100",  text: "text-green-800" },
-  rejected: { label: "נדחתה",  bg: "bg-red-100",    text: "text-red-800" },
+const STATUS_CONFIG: Record<QuoteData["status"], { label: string; bg: string; text: string; dot: string }> = {
+  draft:    { label: "טיוטה",        bg: "bg-purple-50",  text: "text-purple-700",  dot: "bg-purple-400" },
+  sent:     { label: "נשלחה ללקוח",  bg: "bg-blue-50",    text: "text-blue-700",    dot: "bg-blue-400" },
+  accepted: { label: "אושרה",        bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  rejected: { label: "נדחתה",        bg: "bg-red-50",     text: "text-red-700",     dot: "bg-red-400" },
 };
 
 function fmt(n: number) {
@@ -105,6 +105,15 @@ export default function QuoteViewPage() {
   });
   const [updating, setUpdating] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close overflow menu on any outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onClick() { setMenuOpen(false); }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!id) return;
@@ -430,8 +439,20 @@ export default function QuoteViewPage() {
     return { ...i, finalPrice, lineTotal: finalPrice * i.qty };
   });
 
+  const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
+  const discountValue = quote.discount_amount && quote.discount_amount > 0
+    ? (quote.discount_type === "percent"
+        ? Math.round((subRaw * (quote.discount_amount || 0)) / 100)
+        : Math.round(quote.discount_amount || 0))
+    : 0;
+
+  const isLocked = !!(quote.pin_locked_until && new Date(quote.pin_locked_until) > new Date() && !quote.signed_at);
+  const showActivity = !!(quote.view_count || quote.signed_at || quote.project_id);
+  const hasDeposit = (quote.deposit_amount ?? 0) > 0;
+  const showPinPanel = quote.pin_code && !quote.signed_at;
+
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 print:bg-white">
+    <div dir="rtl" className="min-h-screen bg-[#F7F8FA] print:bg-white">
       <style jsx global>{`
         @media print {
           @page { size: A4; margin: 1.5cm; }
@@ -440,400 +461,446 @@ export default function QuoteViewPage() {
         }
       `}</style>
 
-      {/* Top action bar (hidden in print) */}
-      <div className="no-print sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button onClick={() => router.push("/quote")} className="w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50">
-              <ChevronRight size={18} className="text-gray-500" />
+      {/* ── Sticky toolbar — clean, 1 primary action + ⋯ menu ── */}
+      <header className="no-print sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-100">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={() => router.push("/quote")}
+              className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0">
+              <ChevronRight size={18} />
             </button>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}>
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full ${status.bg} ${status.text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
               {status.label}
             </span>
+            {quote.quote_number && (
+              <span className="hidden sm:inline text-[11px] font-mono font-bold text-gray-400 tabular-nums">#{quote.quote_number}</span>
+            )}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => router.push(`/quote/${quote.id}/edit`)}
-              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold px-3 py-2 rounded-lg">
-              <Edit3 size={13} /> ערוך
-            </button>
-            <button onClick={handleDuplicate}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-2 rounded-lg" title="שכפול">
-              <Copy size={13} /> שכפל
-            </button>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
             {quote.public_token && (
               <button onClick={copyPublicLink}
-                className="flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-2 rounded-lg" title="העתק קישור ציבורי">
-                <Copy size={13} /> קישור
+                className="flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 transition-colors"
+                title="שתף עם הלקוח"
+              >
+                <Share2 size={13} /> <span className="hidden sm:inline">שתף</span>
               </button>
             )}
-            <button onClick={sendWhatsApp}
-              className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-lg">
-              <MessageSquare size={13} /> שלח
+            <button onClick={() => router.push(`/quote/${quote.id}/edit`)}
+              className="flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+            >
+              <Edit3 size={13} /> ערוך
             </button>
-            <button onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-gray-700 hover:bg-gray-800 text-white text-xs font-semibold px-3 py-2 rounded-lg">
-              <Printer size={13} /> הדפס
-            </button>
-            <button onClick={handleDelete} aria-label="מחק הצעה"
-              className="hit-44 w-8 h-8 flex items-center justify-center border border-red-200 text-red-400 hover:bg-red-50 rounded-lg">
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Payment status panel */}
-      {(quote.deposit_amount ?? 0) > 0 && (
-        <div className="no-print bg-white border-b border-gray-200 px-4 py-3">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl">💰</div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">מקדמה ({quote.deposit_percent || 50}%)</p>
-                <p className="text-lg font-black text-gray-900">{fmt(quote.deposit_amount || 0)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {quote.payment_status === "unpaid" && (
-                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-gray-100 text-gray-600">⏳ ממתין לתשלום</span>
-              )}
-              {quote.payment_status === "pending_verification" && (
-                <>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700">
-                    🔔 הלקוח סימן ששילם · אמת בבנק
-                  </span>
-                  <button onClick={verifyPayment}
-                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
-                    ✓ אמת תשלום
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
+                className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 transition-colors"
+                title="עוד"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {menuOpen && (
+                <div onClick={(e) => e.stopPropagation()}
+                  className="absolute left-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-10"
+                >
+                  {quote.customer_phone && (
+                    <button onClick={() => { setMenuOpen(false); sendWhatsApp(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-right">
+                      <MessageSquare size={13} /> שלח ב-WhatsApp
+                    </button>
+                  )}
+                  <button onClick={() => { setMenuOpen(false); handleDuplicate(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-right">
+                    <Copy size={13} /> שכפל
                   </button>
-                </>
-              )}
-              {quote.payment_status === "deposit_paid" && (
-                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-100 text-green-700">✅ מקדמה שולמה</span>
-              )}
-              {quote.payment_status === "fully_paid" && (
-                <span className="text-xs font-bold px-3 py-1.5 rounded-full bg-green-200 text-green-800">✅ שולם במלואו</span>
-              )}
-            </div>
-          </div>
-          {quote.payment_method && quote.payment_marked_at && (
-            <div className="max-w-3xl mx-auto mt-3 space-y-2">
-              <p className="text-[11px] text-gray-500">
-                שיטת תשלום: {quote.payment_method === "bit" ? "💸 Bit" : quote.payment_method === "paybox" ? "📱 PayBox" : quote.payment_method === "bank" ? "🏦 העברה בנקאית" : quote.payment_method === "meshulam" ? "💳 משולם" : quote.payment_method}
-                · סומן בתאריך {formatDate(quote.payment_marked_at)}
-                {quote.payment_verified_at && ` · אומת בתאריך ${formatDate(quote.payment_verified_at)}`}
-              </p>
-
-              {/* Payment proof */}
-              {(quote.payment_reference || quote.payment_proof_url) && quote.payment_status === "pending_verification" && (
-                <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3 space-y-2">
-                  <p className="text-xs font-bold text-amber-900">📋 הוכחת תשלום מהלקוח</p>
-                  {quote.payment_reference && (
-                    <div className="bg-white rounded-lg px-3 py-2">
-                      <span className="text-[11px] text-gray-500">מספר אסמכתא:</span>
-                      <p className="font-mono font-bold text-gray-900 text-sm">{quote.payment_reference}</p>
-                    </div>
-                  )}
-                  {quote.payment_proof_url && (
-                    <div>
-                      <p className="text-[11px] text-gray-500 mb-1">צילום מסך:</p>
-                      <a href={quote.payment_proof_url} target="_blank" rel="noreferrer" className="block">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={quote.payment_proof_url} alt="הוכחת תשלום" className="w-full max-h-64 object-contain rounded-lg border border-amber-200 bg-white cursor-pointer hover:opacity-90" />
-                      </a>
-                      <p className="text-[10px] text-gray-400 mt-1">לחץ על התמונה לצפייה בגדול</p>
-                    </div>
-                  )}
-                  <p className="text-[11px] text-amber-700 leading-relaxed">
-                    ⓘ ודא בבנק / Bit שלך שהתשלום אכן נכנס ואז לחץ <strong>&quot;אמת תשלום&quot;</strong>. עם האימות — ההצעה תאושר ויווצר פרויקט.
-                  </p>
+                  <button onClick={() => { setMenuOpen(false); handlePrint(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-right">
+                    <Printer size={13} /> הדפס / PDF
+                  </button>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button onClick={() => { setMenuOpen(false); handleDelete(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 text-right">
+                    <Trash2 size={13} /> מחק הצעה
+                  </button>
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
-      )}
+      </header>
 
-      {/* PIN security panel — visible only to seller */}
-      {quote.pin_code && !quote.signed_at && (
-        <div className="no-print bg-gradient-to-l from-amber-50 to-yellow-50 border-b border-amber-200 px-4 py-4">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p className="text-xs font-bold text-amber-900 mb-1">🔐 קוד אישור — שלח ללקוח בנפרד</p>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  {quote.pin_code.split("").map((digit, idx) => (
-                    <div key={idx} className="w-12 h-14 bg-white border-2 border-amber-300 rounded-xl flex items-center justify-center shadow-sm">
-                      <span className="text-2xl font-black text-amber-700">{digit}</span>
-                    </div>
-                  ))}
-                </div>
+      <main className="max-w-3xl mx-auto px-4 py-4 sm:py-5 space-y-3 pb-12">
+
+        {/* ── Status decision prompt — only when sent and waiting for response ── */}
+        {quote.status === "sent" && !quote.signed_at && (
+          <div className="no-print bg-white rounded-2xl border border-gray-100 p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                <Clock size={15} className="text-blue-500" />
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {quote.customer_phone && (
-                  <button onClick={sendPinViaWhatsApp}
-                    className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-sm">
-                    <MessageSquare size={13} /> שלח קוד ב-WhatsApp
-                  </button>
-                )}
-                <button onClick={copyPin}
-                  className="flex items-center gap-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-2 rounded-lg">
-                  <Copy size={13} /> העתק
-                </button>
-                <button onClick={regeneratePin}
-                  className="flex items-center gap-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-2 rounded-lg">
-                  🔄 קוד חדש
-                </button>
-              </div>
+              <p className="text-sm font-semibold text-gray-700">ממתין לתשובת הלקוח</p>
             </div>
-            <p className="text-[11px] text-amber-700 mt-2 leading-relaxed">
-              ⓘ <strong>חשוב:</strong> שלח את הקוד בהודעה <strong>נפרדת</strong> מהקישור — לאבטחה מקסימלית. הקוד יפוג לאחר חתימה מוצלחת.
-              {(quote.pin_attempts ?? 0) > 0 && ` · ${quote.pin_attempts} ניסיונות שגויים נרשמו.`}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* PIN locked indicator */}
-      {quote.pin_locked_until && new Date(quote.pin_locked_until) > new Date() && !quote.signed_at && (
-        <div className="no-print bg-red-50 border-b border-red-200 px-4 py-3">
-          <div className="max-w-3xl mx-auto">
-            <p className="text-sm text-red-800 font-semibold">
-              🔒 הקוד ננעל עקב 3 ניסיונות שגויים. נסה שוב לאחר {new Date(quote.pin_locked_until).toLocaleTimeString("he-IL")}.
-              לחץ &quot;קוד חדש&quot; כדי לפתוח מחדש.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Activity tracking bar */}
-      {(quote.view_count || quote.signed_at || quote.project_id) && (
-        <div className="no-print bg-violet-50 border-b border-violet-100 px-4 py-2.5">
-          <div className="max-w-3xl mx-auto flex items-center gap-4 text-xs text-violet-800 flex-wrap">
-            {(quote.view_count || 0) > 0 && (
-              <span className="flex items-center gap-1"><Eye size={12} /> נצפה {quote.view_count} פעמים</span>
-            )}
-            {quote.signed_at && (
-              <span className="flex items-center gap-1 font-semibold">
-                ✍️ נחתם ע״י {quote.signed_by_name} · {formatDate(quote.signed_at)}
-              </span>
-            )}
-            {quote.project_id && (
-              <button onClick={() => router.push("/projects")}
-                className="flex items-center gap-1 text-violet-700 hover:text-violet-900 font-semibold underline">
-                <FileBox size={12} /> נוצר פרויקט מההצעה — צפה
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Status update bar (only for sent quotes) */}
-      {quote.status === "sent" && (
-        <div className="no-print bg-blue-50 border-b border-blue-100 px-4 py-2.5">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-sm text-blue-800 font-semibold">📨 ההצעה נשלחה. מה ענה הלקוח?</span>
             <div className="flex gap-2">
               <button onClick={() => updateStatus("accepted")} disabled={updating}
-                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                className="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-100 transition-colors">
                 <CheckCircle2 size={13} /> אושר
               </button>
               <button onClick={() => updateStatus("rejected")} disabled={updating}
-                className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-red-100 transition-colors">
                 <XCircle size={13} /> נדחה
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Main quote document */}
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden print:shadow-none print:border-0 print:rounded-none">
+        {/* ── PIN locked warning — top of stack so it's seen ── */}
+        {isLocked && (
+          <div className="no-print bg-red-50 border border-red-100 rounded-2xl p-4 flex items-start gap-3">
+            <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-red-700">הקוד ננעל</p>
+              <p className="text-xs text-red-600 mt-1">
+                ננעל אחרי 3 ניסיונות שגויים. נסה שוב לאחר {new Date(quote.pin_locked_until!).toLocaleTimeString("he-IL")}, או צור קוד חדש.
+              </p>
+              <button onClick={regeneratePin}
+                className="mt-2 text-xs font-bold text-red-700 hover:text-red-900 underline">
+                צור קוד חדש →
+              </button>
+            </div>
+          </div>
+        )}
 
-          {/* Hero header with gradient */}
-          <div className="bg-gradient-to-l from-emerald-600 via-green-600 to-teal-600 text-white px-8 py-8 print:bg-green-700">
-            <div className="flex items-start justify-between gap-6 flex-wrap">
-              <div className="flex items-center gap-4">
-                {settings.logoUrl ? (
-                  <div className="w-16 h-16 rounded-2xl bg-white p-2 flex items-center justify-center shadow-lg flex-shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={settings.logoUrl} alt="לוגו" className="w-full h-full object-contain" />
-                  </div>
-                ) : (
-                  <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur flex items-center justify-center text-3xl flex-shrink-0">
-                    🌿
-                  </div>
-                )}
+        {/* ── PIN panel — quiet card, not amber gradient ── */}
+        {showPinPanel && (
+          <div className="no-print bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <KeyRound size={14} className="text-amber-500" />
+                </div>
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-green-100 font-semibold">{settings.businessName || "העסק שלי"}</p>
-                  <h1 className="text-2xl sm:text-3xl font-black mt-1">{settings.quoteTitleLabel || "הצעת מחיר"}</h1>
-                  {settings.ownerName && <p className="text-sm text-green-50 mt-0.5">{settings.ownerName}</p>}
+                  <p className="text-sm font-bold text-gray-900">קוד אישור</p>
+                  <p className="text-[11px] text-gray-400">שלח ללקוח בנפרד מהקישור</p>
                 </div>
               </div>
+              {(quote.pin_attempts ?? 0) > 0 && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5">
+                  {quote.pin_attempts} ניסיונות
+                </span>
+              )}
+            </div>
+            <div className="px-4 py-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                {quote.pin_code!.split("").map((digit, idx) => (
+                  <div key={idx} className="w-10 h-12 sm:w-11 sm:h-13 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-center">
+                    <span className="text-xl sm:text-2xl font-black text-gray-900 tabular-nums">{digit}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {quote.customer_phone && (
+                  <button onClick={sendPinViaWhatsApp}
+                    title="שלח קוד ב-WhatsApp"
+                    className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors">
+                    <MessageSquare size={13} /> שלח
+                  </button>
+                )}
+                <button onClick={copyPin}
+                  title="העתק קוד"
+                  className="flex items-center gap-1 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-xl border border-gray-200 transition-colors">
+                  <Copy size={13} /> העתק
+                </button>
+                <button onClick={regeneratePin}
+                  title="צור קוד חדש"
+                  className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200 transition-colors">
+                  🔄
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Payment / deposit panel ── */}
+        {hasDeposit && (
+          <div className="no-print bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 text-base">💰</div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-900 leading-tight">
+                    מקדמה <span className="text-gray-400 font-medium">· {quote.deposit_percent || 50}%</span>
+                  </p>
+                  <p className="text-base font-black text-gray-900 tabular-nums">{fmt(quote.deposit_amount || 0)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {quote.payment_status === "unpaid" && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-50 text-gray-600 border border-gray-100">
+                    <Clock size={11} /> ממתין לתשלום
+                  </span>
+                )}
+                {quote.payment_status === "pending_verification" && (
+                  <>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                      🔔 הלקוח סימן ששילם
+                    </span>
+                    <button onClick={verifyPayment}
+                      className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors">
+                      <CheckCircle2 size={12} /> אמת
+                    </button>
+                  </>
+                )}
+                {quote.payment_status === "deposit_paid" && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    <CheckCircle2 size={11} /> מקדמה שולמה
+                  </span>
+                )}
+                {quote.payment_status === "fully_paid" && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                    <CheckCircle2 size={11} /> שולם במלואו
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {quote.payment_method && quote.payment_marked_at && (
+              <div className="px-4 py-3 text-[11px] text-gray-500 leading-relaxed">
+                שיטה: {quote.payment_method === "bit" ? "💸 Bit" : quote.payment_method === "paybox" ? "📱 PayBox" : quote.payment_method === "bank" ? "🏦 העברה בנקאית" : quote.payment_method === "meshulam" ? "💳 משולם" : quote.payment_method}
+                <span className="text-gray-400"> · סומן {formatDate(quote.payment_marked_at)}</span>
+                {quote.payment_verified_at && <span className="text-gray-400"> · אומת {formatDate(quote.payment_verified_at)}</span>}
+              </div>
+            )}
+
+            {(quote.payment_reference || quote.payment_proof_url) && quote.payment_status === "pending_verification" && (
+              <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+                <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">הוכחת תשלום</p>
+                {quote.payment_reference && (
+                  <div className="bg-gray-50 rounded-xl px-3 py-2">
+                    <p className="text-[10px] text-gray-400 uppercase">אסמכתא</p>
+                    <p className="font-mono font-bold text-gray-900 text-sm tabular-nums">{quote.payment_reference}</p>
+                  </div>
+                )}
+                {quote.payment_proof_url && (
+                  <div>
+                    <p className="text-[10px] text-gray-400 uppercase mb-1">צילום מסך</p>
+                    <a href={quote.payment_proof_url} target="_blank" rel="noreferrer" className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={quote.payment_proof_url} alt="הוכחת תשלום" className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 cursor-pointer hover:opacity-90 transition-opacity" />
+                    </a>
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  ⓘ ודא בבנק/Bit שלך שהתשלום נכנס ואז לחץ <strong>אמת</strong>. עם האימות — ההצעה תאושר ויווצר פרויקט.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Activity strip — subtle, single row ── */}
+        {showActivity && (
+          <div className="no-print bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-4 text-xs text-gray-600 flex-wrap">
+            {(quote.view_count || 0) > 0 && (
+              <span className="flex items-center gap-1.5 font-medium">
+                <Eye size={12} className="text-gray-400" />
+                <span>נצפה <span className="font-bold tabular-nums">{quote.view_count}</span> פעמים</span>
+              </span>
+            )}
+            {quote.signed_at && (
+              <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
+                <CheckCircle2 size={12} />
+                נחתם ע״י {quote.signed_by_name} · {formatDate(quote.signed_at)}
+              </span>
+            )}
+            {quote.project_id && (
+              <button onClick={() => router.push("/projects")}
+                className="flex items-center gap-1.5 text-gray-700 hover:text-gray-900 font-semibold mr-auto">
+                <FileBox size={12} className="text-gray-400" />
+                נוצר פרויקט מההצעה →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── The quote document — same restraint as /q/[token] ── */}
+        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden print:rounded-none print:border-0 print:shadow-none">
+
+          {/* Hero — quiet emerald-to-white gradient */}
+          <div className="relative bg-gradient-to-bl from-emerald-50 via-white to-white px-6 sm:px-8 pt-7 pb-6 border-b border-gray-100 print:bg-white">
+            <div className="flex items-start gap-4">
+              {settings.logoUrl ? (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white p-2 flex items-center justify-center border border-gray-100 shadow-sm flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={settings.logoUrl} alt="לוגו" className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                  🌿
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-700 font-bold">
+                  {settings.quoteTitleLabel || "הצעת מחיר"}
+                </p>
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 mt-0.5 leading-tight">
+                  {settings.businessName || "העסק שלי"}
+                </h1>
+                {settings.ownerName && (
+                  <p className="text-sm text-gray-500 mt-0.5">{settings.ownerName}</p>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">פרויקט</p>
+                <h2 className="text-lg sm:text-xl font-black text-gray-900 mt-1 leading-snug">{quote.title}</h2>
+              </div>
               <div className="text-left">
-                <p className="text-xs text-green-100 uppercase tracking-wider">מספר הצעה</p>
-                <p className="text-lg font-bold">{quote.quote_number ? `#${quote.quote_number}` : `#${quote.id.slice(0, 8).toUpperCase()}`}</p>
-                <p className="text-xs text-green-100 mt-2">תאריך: {formatDate(quote.created_at)}</p>
-                {quote.valid_until && <p className="text-xs text-green-100">תקף עד: {formatDate(quote.valid_until)}</p>}
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">מספר</p>
+                <p className="text-sm font-mono font-black text-gray-700 tabular-nums">
+                  {quote.quote_number ? `#${quote.quote_number}` : `#${quote.id.slice(0, 8).toUpperCase()}`}
+                </p>
+                <p className="text-[11px] text-gray-400 mt-1 tabular-nums">{formatDate(quote.created_at)}</p>
+                {quote.valid_until && <p className="text-[11px] text-gray-400 tabular-nums">תקף עד {formatDate(quote.valid_until)}</p>}
               </div>
             </div>
           </div>
 
-          {/* Customer + business contact info */}
+          {/* Customer / business contact strip */}
           <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x sm:divide-x-reverse divide-gray-100">
-            <div className="p-5">
+            <div className="p-5 sm:p-6">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">עבור</p>
-              <p className="text-lg font-bold text-gray-900 mt-1">{quote.customer_name}</p>
+              <p className="text-base font-bold text-gray-900 mt-1">{quote.customer_name}</p>
               {quote.customer_phone && (
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                  <Phone size={12} /> {quote.customer_phone}
-                </p>
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5"><Phone size={11} /> <span dir="ltr">{quote.customer_phone}</span></p>
               )}
               {quote.customer_address && (
-                <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
-                  <MapPin size={12} /> {quote.customer_address}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5"><MapPin size={11} /> {quote.customer_address}</p>
               )}
             </div>
-            <div className="p-5 sm:text-left">
+            <div className="p-5 sm:p-6 sm:text-left">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">מאת</p>
-              <p className="text-lg font-bold text-gray-900 mt-1">{settings.businessName || "העסק שלי"}</p>
+              <p className="text-base font-bold text-gray-900 mt-1">{settings.businessName || "העסק שלי"}</p>
               {settings.phone && (
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1 sm:justify-end">
-                  <Phone size={12} /> {settings.phone}
-                </p>
+                <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1.5 sm:justify-end"><Phone size={11} /> <span dir="ltr">{settings.phone}</span></p>
               )}
               {settings.city && (
-                <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1 sm:justify-end">
-                  <MapPin size={12} /> {settings.city}
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 sm:justify-end"><MapPin size={11} /> {settings.city}</p>
               )}
             </div>
           </div>
 
-          {/* Quote title */}
-          <div className="px-8 py-5 bg-gradient-to-l from-amber-50 to-orange-50 border-y border-amber-100">
-            <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold">פרויקט</p>
-            <h2 className="text-xl font-bold text-gray-900 mt-1">{quote.title}</h2>
-          </div>
-
-          {/* Intro text from template */}
+          {/* Intro */}
           {settings.quoteIntroText && (
-            <div className="px-8 py-4 bg-white border-b border-gray-100">
+            <div className="px-6 sm:px-8 py-4 border-t border-gray-100 bg-gray-50/60">
               <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{settings.quoteIntroText}</p>
             </div>
           )}
 
-          {/* Items table */}
-          <div className="px-5 sm:px-8 py-6">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-10">#</th>
-                    <th className="text-right py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">פריט</th>
-                    <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-16">כמות</th>
-                    <th className="text-center py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-24">מחיר ליח׳</th>
-                    <th className="text-left py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-28">סה״כ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {itemsWithCalc.map((i, idx) => (
-                    <tr key={idx}>
-                      <td className="py-3.5 text-sm font-bold text-gray-400 align-top w-10">{idx + 1}</td>
-                      <td className="py-3.5">
-                        <p className="text-sm font-semibold text-gray-900">{i.name}</p>
-                        {i.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{i.description}</p>}
-                        <p className="text-xs text-gray-400 mt-0.5">{i.unit}</p>
-                      </td>
-                      <td className="text-center py-3.5 text-sm font-medium text-gray-700 align-top">{i.qty}</td>
-                      <td className="text-center py-3.5 text-sm text-gray-700 align-top">{fmt(i.finalPrice)}</td>
-                      <td className="text-left py-3.5 text-sm font-bold text-gray-900 align-top">{fmt(i.lineTotal)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Items as cards */}
+          <div className="px-5 sm:px-8 py-6 border-t border-gray-100">
+            <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-3">פריטים</p>
+            <div className="space-y-2">
+              {itemsWithCalc.map((i, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 sm:p-4 rounded-2xl border border-gray-100 bg-white">
+                  <span className="w-7 h-7 rounded-xl bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-400 flex-shrink-0 tabular-nums">
+                    {idx + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 leading-tight">{i.name}</p>
+                    {i.description && (
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{i.description}</p>
+                    )}
+                    <p className="text-[11px] text-gray-400 mt-1.5 tabular-nums">
+                      {i.qty} × {fmt(i.finalPrice)}
+                      {i.unit && <span className="text-gray-400"> · {i.unit}</span>}
+                    </p>
+                  </div>
+                  <div className="text-left flex-shrink-0">
+                    <p className="text-base font-black text-gray-900 tabular-nums">{fmt(i.lineTotal)}</p>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
 
-            {/* Totals */}
-            <div className="mt-6 flex justify-end">
-              <div className="w-full sm:w-80 bg-gray-50 rounded-2xl p-4 space-y-2">
-                {(quote.discount_amount ?? 0) > 0 && (() => {
-                  const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
-                  const disc = quote.discount_type === "percent"
-                    ? Math.round((subRaw * (quote.discount_amount || 0)) / 100)
-                    : Math.round(quote.discount_amount || 0);
-                  return (
-                    <>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">סכום פריטים</span>
-                        <span className="text-gray-700">{fmt(subRaw)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-rose-600 font-semibold">
-                        <span>הנחה {quote.discount_type === "percent" ? `(${quote.discount_amount}%)` : ""}</span>
-                        <span>-{fmt(disc)}</span>
-                      </div>
-                    </>
-                  );
-                })()}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">סה״כ לפני מע״מ</span>
-                  <span className="font-bold text-gray-800">{fmt(quote.subtotal_before_vat)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">מע״מ (18%)</span>
-                  <span className="font-bold text-gray-800">{fmt(quote.vat_amount)}</span>
-                </div>
-                <div className="border-t-2 border-gray-200 pt-2 flex justify-between items-baseline">
-                  <span className="text-sm font-bold text-gray-900">סה״כ לתשלום</span>
-                  <span className="text-2xl font-black text-green-700">{fmt(quote.total_with_vat)}</span>
-                </div>
+          {/* Totals */}
+          <div className="px-5 sm:px-8 pb-6">
+            <div className="bg-gray-50 rounded-2xl p-5 space-y-2.5">
+              {discountValue > 0 && (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">סכום פריטים</span>
+                    <span className="text-gray-700 tabular-nums">{fmt(subRaw)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-rose-600 font-semibold">
+                    <span>הנחה {quote.discount_type === "percent" ? `(${quote.discount_amount}%)` : ""}</span>
+                    <span className="tabular-nums">−{fmt(discountValue)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">לפני מע״מ</span>
+                <span className="text-gray-700 tabular-nums">{fmt(quote.subtotal_before_vat)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">מע״מ (18%)</span>
+                <span className="text-gray-700 tabular-nums">{fmt(quote.vat_amount)}</span>
+              </div>
+              <div className="border-t border-gray-200 pt-3 mt-1 flex justify-between items-baseline">
+                <span className="text-sm font-semibold text-gray-600">סה״כ לתשלום</span>
+                <span className="text-3xl sm:text-4xl font-black text-gray-900 tabular-nums">{fmt(quote.total_with_vat)}</span>
               </div>
             </div>
           </div>
 
           {/* Notes */}
           {quote.notes && (
-            <div className="px-8 py-5 bg-amber-50/50 border-y border-amber-100">
-              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-1.5">הערות</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
+            <div className="px-6 sm:px-8 py-5 border-t border-gray-100 bg-amber-50/40">
+              <p className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-2">הערות</p>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{quote.notes}</p>
             </div>
           )}
 
           {/* Payment methods */}
           {(settings.bitPhone || settings.payboxPhone || settings.bankName) && (
-            <div className="px-8 py-5">
+            <div className="px-6 sm:px-8 py-5 border-t border-gray-100">
               <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">אמצעי תשלום</p>
-              <div className="space-y-1.5 text-sm text-gray-700">
+              <div className="flex flex-wrap gap-2">
                 {settings.bitPhone && (
-                  <p>💳 <span className="font-semibold">Bit:</span> {settings.bitPhone}</p>
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-100">
+                    💳 Bit · <span dir="ltr" className="font-mono">{settings.bitPhone}</span>
+                  </span>
                 )}
                 {settings.payboxPhone && (
-                  <p>📱 <span className="font-semibold">PayBox:</span> {settings.payboxPhone}</p>
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-100">
+                    📱 PayBox · <span dir="ltr" className="font-mono">{settings.payboxPhone}</span>
+                  </span>
                 )}
                 {(settings.bankName || settings.bankAccount) && (
-                  <p>🏦 <span className="font-semibold">העברה בנקאית:</span> {settings.bankName}
+                  <span className="inline-flex items-center gap-1.5 bg-gray-50 text-gray-700 text-xs px-3 py-1.5 rounded-xl border border-gray-100">
+                    🏦 {settings.bankName}
                     {settings.bankBranch ? ` · סניף ${settings.bankBranch}` : ""}
                     {settings.bankAccount ? ` · חשבון ${settings.bankAccount}` : ""}
-                  </p>
+                  </span>
                 )}
               </div>
             </div>
           )}
 
-          {/* Footer / signature line */}
-          <div className="px-8 py-6 bg-gray-50 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500 mb-3 whitespace-pre-wrap">
+          {/* Footer */}
+          <div className="px-6 sm:px-8 py-5 border-t border-gray-100 text-center">
+            <p className="text-[11px] text-gray-500 mb-2 whitespace-pre-wrap leading-relaxed">
               {settings.quoteDefaultFooter || `ההצעה תקפה ${quote.valid_until ? `עד ${formatDate(quote.valid_until)}` : "ל-30 ימים מהיום"}. חתימה על ההצעה מהווה אישור לביצוע העבודה.`}
             </p>
             {settings.businessName && (
-              <p className="text-sm font-bold text-gray-700">{settings.businessName}</p>
+              <p className="text-xs font-bold text-gray-700">{settings.businessName}</p>
             )}
             <p className="text-[10px] text-gray-400 mt-1">המחירים כוללים מע״מ · המסמך הופק במערכת mygananpro</p>
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Share Modal */}
       {showShareModal && quote.public_token && (
@@ -863,7 +930,7 @@ export default function QuoteViewPage() {
                     className="flex-1 border border-gray-200 bg-gray-50 rounded-xl px-3 py-2.5 text-xs font-mono text-gray-700 focus:outline-none"
                     onClick={(e) => (e.target as HTMLInputElement).select()} />
                   <button onClick={copyLinkOnly}
-                    className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 rounded-xl">
+                    className="flex items-center gap-1 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold px-3 rounded-xl transition-colors">
                     <Copy size={13} />העתק
                   </button>
                 </div>
