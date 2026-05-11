@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, Suspense } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
   Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw, ArrowRight,
+  MessageCircle,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -35,6 +36,7 @@ interface Job {
   id: string;
   customerId: string | null;
   customerName: string;
+  customerPhone?: string;   // pulled from customers table during fetchJobs
   address: string;
   date: string;
   time: string;
@@ -858,7 +860,12 @@ function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () 
                                   "bg-emerald-500";
   const isCompleted = job.status === "completed";
   const isCancelled = job.status === "cancelled";
-  const showActions = !isCompleted && !isCancelled && (job.address || true);
+  // The contact actions (Waze / call / WhatsApp) are always visible —
+  // gardener wants the customer's "contact card" inline on the row.
+  // The "סיים" action stays gated to active jobs (no point on completed
+  // ones). At least one of the actions is showable as long as we have a
+  // phone or address.
+  const hasContactActions = !!job.address || !!job.customerPhone;
 
   async function handleQuickComplete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -902,6 +909,22 @@ function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () 
     e.stopPropagation();
     if (!job.address) return;
     window.open(`https://waze.com/ul?q=${encodeURIComponent(job.address)}`, "_blank");
+  }
+
+  function handleCall(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!job.customerPhone) return;
+    window.location.href = `tel:${job.customerPhone}`;
+  }
+
+  function handleWhatsApp(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!job.customerPhone) return;
+    const cleaned = job.customerPhone.replace(/\D/g, "");
+    const intl = cleaned.startsWith("0") ? "972" + cleaned.slice(1)
+               : cleaned.startsWith("972") ? cleaned
+               : cleaned;
+    window.open(`https://api.whatsapp.com/send?phone=${intl}`, "_blank");
   }
 
   return (
@@ -959,25 +982,51 @@ function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () 
         </div>
       </div>
 
-      {/* Inline quick actions — only on active jobs */}
-      {showActions && (
+      {/* Inline quick actions — customer contact card style. Waze + Phone
+          + WhatsApp are always visible (even on completed/cancelled jobs)
+          because the gardener still wants to call/text them. "סיים" only
+          appears on active jobs since there's nothing to complete on a
+          finished one. */}
+      {(hasContactActions || (!isCompleted && !isCancelled)) && (
         <div className="flex items-stretch gap-px bg-gray-100 border-t border-gray-100">
           {job.address && (
             <button
               onClick={handleWaze}
+              title="נווט עם Waze"
               className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-blue-50 text-blue-600 text-xs font-semibold transition-colors"
             >
               <MapPin size={13} /> נווט
             </button>
           )}
-          <button
-            onClick={handleQuickComplete}
-            disabled={completing}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-600 text-xs font-semibold transition-colors disabled:opacity-60"
-          >
-            {completing ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-            סיים
-          </button>
+          {job.customerPhone && (
+            <button
+              onClick={handleCall}
+              title="התקשר"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors"
+            >
+              <Phone size={13} /> התקשר
+            </button>
+          )}
+          {job.customerPhone && (
+            <button
+              onClick={handleWhatsApp}
+              title="WhatsApp"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-600 text-xs font-semibold transition-colors"
+            >
+              <MessageCircle size={13} /> וואטסאפ
+            </button>
+          )}
+          {!isCompleted && !isCancelled && (
+            <button
+              onClick={handleQuickComplete}
+              disabled={completing}
+              title="סמן כהושלם"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold transition-colors disabled:opacity-60"
+            >
+              {completing ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+              סיים
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1063,7 +1112,7 @@ function SchedulePageInner() {
     // so we can spot orphan completed jobs that never created a transaction.
     const [jobsRes, custRes, txRes] = await Promise.all([
       supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time"),
-      supabase.from("customers").select("id, name, address, city").eq("user_id", user?.id),
+      supabase.from("customers").select("id, name, address, city, phone").eq("user_id", user?.id),
       supabase.from("transactions")
         .select("customer_name, type, description, transaction_date, amount")
         .eq("user_id", user?.id)
@@ -1072,11 +1121,20 @@ function SchedulePageInner() {
     const customers = custRes.data ?? [];
     const addrById = new Map<string, string>();
     const addrByName = new Map<string, string>();
+    // Phone lookups — keyed by id AND by name so legacy jobs without a
+    // customer_id still get the actions inline on the card.
+    const phoneById = new Map<string, string>();
+    const phoneByName = new Map<string, string>();
     for (const c of customers) {
       const full = [c.address, c.city].filter(Boolean).join(", ");
-      if (!full) continue;
-      if (c.id) addrById.set(String(c.id), full);
-      if (c.name) addrByName.set(String(c.name), full);
+      if (full) {
+        if (c.id) addrById.set(String(c.id), full);
+        if (c.name) addrByName.set(String(c.name), full);
+      }
+      if (c.phone) {
+        if (c.id) phoneById.set(String(c.id), String(c.phone));
+        if (c.name) phoneByName.set(String(c.name), String(c.phone));
+      }
     }
 
     if (jobsRes.data) {
@@ -1086,9 +1144,14 @@ function SchedulePageInner() {
           (row.customer_id && addrById.get(String(row.customer_id))) ||
           (row.customer_name && addrByName.get(String(row.customer_name))) ||
           "";
+        const phone =
+          (row.customer_id && phoneById.get(String(row.customer_id))) ||
+          (row.customer_name && phoneByName.get(String(row.customer_name))) ||
+          "";
         return {
           id: row.id, customerId: row.customer_id ?? null,
           customerName: row.customer_name ?? "",
+          customerPhone: phone || undefined,
           address: stored || fallback,
           date: row.job_date, time: (row.job_time ?? "00:00").slice(0, 5),
           duration: Number(row.duration), type: row.type ?? "",
