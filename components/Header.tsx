@@ -1,7 +1,7 @@
 "use client";
 import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar, Users, FileText, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { pendingMissedVisits } from "@/lib/missed-visits";
 import BackButton from "@/components/BackButton";
@@ -28,8 +28,10 @@ type SearchResult = SearchResultCustomer | SearchResultQuote | SearchResultJob;
 
 export default function Header({ title, subtitle, action, showBack = false }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);
+  const [notifTick, setNotifTick] = useState(0);
 
   // ── Global search ─────────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -167,6 +169,22 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       setNotifs(list);
     }
     load();
+    // Re-fetch whenever the route changes OR the tab regains focus. The
+    // bell used to only load once (empty dep array) — so completing a job
+    // on /schedule didn't refresh the Header still mounted on the layout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, notifTick]);
+
+  // Window focus / visibility-change → trigger a refresh tick.
+  useEffect(() => {
+    function bump() { setNotifTick(t => t + 1); }
+    function onVis() { if (document.visibilityState === "visible") bump(); }
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   const dismiss = (id: string) => setNotifs((prev) => prev.filter((n) => n.id !== id));

@@ -143,8 +143,12 @@ function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
       </div>
 
       {hasDebtors && (
+        // Show up to 3 names so a "+1" rollup doesn't hide a customer the
+        // gardener just finished today and is looking for. Truncates on
+        // mobile via the parent card's clipping; explicit on sm+ via
+        // truncate utility — better than dropping names silently.
         <p className="hidden sm:block text-xs text-gray-400 border-t border-gray-50 pt-2 truncate">
-          {items.slice(0, 2).map(i => i.name).join(" · ")}{items.length > 2 ? ` · +${items.length - 2}` : ""}
+          {items.slice(0, 3).map(i => i.name).join(" · ")}{items.length > 3 ? ` · +${items.length - 3}` : ""}
         </p>
       )}
       {!hasDebtors && (
