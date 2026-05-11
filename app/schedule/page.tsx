@@ -11,6 +11,7 @@ import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 import { getDefaultVatMode } from "@/lib/vat-settings";
 import { SkeletonList } from "@/components/Skeleton";
+import { completeJobAndCreateTransactions } from "@/lib/complete-job";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
 function holidayStyle(type: HolidayType) {
@@ -285,136 +286,28 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
   async function handleComplete() {
     setCompleting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
+    if (!user?.id) { setCompleting(false); return; }
 
-    // Detect whether this job belongs to a project (notes start with "פרויקט:")
-    const isProjectJob = job.notes?.startsWith("פרויקט:") ?? false;
+    // Single source of truth — same flow as the inline quick-complete on
+    // the JobListCard. See lib/complete-job.ts for the full story.
+    const result = await completeJobAndCreateTransactions(supabase, {
+      id: job.id,
+      customerId: job.customerId,
+      customerName: job.customerName,
+      type: job.type,
+      address: job.address,
+      date: job.date,
+      price: job.price,
+      priceBeforeVat: job.priceBeforeVat,
+      expenses: job.expenses,
+      notes: job.notes,
+    }, user.id);
 
-    if (!error && user?.id && !isProjectJob) {
-      // Standalone job — create income/expense transactions directly
-      const priceBefore = job.priceBeforeVat ? job.price : Math.round(job.price / 1.18);
-      const totalWithVat = Math.round(priceBefore * 1.18);
-      const vatAmount = totalWithVat - priceBefore;
-      const txDate = job.date || new Date().toISOString().split("T")[0];
-      await supabase.from("transactions").insert({
-        customer_id: job.customerId,
-        customer_name: job.customerName,
-        type: "income",
-        amount: totalWithVat,
-        vat_amount: vatAmount,
-        description: `${job.type || "עבודת גינון"}${job.address ? " · " + job.address : ""}`,
-        method: "cash",
-        status: "pending",
-        transaction_date: txDate,
-        user_id: user.id,
-      });
-      // Create expense transaction if expenses > 0
-      if (job.expenses && job.expenses > 0) {
-        await supabase.from("transactions").insert({
-          customer_id: job.customerId,
-          customer_name: job.customerName,
-          type: "expense",
-          amount: job.expenses,
-          vat_amount: 0,
-          description: `הוצאות עבודה: ${job.type || "עבודת גינון"}`,
-          method: "cash",
-          status: "paid",
-          transaction_date: txDate,
-          user_id: user.id,
-        });
-      }
-    }
-
-    // Project job — auto-complete the parent project once all its jobs are done.
-    // The project completion handler creates the income/expense transactions.
-    if (!error && user?.id && isProjectJob && job.notes) {
-      // Extract project name from notes: "פרויקט: <name>" or "פרויקט: <name> · X ימי עבודה"
-      const projectName = job.notes
-        .replace(/^פרויקט:\s*/, "")
-        .replace(/\s*·\s*\d+\s*ימי עבודה.*$/, "")
-        .trim();
-
-      if (projectName) {
-        // Find the matching project (must not already be completed)
-        const { data: projects } = await supabase
-          .from("projects")
-          .select("id, status, start_date, name, customer_name, budget, materials, labor_hours, hourly_rate, vat_included")
-          .eq("user_id", user.id)
-          .eq("name", projectName)
-          .neq("status", "completed")
-          .limit(1);
-
-        const project = projects?.[0];
-        if (project) {
-          // Check whether any sibling jobs of this project are still not completed
-          const { data: siblingJobs } = await supabase
-            .from("jobs")
-            .select("id, status")
-            .eq("user_id", user.id)
-            .like("notes", `פרויקט: ${projectName}%`);
-
-          const stillOpen = (siblingJobs ?? []).some(j => j.id !== job.id && j.status !== "completed" && j.status !== "cancelled");
-
-          if (!stillOpen) {
-            // Mark project as completed
-            await supabase.from("projects").update({ status: "completed", progress: 100 }).eq("id", project.id).eq("user_id", user.id);
-
-            // Recreate the financials calc inline (mirrors calcFinancials in /projects)
-            type RawMaterial = { quantity?: number; price?: number };
-            const materials = Array.isArray(project.materials) ? (project.materials as RawMaterial[]) : [];
-            const materialsCost = materials.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.price) || 0)), 0);
-            const laborCost = (Number(project.labor_hours) || 0) * (Number(project.hourly_rate) || 0);
-            const totalCost = materialsCost + laborCost;
-            const budget = Number(project.budget) || 0;
-            const budgetBeforeVat = project.vat_included ? Math.round(budget / 1.18) : budget;
-            const txDate = project.start_date || new Date().toISOString().split("T")[0];
-
-            // Income transaction (deduped by description)
-            if (budget > 0) {
-              const totalWithVat = Math.round(budgetBeforeVat * 1.18);
-              const vatAmount = totalWithVat - Math.round(budgetBeforeVat);
-              const incomeDesc = `פרויקט: ${project.name}`;
-              const { data: existingIncome } = await supabase.from("transactions")
-                .select("id").eq("user_id", user.id).eq("type", "income").eq("description", incomeDesc).limit(1);
-              if (!existingIncome || existingIncome.length === 0) {
-                await supabase.from("transactions").insert({
-                  user_id: user.id,
-                  customer_name: project.customer_name || "פרויקט",
-                  type: "income",
-                  amount: totalWithVat,
-                  vat_amount: vatAmount,
-                  description: incomeDesc,
-                  method: "cash",
-                  status: "pending",
-                  transaction_date: txDate,
-                });
-              }
-            }
-            // Expense transaction
-            if (totalCost > 0) {
-              const expenseDesc = `חומרים: ${project.name}`;
-              const { data: existingExpense } = await supabase.from("transactions")
-                .select("id").eq("user_id", user.id).eq("type", "expense").eq("description", expenseDesc).limit(1);
-              if (!existingExpense || existingExpense.length === 0) {
-                await supabase.from("transactions").insert({
-                  user_id: user.id,
-                  customer_name: project.customer_name || "פרויקט",
-                  type: "expense",
-                  amount: Math.round(totalCost),
-                  vat_amount: 0,
-                  description: expenseDesc,
-                  method: "cash",
-                  status: "paid",
-                  transaction_date: txDate,
-                });
-              }
-            }
-          }
-        }
-      }
-    }
     setCompleting(false);
-    if (!error) { onMarkCompleted(job.id); onClose(); }
+    if (result.ok) {
+      onMarkCompleted(job.id);
+      onClose();
+    }
   }
 
   async function handleDelete() {
@@ -972,34 +865,36 @@ function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () 
     if (completing) return;
     setCompleting(true);
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("jobs").update({ status: "completed" }).eq("id", job.id).eq("user_id", user?.id);
+    if (!user?.id) { setCompleting(false); toast.error("שגיאה בעדכון הסטטוס"); return; }
+
+    // Use the shared helper so we ALWAYS create the pending-income
+    // transaction (was the bug before: tapping "סיים" marked the job
+    // done but the customer never appeared under "חובות פתוחים").
+    const result = await completeJobAndCreateTransactions(supabase, {
+      id: job.id,
+      customerId: job.customerId,
+      customerName: job.customerName,
+      type: job.type,
+      address: job.address,
+      date: job.date,
+      price: job.price,
+      priceBeforeVat: job.priceBeforeVat,
+      expenses: job.expenses,
+      notes: job.notes,
+    }, user.id);
+
     setCompleting(false);
-    if (error) {
+    if (!result.ok) {
       toast.error("שגיאה בעדכון הסטטוס");
       return;
     }
     onMarkCompleted(job.id);
-    toast.success("העבודה סומנה כהושלמה");
-
-    // Auto-complete parent project if all sibling jobs are done
-    if (job.customerId) {
-      const { data: project } = await supabase
-        .from("projects")
-        .select("id, name")
-        .eq("user_id", user?.id)
-        .eq("customer_id", job.customerId)
-        .neq("status", "completed")
-        .maybeSingle();
-      if (project) {
-        const { data: siblings } = await supabase
-          .from("jobs")
-          .select("id, status")
-          .eq("project_id", project.id);
-        const stillOpen = (siblings ?? []).some(j => j.id !== job.id && j.status !== "completed" && j.status !== "cancelled");
-        if (!stillOpen) {
-          await supabase.from("projects").update({ status: "completed", progress: 100 }).eq("id", project.id).eq("user_id", user?.id);
-        }
-      }
+    if (result.closedProject) {
+      toast.success("העבודה הושלמה", "הפרויקט נסגר אוטומטית · נוצרה תנועת תשלום ממתינה");
+    } else if (result.createdIncomeTransaction) {
+      toast.success("העבודה הושלמה", "נוצרה תנועת תשלום ממתינה בפיננסים");
+    } else {
+      toast.success("העבודה סומנה כהושלמה");
     }
   }
 
