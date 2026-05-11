@@ -218,3 +218,97 @@ export async function completeJobAndCreateTransactions(
 
   return { ok: true, createdIncomeTransaction, closedProject };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Backfill: find historical completed jobs that never got a transaction.
+//
+// Before lib/complete-job.ts existed, the inline "סיים" button on the new
+// JobListCard just flipped status → no transaction was born. Users like
+// אריאל ended up with completed jobs (נטלי, עוזי) that aren't tracked in
+// /finance and don't show up under "חובות פתוחים".
+//
+// This helper takes the gardener's already-loaded jobs + transactions and
+// returns the orphans — completed standalone jobs whose customer + date +
+// price has no matching income transaction.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type CompletedJobLite = {
+  id: string;
+  customerId: string | null;
+  customerName: string;
+  date: string;
+  type: string;
+  address: string;
+  price: number;
+  priceBeforeVat: boolean;
+  notes?: string;
+  status: string;
+};
+
+export type TxLite = {
+  customer_name: string | null;
+  type: string;
+  description: string | null;
+  transaction_date: string | null;
+  amount: number | null;
+};
+
+/** Find completed standalone jobs that have no matching income transaction. */
+export function findOrphanCompletedJobs(
+  jobs: CompletedJobLite[],
+  transactions: TxLite[],
+): CompletedJobLite[] {
+  // Project jobs handle their own deferred-transaction lifecycle through
+  // the project closure path — don't try to backfill those.
+  const standalone = jobs.filter(
+    (j) => j.status === "completed" && !(j.notes ?? "").startsWith("פרויקט:"),
+  );
+
+  const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+
+  return standalone.filter((j) => {
+    // A "match" is any income transaction for the same customer on the same
+    // date. We don't require the description to match exactly because the
+    // description includes the address which may have been edited.
+    const matched = transactions.some(
+      (t) =>
+        t.type === "income" &&
+        norm(t.customer_name) === norm(j.customerName) &&
+        t.transaction_date === j.date,
+    );
+    return !matched;
+  });
+}
+
+/** Create the missing pending-income transactions for a batch of jobs. */
+export async function backfillCompletedJobTransactions(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: SupabaseClient<any, any, any>,
+  jobs: CompletedJobLite[],
+  userId: string,
+): Promise<{ created: number; failed: number }> {
+  let created = 0;
+  let failed = 0;
+
+  for (const j of jobs) {
+    const priceBefore = j.priceBeforeVat ? j.price : Math.round(j.price / VAT_RATE);
+    const totalWithVat = Math.round(priceBefore * VAT_RATE);
+    const vatAmount = totalWithVat - priceBefore;
+    const { error } = await supabase.from("transactions").insert({
+      user_id: userId,
+      customer_id: j.customerId,
+      customer_name: j.customerName,
+      type: "income",
+      amount: totalWithVat,
+      vat_amount: vatAmount,
+      description: `${j.type || "עבודת גינון"}${j.address ? " · " + j.address : ""}`,
+      method: "cash",
+      status: "pending",
+      transaction_date: j.date,
+    });
+    if (error) failed += 1;
+    else created += 1;
+  }
+
+  return { created, failed };
+}

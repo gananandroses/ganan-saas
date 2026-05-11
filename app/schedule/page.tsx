@@ -11,7 +11,7 @@ import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 import { getDefaultVatMode } from "@/lib/vat-settings";
 import { SkeletonList } from "@/components/Skeleton";
-import { completeJobAndCreateTransactions } from "@/lib/complete-job";
+import { completeJobAndCreateTransactions, findOrphanCompletedJobs, backfillCompletedJobTransactions, type CompletedJobLite } from "@/lib/complete-job";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
 function holidayStyle(type: HolidayType) {
@@ -1008,6 +1008,11 @@ function SchedulePageInner() {
   const [selectedISO, setSelectedISO] = useState(() => formatDateISO(new Date()));
   const [view, setView] = useState<"day" | "week" | "month">("day");
 
+  // Backfill state — completed jobs from before lib/complete-job.ts existed
+  // that never got a pending-income transaction. See findOrphanCompletedJobs.
+  const [orphans, setOrphans] = useState<CompletedJobLite[]>([]);
+  const [backfilling, setBackfilling] = useState(false);
+
   const today = useMemo(() => {
     const d = new Date(); d.setHours(0,0,0,0); return d;
   }, []);
@@ -1054,10 +1059,15 @@ function SchedulePageInner() {
     // Load jobs and customers in parallel — we use customer addresses as a
     // fallback when the job row itself has no address (e.g. recurring jobs
     // booked from the customers page where customer.address was empty at
-    // booking time but later filled in).
-    const [jobsRes, custRes] = await Promise.all([
+    // booking time but later filled in). We also fetch income transactions
+    // so we can spot orphan completed jobs that never created a transaction.
+    const [jobsRes, custRes, txRes] = await Promise.all([
       supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time"),
       supabase.from("customers").select("id, name, address, city").eq("user_id", user?.id),
+      supabase.from("transactions")
+        .select("customer_name, type, description, transaction_date, amount")
+        .eq("user_id", user?.id)
+        .eq("type", "income"),
     ]);
     const customers = custRes.data ?? [];
     const addrById = new Map<string, string>();
@@ -1070,7 +1080,7 @@ function SchedulePageInner() {
     }
 
     if (jobsRes.data) {
-      setJobs(jobsRes.data.map(row => {
+      const mapped = jobsRes.data.map(row => {
         const stored = (row.address ?? "").trim();
         const fallback =
           (row.customer_id && addrById.get(String(row.customer_id))) ||
@@ -1090,9 +1100,55 @@ function SchedulePageInner() {
           priority: (row.priority ?? "medium") as Priority,
           jobCategory: (row.job_category ?? "work") as JobCategory,
         };
-      }));
+      });
+      setJobs(mapped);
+
+      // Orphan detection — completed standalone jobs that never created a
+      // pending-income transaction. Limited to the last 90 days so we
+      // don't propose backfilling a project from 2024.
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const cutoffISO = ninetyDaysAgo.toISOString().split("T")[0];
+      const recentCompleted: CompletedJobLite[] = mapped
+        .filter(j => j.status === "completed" && j.date >= cutoffISO && j.price > 0)
+        .map(j => ({
+          id: j.id,
+          customerId: j.customerId,
+          customerName: j.customerName,
+          date: j.date,
+          type: j.type,
+          address: j.address,
+          price: j.price,
+          priceBeforeVat: j.priceBeforeVat,
+          notes: j.notes,
+          status: j.status,
+        }));
+      const found = findOrphanCompletedJobs(recentCompleted, txRes.data ?? []);
+      setOrphans(found);
     }
     setLoading(false);
+  }
+
+  async function handleBackfill() {
+    if (orphans.length === 0 || backfilling) return;
+    setBackfilling(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      setBackfilling(false);
+      toast.error("שגיאה — לא מחובר");
+      return;
+    }
+    const result = await backfillCompletedJobTransactions(supabase, orphans, user.id);
+    setBackfilling(false);
+    if (result.created > 0) {
+      toast.success(
+        `${result.created} תנועות תשלום נוצרו`,
+        "הלקוחות יופיעו עכשיו ב'חובות פתוחים'",
+      );
+      setOrphans([]);
+    } else if (result.failed > 0) {
+      toast.error(`${result.failed} תנועות נכשלו`);
+    }
   }
 
   function handleJobCreated(job: Job) {
@@ -1249,6 +1305,35 @@ function SchedulePageInner() {
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28">
+
+        {/* Backfill banner — only shows when we detect completed jobs from
+            the last 90 days that never produced a pending-income transaction.
+            One tap → all the missing transactions get created. */}
+        {orphans.length > 0 && !loading && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-amber-100">
+              <AlertCircle size={16} className="text-amber-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-amber-900 leading-tight">
+                {orphans.length} {orphans.length === 1 ? "עבודה שהושלמה" : "עבודות שהושלמו"} ללא תנועה כספית
+              </p>
+              <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                {orphans.slice(0, 3).map(o => o.customerName).filter(Boolean).join(", ")}
+                {orphans.length > 3 ? ` ועוד ${orphans.length - 3}` : ""}
+                {" · "}לחץ כדי ליצור תנועות תשלום ממתינות בפיננסים
+              </p>
+              <button
+                onClick={handleBackfill}
+                disabled={backfilling}
+                className="mt-2.5 inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+              >
+                {backfilling ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                {backfilling ? "יוצר..." : `צור ${orphans.length} תנועות`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* DAY VIEW — single column timeline of the selected day */}
         {view === "day" && (
