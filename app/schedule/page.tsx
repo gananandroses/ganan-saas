@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, Suspense } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
   Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw, ArrowRight,
-  MessageCircle,
+  MessageCircle, StickyNote,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -843,10 +843,46 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
 
 // ── Job Card (list view) ──────────────────────────────────────────────────────
 
-function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () => void; onMarkCompleted: (id: string) => void }) {
+function JobListCard({ job, onClick, onMarkCompleted, onNoteUpdated }: { job: Job; onClick: () => void; onMarkCompleted: (id: string) => void; onNoteUpdated: (id: string, notes: string) => void }) {
   const catColors = categoryConfig(job.jobCategory);
   const status = statusConfig(job.status);
   const [completing, setCompleting] = useState(false);
+
+  // Inline-notes state. Local mirror of job.notes so we can show
+  // pending edits without a round-trip; saves to Supabase on blur.
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(job.notes ?? "");
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  // Re-seed the draft when the underlying job prop changes (e.g. after a
+  // refresh) so we don't show stale text.
+  useEffect(() => {
+    setNoteDraft(job.notes ?? "");
+  }, [job.notes]);
+
+  async function saveNote() {
+    const trimmed = noteDraft.trim();
+    if (trimmed === (job.notes ?? "").trim()) {
+      // Nothing to save — just collapse if empty.
+      if (!trimmed) setNoteOpen(false);
+      return;
+    }
+    setNoteSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) { setNoteSaving(false); return; }
+    const { error } = await supabase
+      .from("jobs")
+      .update({ notes: trimmed || null })
+      .eq("id", job.id)
+      .eq("user_id", user.id);
+    setNoteSaving(false);
+    if (error) {
+      toast.error("שגיאה בשמירת ההערה");
+      return;
+    }
+    onNoteUpdated(job.id, trimmed);
+    if (!trimmed) setNoteOpen(false);
+  }
   // Minimalist card with inline quick actions. Status is a 6px dot, border
   // is a single hairline. The action row at the bottom keeps Waze + Done
   // one tap away so a gardener never has to open the detail modal just to
@@ -981,6 +1017,73 @@ function JobListCard({ job, onClick, onMarkCompleted }: { job: Job; onClick: () 
           )}
         </div>
       </div>
+
+      {/* Inline notes — gardener wants to jot down quick reminders for
+          a specific job ("גוזם בצד ימין", "כלב בחצר", "השער נעול").
+          Closed by default to keep the row compact; click to expand.
+          Existing notes appear as a single-line summary chip until
+          clicked, then a textarea opens for editing. Saves on blur. */}
+      {(job.notes || noteOpen) && (
+        <div className="border-t border-gray-100 bg-amber-50/30 px-4 py-2.5">
+          {noteOpen ? (
+            <div>
+              <textarea
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={saveNote}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    (e.target as HTMLTextAreaElement).blur();
+                  }
+                  if (e.key === "Escape") {
+                    setNoteDraft(job.notes ?? "");
+                    setNoteOpen(false);
+                  }
+                  e.stopPropagation();
+                }}
+                placeholder="הערה לטיפול הזה — למשל: השער נעול, כלב בחצר, גוזם בצד ימין..."
+                rows={2}
+                autoComplete="off"
+                autoFocus
+                className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-amber-300"
+              />
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[10px] text-gray-400">
+                  {noteSaving ? "שומר..." : "נשמר אוטומטית"}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); (document.activeElement as HTMLElement)?.blur?.(); }}
+                  className="text-[10px] font-semibold text-amber-700 hover:text-amber-900"
+                >
+                  סגור
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); setNoteOpen(true); }}
+              className="w-full flex items-start gap-1.5 text-right text-[11px] text-amber-800 leading-tight"
+            >
+              <StickyNote size={11} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <span className="truncate">{job.notes}</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* "Add note" affordance — visible whenever there are no notes yet
+          and the user hasn't already opened the editor. */}
+      {!job.notes && !noteOpen && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setNoteOpen(true); }}
+          className="w-full border-t border-gray-100 px-4 py-1.5 flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-amber-700 hover:bg-amber-50/30 transition-colors text-right"
+        >
+          <StickyNote size={10} className="flex-shrink-0" />
+          <span>הוסף הערה לטיפול</span>
+        </button>
+      )}
 
       {/* Inline quick actions — customer contact card style. Waze + Phone
           + WhatsApp are always visible (even on completed/cancelled jobs)
@@ -1237,6 +1340,10 @@ function SchedulePageInner() {
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   }
 
+  function handleNoteUpdated(id: string, notes: string) {
+    setJobs(prev => prev.map(j => j.id === id ? { ...j, notes: notes || undefined } : j));
+  }
+
   const selectedDate = useMemo(() => new Date(selectedISO + "T00:00:00"), [selectedISO]);
 
   const selectedDayJobs = useMemo(
@@ -1419,7 +1526,7 @@ function SchedulePageInner() {
             ) : (
               <div className="space-y-2">
                 {selectedDayJobs.map(job => (
-                  <JobListCard key={job.id} job={job} onClick={() => setSelectedJob(job)} onMarkCompleted={handleMarkCompleted} />
+                  <JobListCard key={job.id} job={job} onClick={() => setSelectedJob(job)} onMarkCompleted={handleMarkCompleted} onNoteUpdated={handleNoteUpdated} />
                 ))}
               </div>
             )}
@@ -1545,6 +1652,7 @@ function SchedulePageInner() {
                       job={job}
                       onClick={() => setSelectedJob(job)}
                       onMarkCompleted={handleMarkCompleted}
+                      onNoteUpdated={handleNoteUpdated}
                     />
                   ))}
                 </div>
