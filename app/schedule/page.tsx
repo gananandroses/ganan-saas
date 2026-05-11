@@ -896,12 +896,10 @@ function JobListCard({ job, onClick, onMarkCompleted, onNoteUpdated }: { job: Jo
                                   "bg-emerald-500";
   const isCompleted = job.status === "completed";
   const isCancelled = job.status === "cancelled";
-  // The contact actions (Waze / call / WhatsApp) are always visible —
-  // gardener wants the customer's "contact card" inline on the row.
-  // The "סיים" action stays gated to active jobs (no point on completed
-  // ones). At least one of the actions is showable as long as we have a
-  // phone or address.
-  const hasContactActions = !!job.address || !!job.customerPhone;
+  // The contact actions row is now ALWAYS rendered so the layout reads
+  // the same across every job in the list. Buttons that lack underlying
+  // data (no phone / no address) are muted and surface a toast on tap
+  // explaining what to add.
 
   async function handleQuickComplete(e: React.MouseEvent) {
     e.stopPropagation();
@@ -943,19 +941,28 @@ function JobListCard({ job, onClick, onMarkCompleted, onNoteUpdated }: { job: Jo
 
   function handleWaze(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!job.address) return;
+    if (!job.address) {
+      toast.error("אין כתובת", "פתח את הכרטיס והוסף כתובת");
+      return;
+    }
     window.open(`https://waze.com/ul?q=${encodeURIComponent(job.address)}`, "_blank");
   }
 
   function handleCall(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!job.customerPhone) return;
+    if (!job.customerPhone) {
+      toast.error("אין טלפון ללקוח", "עדכן בכרטיס הלקוח כדי להפעיל את הכפתור");
+      return;
+    }
     window.location.href = `tel:${job.customerPhone}`;
   }
 
   function handleWhatsApp(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!job.customerPhone) return;
+    if (!job.customerPhone) {
+      toast.error("אין טלפון ללקוח", "עדכן בכרטיס הלקוח כדי להפעיל את הכפתור");
+      return;
+    }
     const cleaned = job.customerPhone.replace(/\D/g, "");
     const intl = cleaned.startsWith("0") ? "972" + cleaned.slice(1)
                : cleaned.startsWith("972") ? cleaned
@@ -1085,53 +1092,57 @@ function JobListCard({ job, onClick, onMarkCompleted, onNoteUpdated }: { job: Jo
         </button>
       )}
 
-      {/* Inline quick actions — customer contact card style. Waze + Phone
-          + WhatsApp are always visible (even on completed/cancelled jobs)
-          because the gardener still wants to call/text them. "סיים" only
-          appears on active jobs since there's nothing to complete on a
-          finished one. */}
-      {(hasContactActions || (!isCompleted && !isCancelled)) && (
-        <div className="flex items-stretch gap-px bg-gray-100 border-t border-gray-100">
-          {job.address && (
-            <button
-              onClick={handleWaze}
-              title="נווט עם Waze"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-blue-50 text-blue-600 text-xs font-semibold transition-colors"
-            >
-              <MapPin size={13} /> נווט
-            </button>
-          )}
-          {job.customerPhone && (
-            <button
-              onClick={handleCall}
-              title="התקשר"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-xs font-semibold transition-colors"
-            >
-              <Phone size={13} /> התקשר
-            </button>
-          )}
-          {job.customerPhone && (
-            <button
-              onClick={handleWhatsApp}
-              title="WhatsApp"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-600 text-xs font-semibold transition-colors"
-            >
-              <MessageCircle size={13} /> וואטסאפ
-            </button>
-          )}
-          {!isCompleted && !isCancelled && (
-            <button
-              onClick={handleQuickComplete}
-              disabled={completing}
-              title="סמן כהושלם"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold transition-colors disabled:opacity-60"
-            >
-              {completing ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
-              סיים
-            </button>
-          )}
-        </div>
-      )}
+      {/* Inline quick actions — customer contact card. All four buttons
+          render on every card so the row reads the same across the list.
+          When the underlying data is missing (no address / no phone),
+          the button is muted gray and tapping it surfaces a toast
+          telling the gardener where to add the missing field. */}
+      <div className="flex items-stretch gap-px bg-gray-100 border-t border-gray-100">
+        <button
+          onClick={handleWaze}
+          title={job.address ? "נווט עם Waze" : "אין כתובת — לחץ להוראות"}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white text-xs font-semibold transition-colors ${
+            job.address
+              ? "text-blue-600 hover:bg-blue-50"
+              : "text-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          <MapPin size={13} /> נווט
+        </button>
+        <button
+          onClick={handleCall}
+          title={job.customerPhone ? "התקשר" : "אין טלפון — עדכן בכרטיס הלקוח"}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white text-xs font-semibold transition-colors ${
+            job.customerPhone
+              ? "text-gray-700 hover:bg-gray-50"
+              : "text-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          <Phone size={13} /> התקשר
+        </button>
+        <button
+          onClick={handleWhatsApp}
+          title={job.customerPhone ? "WhatsApp" : "אין טלפון — עדכן בכרטיס הלקוח"}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white text-xs font-semibold transition-colors ${
+            job.customerPhone
+              ? "text-emerald-600 hover:bg-emerald-50"
+              : "text-gray-300 hover:bg-gray-50"
+          }`}
+        >
+          <MessageCircle size={13} /> וואטסאפ
+        </button>
+        {!isCompleted && !isCancelled && (
+          <button
+            onClick={handleQuickComplete}
+            disabled={completing}
+            title="סמן כהושלם"
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold transition-colors disabled:opacity-60"
+          >
+            {completing ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+            סיים
+          </button>
+        )}
+      </div>
     </div>
   );
 }
