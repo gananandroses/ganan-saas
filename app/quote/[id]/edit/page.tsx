@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
   Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, X, ShoppingCart,
-  ChevronDown, ChevronUp, Sparkles, AlertCircle, CheckCircle2,
+  ChevronDown, ChevronUp, ChevronRight, Sparkles, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -357,19 +357,22 @@ export default function QuoteEditPage() {
       {/* ── Sticky header ── */}
       <header className="no-print sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">עריכת הצעה</h1>
-            {quoteNumber && (
-              <p className="text-[11px] text-gray-400 font-mono tabular-nums mt-0.5">#{quoteNumber}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => router.push(`/quote/${quoteId}`)}
-              className="text-xs text-gray-500 hover:text-gray-800 font-medium px-2 py-1 rounded-lg transition-colors hidden sm:block"
+              aria-label="חזרה להצעה"
+              className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
             >
-              ביטול
+              <ChevronRight size={18} />
             </button>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">עריכת הצעה</h1>
+              {quoteNumber && (
+                <p className="text-[11px] text-gray-400 font-mono tabular-nums mt-0.5">#{quoteNumber}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => handleSave(true)}
               disabled={saving}

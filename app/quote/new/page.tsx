@@ -4,7 +4,7 @@ import React, { Suspense, useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Plus, Trash2, Search, Save, Printer, MessageSquare, Loader2, X, ShoppingCart,
-  ChevronDown, ChevronUp, Sparkles, AlertCircle, CheckCircle2,
+  ChevronDown, ChevronUp, ChevronRight, Sparkles, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -398,22 +398,27 @@ function QuotePageInner() {
   return (
     <div dir="rtl" className="min-h-screen bg-[#F7F8FA] print:bg-white">
 
-      {/* ── Sticky header — quiet, gives context (number) + primary actions ── */}
+      {/* ── Sticky header — quiet, gives context (number) + primary actions.
+            The back chevron goes to /quote list on every breakpoint —
+            we used to hide "ביטול" on mobile and that left no escape route. */}
       <header className="no-print sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">הצעה חדשה</h1>
-            {nextQuoteNumber && (
-              <p className="text-[11px] text-gray-400 font-mono tabular-nums mt-0.5">#{nextQuoteNumber}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => router.push("/quote")}
-              className="text-xs text-gray-500 hover:text-gray-800 font-medium px-2 py-1 rounded-lg transition-colors hidden sm:block"
+              aria-label="חזרה להצעות"
+              className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
             >
-              ביטול
+              <ChevronRight size={18} />
             </button>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">הצעה חדשה</h1>
+              {nextQuoteNumber && (
+                <p className="text-[11px] text-gray-400 font-mono tabular-nums mt-0.5">#{nextQuoteNumber}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => handleSave(true)}
               disabled={saving}

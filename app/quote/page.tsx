@@ -336,12 +336,25 @@ export default function QuotesListPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#F7F8FA]">
-      {/* Sticky header — always shows where you are + how to create new */}
+      {/* Sticky header — always shows where you are + how to create new.
+          /quote isn't in the BottomNav, so we keep an explicit back chevron
+          to the dashboard on mobile (and on desktop too — sidebar is fine
+          but having both costs nothing and matches /quote/[id] which has
+          the same affordance). */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">הצעות מחיר</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{quotes.length} הצעות{totalHot > 0 ? ` · ${totalHot} דורשות פעולה` : ""}</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => router.push("/dashboard")}
+              aria-label="חזרה לדשבורד"
+              className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">הצעות מחיר</h1>
+              <p className="text-xs text-gray-400 mt-0.5">{quotes.length} הצעות{totalHot > 0 ? ` · ${totalHot} דורשות פעולה` : ""}</p>
+            </div>
           </div>
           <button
             onClick={() => setCreatorOpen(true)}
