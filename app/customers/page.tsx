@@ -38,18 +38,34 @@ import { SkeletonBlock, SkeletonCustomerCard } from "@/components/Skeleton";
 
 // ===== HELPERS =====
 
-// Spreads a monthly retainer across the actual cadence of visits so the
-// revenue projection reflects long-tail customers (e.g. "פעם בחודשיים"
-// who pays 500 → only ₪250 attributable to any single month). For "פעם
-// בשבוע" / "פעמיים בחודש" / "פעם בחודש" — the customer pays once per
-// month, so the field IS the monthly total and the spread is 1.
-function frequencyMultiplier(frequency: string): number {
+// How many visits happen in a typical month for a given cadence. Used
+// ONLY when the customer's priceMode is "per_visit" — there we multiply
+// the per-visit price by this number to project the monthly revenue.
+//   - פעם בחודשיים → 0.5 visits/month
+//   - פעם ב-3 חודשים → 1/3 visits/month
+function visitsPerMonth(frequency: string): number {
+  if (frequency === "פעם בשבוע")       return 4;
+  if (frequency === "פעמיים בשבוע")    return 8;
+  if (frequency === "פעמיים בחודש")    return 2;
+  if (frequency === "פעם בחודש")       return 1;
   if (frequency === "פעם בחודשיים")    return 0.5;
   if (frequency === "פעם ב-3 חודשים") return 1 / 3;
-  // Every other cadence (weekly, bi-weekly, twice-monthly, monthly):
-  // the gardener charges a flat monthly retainer, so the field is
-  // already the monthly amount and we just trust it.
   return 1;
+}
+
+// Effective monthly contribution of a customer to revenue projection.
+//   - "monthly":   the stored price IS the monthly total. Trust it.
+//                  Exception: for sparse cadences (every 2/3 months),
+//                  amortise so the projection isn't biased.
+//   - "per_visit": the stored price is per-visit, multiply by cadence.
+function monthlyContribution(price: number, frequency: string, mode: "monthly" | "per_visit" | undefined): number {
+  if (mode === "per_visit") {
+    return price * visitsPerMonth(frequency);
+  }
+  // monthly mode (default)
+  if (frequency === "פעם בחודשיים") return price * 0.5;
+  if (frequency === "פעם ב-3 חודשים") return price / 3;
+  return price;
 }
 
 const statusConfig: Record<
@@ -200,7 +216,7 @@ function StatDetailModal({
             <p className="text-center text-gray-400 py-10 text-sm">אין לקוחות להציג</p>
           )}
           {listForType.map(c => {
-            const perMonthGross = c.monthlyPrice * frequencyMultiplier(c.frequency);
+            const perMonthGross = monthlyContribution(c.monthlyPrice, c.frequency, c.priceMode);
             const perMonthNet   = Math.round(perMonthGross / 1.18);
             const vatPerMonth   = Math.round(perMonthGross / 1.18 * 0.18);
             const priceNet      = Math.round(c.monthlyPrice / 1.18);
@@ -282,15 +298,24 @@ function CustomerCard({ customer, onClick }: CustomerCardProps) {
         </span>
       </div>
 
-      {/* Price & Frequency */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <span className="text-green-700 font-bold text-lg">
+      {/* Price & Frequency — pricing model matters here. For per-visit
+          customers we also show the implied monthly total so the gardener
+          immediately sees what the customer contributes per month. */}
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="min-w-0">
+          <span className="text-green-700 font-bold text-lg tabular-nums">
             {formatCurrency(Math.round(customer.monthlyPrice / 1.18))}
           </span>
-          <span className="text-xs text-gray-400 font-normal mr-1">+ מע״מ</span>
+          <span className="text-xs text-gray-400 font-normal mr-1">
+            + מע״מ {customer.priceMode === "per_visit" ? "לביקור" : "לחודש"}
+          </span>
+          {customer.priceMode === "per_visit" && customer.monthlyPrice > 0 && (
+            <p className="text-[11px] text-gray-500 mt-0.5 tabular-nums">
+              ₪{Math.round(customer.monthlyPrice * visitsPerMonth(customer.frequency) / 1.18).toLocaleString()}/חודש
+            </p>
+          )}
         </div>
-        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full">
+        <span className="text-xs text-gray-500 bg-gray-50 px-2 py-0.5 rounded-full flex-shrink-0">
           {customer.frequency}
         </span>
       </div>
@@ -467,6 +492,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
     city: customer.city,
     address: customer.address,
     monthly_price: String(customer.monthlyPrice),
+    price_mode: (customer.priceMode ?? "monthly") as "monthly" | "per_visit",
     frequency: customer.frequency,
     status: customer.status,
     notes: customer.notes || "",
@@ -490,6 +516,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
       monthlyPrice: editVatType === "before"
         ? Math.round((parseFloat(editForm.monthly_price) || 0) * 1.18)
         : parseFloat(editForm.monthly_price) || 0,
+      priceMode: editForm.price_mode,
       frequency: editForm.frequency,
       status: editForm.status as CustomerStatus,
       notes: editForm.notes,
@@ -576,13 +603,38 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                 autoComplete="email" inputMode="email"
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
             </div>
+            {/* Price-mode toggle + price field — full-width row because the
+                two together need explanation space (preview line, VAT mode). */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">איך מחשבים את התשלום?</label>
+              <div className="inline-flex w-full bg-gray-100 rounded-xl p-0.5">
+                <button type="button" onClick={() => setEditForm(p => ({ ...p, price_mode: "monthly" }))}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    editForm.price_mode === "monthly" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}>
+                  סכום חודשי קבוע
+                </button>
+                <button type="button" onClick={() => setEditForm(p => ({ ...p, price_mode: "per_visit" }))}
+                  className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    editForm.price_mode === "per_visit" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}>
+                  מחיר לכל ביקור
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">סכום חודשי כולל (₪)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {editForm.price_mode === "per_visit" ? "מחיר לכל ביקור (₪)" : "סכום חודשי כולל (₪)"}
+                </label>
                 <input type="number" value={editForm.monthly_price} onChange={e => setEditForm(p => ({...p, monthly_price: e.target.value}))}
                   autoComplete="off" inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
-                <p className="text-[11px] text-gray-400 mt-1">הסכום הכולל שהלקוח משלם בחודש — לא לכל ביקור</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {editForm.price_mode === "per_visit"
+                    ? "המחיר עבור ביקור בודד — הסכום החודשי יחושב לפי התדירות"
+                    : "הסכום הכולל שהלקוח משלם בחודש"}
+                </p>
                 <div className="flex gap-1 mt-2">
                   <button type="button" onClick={() => setEditVatType("include")}
                     className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${editVatType === "include" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
@@ -598,6 +650,16 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                     {editVatType === "before"
                       ? `✓ כולל מע״מ: ₪${Math.round(parseFloat(editForm.monthly_price) * 1.18).toLocaleString()}`
                       : `✓ לפני מע״מ: ₪${Math.round(parseFloat(editForm.monthly_price) / 1.18).toLocaleString()}`}
+                  </p>
+                )}
+                {editForm.price_mode === "per_visit" && editForm.monthly_price && parseFloat(editForm.monthly_price) > 0 && (
+                  <p className="text-xs text-emerald-700 font-semibold mt-1.5 tabular-nums bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1">
+                    סה״כ חודשי: ₪{Math.round(
+                      (editVatType === "before"
+                        ? parseFloat(editForm.monthly_price) * 1.18
+                        : parseFloat(editForm.monthly_price))
+                      * visitsPerMonth(editForm.frequency)
+                    ).toLocaleString()} (×{visitsPerMonth(editForm.frequency)} ביקורים)
                   </p>
                 )}
               </div>
@@ -1142,6 +1204,10 @@ function CustomersPageInner() {
           phone: c.phone as string || "",
           email: c.email as string || undefined,
           monthlyPrice: c.monthly_price as number || 0,
+          // Read price_mode from DB. If the migration hasn't been run yet
+          // the column won't exist → fall back to "monthly" so the page
+          // still works (default behaviour for legacy customers).
+          priceMode: ((c.price_mode as string) === "per_visit" ? "per_visit" : "monthly") as "monthly" | "per_visit",
           frequency: c.frequency as string || "",
           status: c.status as CustomerStatus || "active",
           joinDate: c.join_date as string || "",
@@ -1164,7 +1230,7 @@ function CustomersPageInner() {
   const vipCount = customers.filter((c) => c.status === "vip").length;
   const monthlyRevenueGross = Math.round(customers
     .filter((c) => c.status !== "inactive")
-    .reduce((sum, c) => sum + c.monthlyPrice * frequencyMultiplier(c.frequency), 0));
+    .reduce((sum, c) => sum + monthlyContribution(c.monthlyPrice, c.frequency, c.priceMode), 0));
   const monthlyRevenueNet = Math.round(monthlyRevenueGross / 1.18);
   const monthlyVat = monthlyRevenueGross - monthlyRevenueNet;
   const [statModal, setStatModal] = useState<StatModal>(null);
@@ -1219,7 +1285,8 @@ function CustomersPageInner() {
   const [saveError, setSaveError] = useState("");
   const [newCustomer, setNewCustomer] = useState({
     name: "", city: "", address: "", phone: "", email: "",
-    monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "",
+    monthly_price: "", price_mode: "monthly" as "monthly" | "per_visit",
+    frequency: "פעם בחודש", status: "active", notes: "",
   });
   const [newVatType, setNewVatType] = useState<"before" | "include">("include");
 
@@ -1230,7 +1297,8 @@ function CustomersPageInner() {
     setSaveError("");
 
     const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from("customers").insert([{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertPayload: Record<string, any> = {
       name: newCustomer.name,
       city: newCustomer.city,
       address: newCustomer.address,
@@ -1239,6 +1307,7 @@ function CustomersPageInner() {
       monthly_price: newVatType === "before"
         ? Math.round((parseFloat(newCustomer.monthly_price) || 0) * 1.18)
         : parseFloat(newCustomer.monthly_price) || 0,
+      price_mode: newCustomer.price_mode,
       frequency: newCustomer.frequency,
       status: newCustomer.status,
       notes: newCustomer.notes,
@@ -1247,7 +1316,14 @@ function CustomersPageInner() {
       total_paid: 0,
       join_date: new Date().toISOString().split("T")[0],
       user_id: user?.id,
-    }]);
+    };
+    let { error } = await supabase.from("customers").insert([insertPayload]);
+    // If the column doesn't exist yet (migration not run), retry without it.
+    if (error && /price_mode/i.test(error.message)) {
+      delete insertPayload.price_mode;
+      const retry = await supabase.from("customers").insert([insertPayload]);
+      error = retry.error;
+    }
 
     if (error) {
       setSaveError(error.message);
@@ -1259,7 +1335,7 @@ function CustomersPageInner() {
     await loadCustomers();
 
     setShowAddModal(false);
-    setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", frequency: "פעם בחודש", status: "active", notes: "" });
+    setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", price_mode: "monthly", frequency: "פעם בחודש", status: "active", notes: "" });
     setNewVatType("include");
     setSaving(false);
   }
@@ -1280,7 +1356,11 @@ function CustomersPageInner() {
   async function handleUpdateCustomer(id: string, data: Partial<Customer>) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("customers").update({
+    // Build the update payload. price_mode is included only if defined so
+    // the request still works pre-migration (Supabase silently ignores
+    // updates to non-existent columns).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: Record<string, any> = {
       name: data.name,
       phone: data.phone,
       email: data.email || null,
@@ -1290,7 +1370,17 @@ function CustomersPageInner() {
       frequency: data.frequency,
       status: data.status,
       notes: data.notes,
-    }).eq("id", id).eq("user_id", user.id);
+    };
+    if (data.priceMode !== undefined) {
+      payload.price_mode = data.priceMode;
+    }
+    const { error } = await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id);
+    // If the column doesn't exist yet (migration not run), retry without
+    // price_mode so the rest of the update still succeeds.
+    if (error && /price_mode/i.test(error.message)) {
+      delete payload.price_mode;
+      await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id);
+    }
     setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
     setSelectedCustomer(prev => prev ? { ...prev, ...data } : null);
   }
@@ -1614,13 +1704,36 @@ function CustomersPageInner() {
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="רחוב הורד 12" />
                 </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">איך מחשבים את התשלום?</label>
+                  <div className="inline-flex w-full bg-gray-100 rounded-xl p-0.5">
+                    <button type="button" onClick={() => setNewCustomer(p => ({ ...p, price_mode: "monthly" }))}
+                      className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        newCustomer.price_mode === "monthly" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                      }`}>
+                      סכום חודשי קבוע
+                    </button>
+                    <button type="button" onClick={() => setNewCustomer(p => ({ ...p, price_mode: "per_visit" }))}
+                      className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        newCustomer.price_mode === "per_visit" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                      }`}>
+                      מחיר לכל ביקור
+                    </button>
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">סכום חודשי כולל (₪)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {newCustomer.price_mode === "per_visit" ? "מחיר לכל ביקור (₪)" : "סכום חודשי כולל (₪)"}
+                  </label>
                   <input type="number" value={newCustomer.monthly_price} onChange={e => setNewCustomer(p => ({...p, monthly_price: e.target.value}))}
                     autoComplete="off" inputMode="decimal"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="400" />
-                  <p className="text-[11px] text-gray-400 mt-1">הסכום הכולל שהלקוח משלם בחודש — לא לכל ביקור</p>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {newCustomer.price_mode === "per_visit"
+                      ? "המחיר עבור ביקור בודד — הסכום החודשי יחושב לפי התדירות"
+                      : "הסכום הכולל שהלקוח משלם בחודש"}
+                  </p>
                   {/* VAT toggle */}
                   <div className="flex gap-1 mt-2">
                     <button type="button"
@@ -1640,6 +1753,16 @@ function CustomersPageInner() {
                       {newVatType === "before"
                         ? `✓ כולל מע״מ (18%): ₪${Math.round(parseFloat(newCustomer.monthly_price) * 1.18).toLocaleString()}`
                         : `✓ לפני מע״מ: ₪${Math.round(parseFloat(newCustomer.monthly_price) / 1.18).toLocaleString()}`}
+                    </p>
+                  )}
+                  {newCustomer.price_mode === "per_visit" && newCustomer.monthly_price && parseFloat(newCustomer.monthly_price) > 0 && (
+                    <p className="text-xs text-emerald-700 font-semibold mt-1.5 tabular-nums bg-emerald-50 border border-emerald-100 rounded-lg px-2 py-1 text-right">
+                      סה״כ חודשי: ₪{Math.round(
+                        (newVatType === "before"
+                          ? parseFloat(newCustomer.monthly_price) * 1.18
+                          : parseFloat(newCustomer.monthly_price))
+                        * visitsPerMonth(newCustomer.frequency)
+                      ).toLocaleString()} (×{visitsPerMonth(newCustomer.frequency)} ביקורים)
                     </p>
                   )}
                 </div>

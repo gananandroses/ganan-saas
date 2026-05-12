@@ -6,6 +6,8 @@ export type EmployeeStatus = "active" | "on_job" | "break" | "offline";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type Priority = "low" | "medium" | "high" | "urgent";
 
+export type PriceMode = "monthly" | "per_visit";
+
 export interface Customer {
   id: string;
   name: string;
@@ -14,6 +16,17 @@ export interface Customer {
   phone: string;
   email?: string;
   monthlyPrice: number;
+  /**
+   * How to interpret monthlyPrice:
+   *  - "monthly"   = flat monthly retainer (default). Used by gardeners
+   *                  who charge X/month regardless of how many visits.
+   *  - "per_visit" = monthlyPrice is the price for a SINGLE visit.
+   *                  The monthly revenue projection multiplies it by the
+   *                  visit cadence (frequencyMultiplier).
+   * Falls back to "monthly" if the DB row is missing the column (for
+   *  customers added before the migration).
+   */
+  priceMode?: PriceMode;
   frequency: string;
   status: CustomerStatus;
   joinDate: string;
