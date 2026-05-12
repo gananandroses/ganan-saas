@@ -431,6 +431,10 @@ export default function DashboardPage() {
   const [checkedToday, setCheckedToday] = useState<Set<string>>(new Set());
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
   const [showAddChecklistInput, setShowAddChecklistInput] = useState(false);
+  // Collapsed by default so the dashboard isn't dominated by the
+  // checklist. Persisted in localStorage so the gardener doesn't have to
+  // re-collapse every visit.
+  const [checklistCollapsed, setChecklistCollapsed] = useState(true);
   const todayISO = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
@@ -513,6 +517,14 @@ export default function DashboardPage() {
     } catch {
       // Corrupt JSON — ignore, start fresh.
     }
+    // Restore collapsed/expanded preference (per-user).
+    try {
+      const c = localStorage.getItem(`checklist_collapsed_${userId}`);
+      if (c === "0") setChecklistCollapsed(false);
+      else if (c === "1") setChecklistCollapsed(true);
+    } catch {
+      // ignore
+    }
     // Garbage-collect stale check entries from previous days. We don't
     // show history anywhere, so any key that isn't today's is dead weight.
     try {
@@ -549,6 +561,16 @@ export default function DashboardPage() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleChecklistCollapsed() {
+    setChecklistCollapsed(prev => {
+      const next = !prev;
+      try {
+        if (userId) localStorage.setItem(`checklist_collapsed_${userId}`, next ? "1" : "0");
+      } catch { /* ignore */ }
       return next;
     });
   }
@@ -911,125 +933,154 @@ export default function DashboardPage() {
 
         {/* ── DAILY CHECKLIST — personal verification list. Items live in
               user_profile.checklist_items (synced); the "checked today"
-              state lives in localStorage by date so it resets each morning. */}
+              state lives in localStorage by date so it resets each morning.
+              Collapsible to keep the dashboard footprint small — when
+              collapsed it's just a single-row pill showing progress. */}
         {(() => {
           const checkedCount = checklistItems.filter(i => checkedToday.has(i.id)).length;
           const total = checklistItems.length;
+          const allDone = total > 0 && checkedCount === total;
+          const progressPct = total > 0 ? Math.round((checkedCount / total) * 100) : 0;
           return (
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-5 sm:px-6 pt-4 pb-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
-                    <ClipboardList size={16} className="text-gray-500" />
+              {/* Header — always visible, doubles as the collapse toggle */}
+              <button
+                onClick={toggleChecklistCollapsed}
+                className="w-full px-4 sm:px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50/50 transition-colors text-right"
+              >
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    allDone ? "bg-emerald-50" : "bg-gray-50"
+                  }`}>
+                    {allDone
+                      ? <CheckCircle2 size={14} className="text-emerald-500" />
+                      : <ClipboardList size={14} className="text-gray-500" />}
                   </div>
-                  <div className="min-w-0">
-                    <h2 className="text-sm font-bold text-gray-900">צ&apos;ק־ליסט יומי</h2>
-                    <p className="text-[11px] text-gray-400">
-                      {total === 0
-                        ? "הוסף משימות שתרצה לעבור עליהן כל יום"
-                        : `${checkedCount}/${total} סומנו · אין חובה לסיים`}
-                    </p>
-                  </div>
-                </div>
-                {!showAddChecklistInput && (
-                  <button
-                    onClick={() => setShowAddChecklistInput(true)}
-                    className="flex items-center gap-1 text-[11px] font-semibold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-2.5 py-1.5 rounded-xl transition-colors flex-shrink-0"
-                  >
-                    <Plus size={11} /> משימה
-                  </button>
-                )}
-              </div>
-
-              <div className="px-3 sm:px-4 pb-3 space-y-1">
-                {checklistItems.map(item => {
-                  const isChecked = checkedToday.has(item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      className="group flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors"
-                    >
-                      <button
-                        onClick={() => toggleChecklistItem(item.id)}
-                        className="flex items-center gap-3 flex-1 text-right"
-                      >
-                        {isChecked ? (
-                          <CheckSquare size={18} className="text-emerald-500 flex-shrink-0" />
-                        ) : (
-                          <Square size={18} className="text-gray-300 flex-shrink-0" />
-                        )}
-                        <span className={`text-sm leading-tight transition-all ${
-                          isChecked ? "text-gray-400 line-through" : "text-gray-800"
-                        }`}>
-                          {item.label}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => deleteChecklistItem(item.id)}
-                        aria-label="מחק משימה"
-                        className="opacity-0 group-hover:opacity-100 hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
-
-                {checklistItems.length === 0 && !showAddChecklistInput && (
-                  <button
-                    onClick={() => setShowAddChecklistInput(true)}
-                    className="w-full py-4 border-2 border-dashed border-gray-200 rounded-2xl text-xs text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors"
-                  >
-                    + הוסף משימת checklist
-                  </button>
-                )}
-
-                {showAddChecklistInput && (
-                  <div className="px-2 py-1 mt-1 space-y-1">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        autoFocus
-                        value={newChecklistLabel}
-                        onChange={(e) => setNewChecklistLabel(e.target.value.slice(0, MAX_LABEL_LEN))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); }
-                          if (e.key === "Escape") { setNewChecklistLabel(""); setShowAddChecklistInput(false); }
-                        }}
-                        maxLength={MAX_LABEL_LEN}
-                        placeholder="לדוגמה: לבדוק הזמנות חומרים"
-                        autoComplete="off"
-                        className="flex-1 bg-gray-50 border border-transparent rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
-                      />
-                      <button
-                        onClick={addChecklistItem}
-                        disabled={!newChecklistLabel.trim()}
-                        className="px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white text-xs font-bold transition-colors"
-                      >
-                        הוסף
-                      </button>
-                      <button
-                        onClick={() => { setNewChecklistLabel(""); setShowAddChecklistInput(false); }}
-                        className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-                        aria-label="ביטול"
-                      >
-                        <X size={14} />
-                      </button>
+                      <h2 className="text-sm font-bold text-gray-900">צ&apos;ק־ליסט יומי</h2>
+                      {total > 0 && (
+                        <span className={`text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded-full ${
+                          allDone
+                            ? "bg-emerald-50 text-emerald-700"
+                            : checkedCount > 0
+                            ? "bg-gray-100 text-gray-700"
+                            : "bg-gray-50 text-gray-400"
+                        }`}>
+                          {checkedCount}/{total}
+                        </span>
+                      )}
                     </div>
-                    {/* Approaching the limit? Surface that quietly so the
-                        gardener isn't blindsided when "הוסף" is rejected. */}
-                    {checklistItems.length >= MAX_CHECKLIST_ITEMS - 3 && (
-                      <p className="text-[10px] text-gray-400 tabular-nums pr-2">
-                        {checklistItems.length}/{MAX_CHECKLIST_ITEMS} משימות ברשימה
-                      </p>
+                    {/* Tiny progress bar — gives the at-a-glance read even
+                        when collapsed */}
+                    {total > 0 && (
+                      <div className="mt-1.5 h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 ${
+                            allDone ? "bg-emerald-500" : "bg-gray-700"
+                          }`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+                {checklistCollapsed
+                  ? <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />
+                  : <ChevronUp size={14} className="text-gray-400 flex-shrink-0" />}
+              </button>
 
-              {total > 0 && checkedCount === total && (
-                <div className="px-5 sm:px-6 py-2.5 bg-emerald-50/60 border-t border-emerald-100 text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
-                  <CheckCircle2 size={12} /> כל הצ&apos;ק־ליסט סומן היום · יום נעים
+              {/* Expanded body — only renders when not collapsed */}
+              {!checklistCollapsed && (
+                <div className="border-t border-gray-100 px-2 sm:px-3 pt-1 pb-2">
+                  {checklistItems.map(item => {
+                    const isChecked = checkedToday.has(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        className="group flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <button
+                          onClick={() => toggleChecklistItem(item.id)}
+                          className="flex items-center gap-2.5 flex-1 text-right"
+                        >
+                          {isChecked ? (
+                            <CheckSquare size={16} className="text-emerald-500 flex-shrink-0" />
+                          ) : (
+                            <Square size={16} className="text-gray-300 flex-shrink-0" />
+                          )}
+                          <span className={`text-[13px] leading-tight transition-all ${
+                            isChecked ? "text-gray-400 line-through" : "text-gray-800"
+                          }`}>
+                            {item.label}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => deleteChecklistItem(item.id)}
+                          aria-label="מחק משימה"
+                          className="opacity-0 group-hover:opacity-100 hit-44 w-6 h-6 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {checklistItems.length === 0 && !showAddChecklistInput && (
+                    <button
+                      onClick={() => setShowAddChecklistInput(true)}
+                      className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-xs text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors my-1"
+                    >
+                      + הוסף משימת checklist
+                    </button>
+                  )}
+
+                  {showAddChecklistInput ? (
+                    <div className="px-2 py-1.5 mt-0.5 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={newChecklistLabel}
+                          onChange={(e) => setNewChecklistLabel(e.target.value.slice(0, MAX_LABEL_LEN))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); }
+                            if (e.key === "Escape") { setNewChecklistLabel(""); setShowAddChecklistInput(false); }
+                          }}
+                          maxLength={MAX_LABEL_LEN}
+                          placeholder="משימה חדשה..."
+                          autoComplete="off"
+                          className="flex-1 bg-gray-50 border border-transparent rounded-lg px-3 py-1.5 text-[13px] focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
+                        />
+                        <button
+                          onClick={addChecklistItem}
+                          disabled={!newChecklistLabel.trim()}
+                          className="px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white text-xs font-bold transition-colors"
+                        >
+                          הוסף
+                        </button>
+                        <button
+                          onClick={() => { setNewChecklistLabel(""); setShowAddChecklistInput(false); }}
+                          className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
+                          aria-label="ביטול"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      {checklistItems.length >= MAX_CHECKLIST_ITEMS - 3 && (
+                        <p className="text-[10px] text-gray-400 tabular-nums pr-2">
+                          {checklistItems.length}/{MAX_CHECKLIST_ITEMS} משימות ברשימה
+                        </p>
+                      )}
+                    </div>
+                  ) : checklistItems.length > 0 && (
+                    <button
+                      onClick={() => setShowAddChecklistInput(true)}
+                      className="w-full mt-1 mx-2 flex items-center justify-center gap-1 py-1.5 text-[11px] font-medium text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <Plus size={11} /> הוסף משימה
+                    </button>
+                  )}
                 </div>
               )}
             </div>
