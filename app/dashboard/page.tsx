@@ -28,6 +28,11 @@ import {
   CreditCard,
   UserX,
   CheckCircle2,
+  Square,
+  CheckSquare,
+  Plus,
+  Trash2,
+  ClipboardList,
 } from "lucide-react";
 import {
   BarChart,
@@ -406,6 +411,24 @@ export default function DashboardPage() {
     inactiveCount: 0,
   });
 
+  // Daily verification checklist. Items are personal (stored in
+  // user_profile.checklist_items, synced across devices). The "checked
+  // today" state lives in localStorage keyed by date so it resets
+  // every morning automatically. This is a *verification* — leaving
+  // an item unchecked is fine, no consequences elsewhere.
+  type ChecklistItem = { id: string; label: string };
+  const DEFAULT_CHECKLIST: ChecklistItem[] = [
+    { id: "default-quotes",    label: "הצעות מחיר לרשום" },
+    { id: "default-schedule",  label: "גינות לשבץ ביומן" },
+    { id: "default-materials", label: "חומרים להזמין" },
+    { id: "default-receipts",  label: "קבלות להוציא" },
+  ];
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
+  const [checkedToday, setCheckedToday] = useState<Set<string>>(new Set());
+  const [newChecklistLabel, setNewChecklistLabel] = useState("");
+  const [showAddChecklistInput, setShowAddChecklistInput] = useState(false);
+  const todayISO = new Date().toISOString().split("T")[0];
+
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     if (!("Notification" in window)) return;
@@ -446,6 +469,95 @@ export default function DashboardPage() {
   function dismissInstallBanner() {
     localStorage.setItem("install_banner_dismissed", "1");
     setShowInstallBanner(false);
+  }
+
+  // ─── Daily checklist load ──
+  // Items list comes from user_profile.checklist_items (synced).
+  // Falls back to DEFAULT_CHECKLIST when the column is empty or the
+  // migration hasn't been run. "Checked today" is per-device in
+  // localStorage, keyed by date so it auto-resets each morning.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_profile")
+        .select("checklist_items")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (cancelled) return;
+      // If the column doesn't exist yet (migration not run) `error` will be
+      // truthy — silently keep the defaults so the dashboard still works.
+      if (!error && data && Array.isArray(data.checklist_items) && data.checklist_items.length > 0) {
+        setChecklistItems(data.checklist_items as ChecklistItem[]);
+      }
+    })();
+    // Restore today's checks from localStorage.
+    try {
+      const raw = localStorage.getItem(`checklist_checks_${userId}_${todayISO}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCheckedToday(new Set(parsed.map(String)));
+      }
+    } catch {
+      // Corrupt JSON — ignore, start fresh.
+    }
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, todayISO]);
+
+  // Persist checked state to localStorage on every change.
+  useEffect(() => {
+    if (!userId) return;
+    try {
+      localStorage.setItem(
+        `checklist_checks_${userId}_${todayISO}`,
+        JSON.stringify(Array.from(checkedToday)),
+      );
+    } catch {
+      // Storage full / private-mode — silent.
+    }
+  }, [checkedToday, userId, todayISO]);
+
+  function toggleChecklistItem(id: string) {
+    setCheckedToday(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function persistChecklistItems(items: typeof checklistItems) {
+    setChecklistItems(items);
+    if (!userId) return;
+    const { error } = await supabase
+      .from("user_profile")
+      .update({ checklist_items: items })
+      .eq("user_id", userId);
+    if (error && /checklist_items|column/i.test(error.message)) {
+      // Migration not run yet — state still updates locally so the
+      // gardener can use the feature today.
+      toast.error("הצ'ק־ליסט לא ייסנכרן בין מכשירים עד שהמיגרציה תרוץ");
+    }
+  }
+
+  async function addChecklistItem() {
+    const label = newChecklistLabel.trim();
+    if (!label) return;
+    const next = [...checklistItems, { id: `c-${Date.now()}`, label }];
+    await persistChecklistItems(next);
+    setNewChecklistLabel("");
+    setShowAddChecklistInput(false);
+  }
+
+  async function deleteChecklistItem(id: string) {
+    await persistChecklistItems(checklistItems.filter(i => i.id !== id));
+    setCheckedToday(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -767,6 +879,123 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ── DAILY CHECKLIST — personal verification list. Items live in
+              user_profile.checklist_items (synced); the "checked today"
+              state lives in localStorage by date so it resets each morning. */}
+        {(() => {
+          const checkedCount = checklistItems.filter(i => checkedToday.has(i.id)).length;
+          const total = checklistItems.length;
+          return (
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-5 sm:px-6 pt-4 pb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    <ClipboardList size={16} className="text-gray-500" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-bold text-gray-900">צ&apos;ק־ליסט יומי</h2>
+                    <p className="text-[11px] text-gray-400">
+                      {total === 0
+                        ? "הוסף משימות שתרצה לעבור עליהן כל יום"
+                        : `${checkedCount}/${total} סומנו · אין חובה לסיים`}
+                    </p>
+                  </div>
+                </div>
+                {!showAddChecklistInput && (
+                  <button
+                    onClick={() => setShowAddChecklistInput(true)}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-2.5 py-1.5 rounded-xl transition-colors flex-shrink-0"
+                  >
+                    <Plus size={11} /> משימה
+                  </button>
+                )}
+              </div>
+
+              <div className="px-3 sm:px-4 pb-3 space-y-1">
+                {checklistItems.map(item => {
+                  const isChecked = checkedToday.has(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      className="group flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                      <button
+                        onClick={() => toggleChecklistItem(item.id)}
+                        className="flex items-center gap-3 flex-1 text-right"
+                      >
+                        {isChecked ? (
+                          <CheckSquare size={18} className="text-emerald-500 flex-shrink-0" />
+                        ) : (
+                          <Square size={18} className="text-gray-300 flex-shrink-0" />
+                        )}
+                        <span className={`text-sm leading-tight transition-all ${
+                          isChecked ? "text-gray-400 line-through" : "text-gray-800"
+                        }`}>
+                          {item.label}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => deleteChecklistItem(item.id)}
+                        aria-label="מחק משימה"
+                        className="opacity-0 group-hover:opacity-100 hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {checklistItems.length === 0 && !showAddChecklistInput && (
+                  <button
+                    onClick={() => setShowAddChecklistInput(true)}
+                    className="w-full py-4 border-2 border-dashed border-gray-200 rounded-2xl text-xs text-gray-400 hover:border-gray-300 hover:text-gray-600 transition-colors"
+                  >
+                    + הוסף משימת checklist
+                  </button>
+                )}
+
+                {showAddChecklistInput && (
+                  <div className="flex items-center gap-2 px-2 py-1 mt-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newChecklistLabel}
+                      onChange={(e) => setNewChecklistLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); }
+                        if (e.key === "Escape") { setNewChecklistLabel(""); setShowAddChecklistInput(false); }
+                      }}
+                      placeholder="לדוגמה: לבדוק הזמנות חומרים"
+                      autoComplete="off"
+                      className="flex-1 bg-gray-50 border border-transparent rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
+                    />
+                    <button
+                      onClick={addChecklistItem}
+                      disabled={!newChecklistLabel.trim()}
+                      className="px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white text-xs font-bold transition-colors"
+                    >
+                      הוסף
+                    </button>
+                    <button
+                      onClick={() => { setNewChecklistLabel(""); setShowAddChecklistInput(false); }}
+                      className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                      aria-label="ביטול"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {total > 0 && checkedCount === total && (
+                <div className="px-5 sm:px-6 py-2.5 bg-emerald-50/60 border-t border-emerald-100 text-[11px] text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <CheckCircle2 size={12} /> כל הצ&apos;ק־ליסט סומן היום · יום נעים
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── HOT ACTIONS — only renders when there's actually something on fire ── */}
         {!loading && totalHotActions > 0 && (
