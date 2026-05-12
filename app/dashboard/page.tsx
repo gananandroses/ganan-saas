@@ -480,10 +480,13 @@ export default function DashboardPage() {
   }
 
   // ─── Daily checklist load ──
-  // Items list comes from user_profile.checklist_items (synced).
-  // Falls back to DEFAULT_CHECKLIST when the column is empty or the
-  // migration hasn't been run. "Checked today" is per-device in
-  // localStorage, keyed by date so it auto-resets each morning.
+  // Items list source-of-truth ladder:
+  //   1. user_profile.checklist_items (Supabase) — best, syncs devices
+  //   2. localStorage `checklist_items_<uid>` — survives reload pre-migration
+  //   3. DEFAULT_CHECKLIST — first-time experience
+  //
+  // "Checked today" is per-device in localStorage, keyed by date so it
+  // auto-resets each morning.
   //
   // Storage hygiene:
   //   • Each day creates a new localStorage entry. We sweep yesterday-
@@ -501,10 +504,23 @@ export default function DashboardPage() {
         .eq("user_id", userId)
         .maybeSingle();
       if (cancelled) return;
-      // If the column doesn't exist yet (migration not run) `error` will be
-      // truthy — silently keep the defaults so the dashboard still works.
+      // Prefer the synced Supabase value when present.
       if (!error && data && Array.isArray(data.checklist_items) && data.checklist_items.length > 0) {
         setChecklistItems((data.checklist_items as ChecklistItem[]).slice(0, MAX_CHECKLIST_ITEMS));
+        return;
+      }
+      // Fall back to localStorage so adds survive reload even before
+      // the migration is run.
+      try {
+        const raw = localStorage.getItem(`checklist_items_${userId}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setChecklistItems(parsed.slice(0, MAX_CHECKLIST_ITEMS));
+          }
+        }
+      } catch {
+        // ignore — defaults remain
       }
     })();
     // Restore today's checks from localStorage.
@@ -575,17 +591,31 @@ export default function DashboardPage() {
     });
   }
 
+  // Track whether we've already nagged about the missing migration so
+  // the warning doesn't fire on every single add/delete.
+  const [migrationNagged, setMigrationNagged] = useState(false);
+
   async function persistChecklistItems(items: typeof checklistItems) {
     setChecklistItems(items);
     if (!userId) return;
+    // Local mirror first — guarantees adds survive a refresh even when
+    // the gardener hasn't run the Supabase migration yet.
+    try {
+      localStorage.setItem(`checklist_items_${userId}`, JSON.stringify(items));
+    } catch {
+      // quota / private mode — silent
+    }
     const { error } = await supabase
       .from("user_profile")
       .update({ checklist_items: items })
       .eq("user_id", userId);
     if (error && /checklist_items|column/i.test(error.message)) {
-      // Migration not run yet — state still updates locally so the
-      // gardener can use the feature today.
-      toast.error("הצ'ק־ליסט לא ייסנכרן בין מכשירים עד שהמיגרציה תרוץ");
+      // Migration not run yet — local copy already saved (see above),
+      // so the gardener doesn't lose anything. Nag once per session.
+      if (!migrationNagged) {
+        toast.info("הצ'ק־ליסט נשמר על המכשיר", "הרץ את המיגרציה ב-Supabase כדי שיסונכרן בין מכשירים");
+        setMigrationNagged(true);
+      }
     }
   }
 
