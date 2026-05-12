@@ -1201,6 +1201,18 @@ function SchedulePageInner() {
   const [orphans, setOrphans] = useState<CompletedJobLite[]>([]);
   const [backfilling, setBackfilling] = useState(false);
 
+  // Misprice detection — jobs where the saved price equals the customer's
+  // full monthly retainer instead of the per-visit slice. Created before
+  // the per-visit-pricing fix shipped. Each entry carries the suggested
+  // corrected price so a one-click fix is safe.
+  const [mispriced, setMispriced] = useState<Array<{
+    id: string;
+    customerName: string;
+    currentPrice: number;
+    suggestedPrice: number;
+  }>>([]);
+  const [fixingPrices, setFixingPrices] = useState(false);
+
   const today = useMemo(() => {
     const d = new Date(); d.setHours(0,0,0,0); return d;
   }, []);
@@ -1251,7 +1263,7 @@ function SchedulePageInner() {
     // so we can spot orphan completed jobs that never created a transaction.
     const [jobsRes, custRes, txRes] = await Promise.all([
       supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time"),
-      supabase.from("customers").select("id, name, address, city, phone").eq("user_id", user?.id),
+      supabase.from("customers").select("id, name, address, city, phone, monthly_price, frequency, price_mode").eq("user_id", user?.id),
       supabase.from("transactions")
         .select("customer_name, type, description, transaction_date, amount")
         .eq("user_id", user?.id)
@@ -1334,8 +1346,99 @@ function SchedulePageInner() {
         }));
       const found = findOrphanCompletedJobs(recentCompleted, txRes.data ?? []);
       setOrphans(found);
+
+      // Misprice detection — when a job's price equals the customer's full
+      // monthly retainer instead of the per-visit slice. Created before the
+      // per-visit-pricing fix shipped. We use customer_id when present and
+      // fall back to a normalised name. Bounded to jobs from the last 90
+      // days and customers in "monthly" mode with > 1 visit/month.
+      const custForFix = (custRes.data ?? []) as Array<{
+        id: string;
+        name: string | null;
+        monthly_price?: number | null;
+        frequency?: string | null;
+        price_mode?: string | null;
+      }>;
+      const visitsForFreq = (freq: string | null | undefined) => {
+        if (freq === "פעם בשבוע")       return 4;
+        if (freq === "פעמיים בשבוע")    return 8;
+        if (freq === "פעמיים בחודש")    return 2;
+        return 1; // monthly / bi-monthly / 3-monthly all imply 1 or fewer visits, nothing to split
+      };
+      const eligibleByCustomer = new Map<string, { monthly: number; suggested: number; name: string }>();
+      const eligibleByName = new Map<string, { monthly: number; suggested: number; name: string }>();
+      for (const c of custForFix) {
+        const mode = c.price_mode === "per_visit" ? "per_visit" : "monthly";
+        if (mode !== "monthly") continue;
+        const visits = visitsForFreq(c.frequency);
+        if (visits <= 1) continue;
+        const monthly = Number(c.monthly_price || 0);
+        if (monthly <= 0) continue;
+        const suggested = Math.round(monthly / visits);
+        const entry = { monthly, suggested, name: c.name ?? "" };
+        if (c.id) eligibleByCustomer.set(String(c.id), entry);
+        const nName = normName(c.name);
+        if (nName) eligibleByName.set(nName, entry);
+      }
+      const cutoffMisprice = new Date();
+      cutoffMisprice.setDate(cutoffMisprice.getDate() - 90);
+      const cutoffMispriceISO = cutoffMisprice.toISOString().split("T")[0];
+      const foundMispriced: typeof mispriced = [];
+      for (const j of mapped) {
+        if (j.date < cutoffMispriceISO) continue;
+        if (j.price <= 0) continue;
+        // Skip project jobs — they have their own pricing lifecycle.
+        if ((j.notes ?? "").startsWith("פרויקט:")) continue;
+        const entry = (j.customerId && eligibleByCustomer.get(String(j.customerId)))
+          || eligibleByName.get(normName(j.customerName));
+        if (!entry) continue;
+        // Misprice signature: stored price equals the customer's monthly
+        // retainer (allow ±1 ₪ tolerance for old rounding) and differs
+        // from the suggested per-visit price.
+        if (Math.abs(j.price - entry.monthly) <= 1 && j.price !== entry.suggested) {
+          foundMispriced.push({
+            id: j.id,
+            customerName: j.customerName || entry.name,
+            currentPrice: j.price,
+            suggestedPrice: entry.suggested,
+          });
+        }
+      }
+      setMispriced(foundMispriced);
     }
     setLoading(false);
+  }
+
+  async function handleFixPrices() {
+    if (mispriced.length === 0 || fixingPrices) return;
+    setFixingPrices(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) { setFixingPrices(false); toast.error("שגיאה — לא מחובר"); return; }
+
+    let ok = 0;
+    let fail = 0;
+    for (const m of mispriced) {
+      const { error } = await supabase
+        .from("jobs")
+        .update({ price: m.suggestedPrice })
+        .eq("id", m.id)
+        .eq("user_id", user.id);
+      if (error) fail += 1;
+      else ok += 1;
+    }
+
+    setFixingPrices(false);
+    if (ok > 0) {
+      // Update local state so the new prices show without a full refetch.
+      setJobs(prev => prev.map(j => {
+        const fix = mispriced.find(m => m.id === j.id);
+        return fix ? { ...j, price: fix.suggestedPrice } : j;
+      }));
+      setMispriced([]);
+      toast.success(`${ok} עבודות עודכנו`, "המחירים הותאמו לפי תדירות הביקורים");
+    } else if (fail > 0) {
+      toast.error(`${fail} עדכונים נכשלו`);
+    }
   }
 
   async function handleBackfill() {
@@ -1518,6 +1621,38 @@ function SchedulePageInner() {
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28">
+
+        {/* Misprice banner — jobs whose price equals the customer's full
+            monthly retainer instead of the per-visit slice. One tap to
+            divide every match by the customer's visit cadence. */}
+        {mispriced.length > 0 && !loading && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-amber-100">
+              <AlertCircle size={16} className="text-amber-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-amber-900 leading-tight">
+                {mispriced.length} {mispriced.length === 1 ? "עבודה" : "עבודות"} עם מחיר חודשי במקום מחיר לביקור
+              </p>
+              <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                {(() => {
+                  const names = [...new Set(mispriced.map(m => m.customerName).filter(Boolean))];
+                  const first = names.slice(0, 3).join(", ");
+                  const extra = names.length > 3 ? ` ועוד ${names.length - 3}` : "";
+                  return `${first}${extra} · לחץ כדי לחלק את הסכום החודשי לפי תדירות הביקורים`;
+                })()}
+              </p>
+              <button
+                onClick={handleFixPrices}
+                disabled={fixingPrices}
+                className="mt-2.5 inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+              >
+                {fixingPrices ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />}
+                {fixingPrices ? "מתקן..." : `תקן ${mispriced.length} עבודות`}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Backfill banner — only shows when we detect completed jobs from
             the last 90 days that never produced a pending-income transaction.
