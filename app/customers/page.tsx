@@ -68,6 +68,18 @@ function monthlyContribution(price: number, frequency: string, mode: "monthly" |
   return price;
 }
 
+// What does a SINGLE visit cost for this customer?
+//   - "per_visit": that's literally the stored price.
+//   - "monthly":   stored price ÷ visits-per-month so the day-of-work
+//                  matches what the customer pays for the month.
+//                  E.g. ₪5,000/month × 4 weekly visits → ₪1,250/visit.
+export function pricePerVisit(price: number, frequency: string, mode: "monthly" | "per_visit" | undefined): number {
+  if (mode === "per_visit") return price;
+  const visits = visitsPerMonth(frequency);
+  if (visits <= 0) return price;
+  return Math.round(price / visits);
+}
+
 const statusConfig: Record<
   CustomerStatus,
   { label: string; bg: string; text: string; dot: string }
@@ -467,6 +479,11 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
     const { data: { user } } = await supabase.auth.getUser();
     // Combine street + city so the job card always has enough for Waze.
     const fullAddress = [customer.address, customer.city].filter(Boolean).join(", ");
+    // Per-visit price — for monthly retainer customers this is the
+    // retainer divided by the visit cadence, so a single job entry on
+    // the calendar reflects what that day's work is "worth" rather than
+    // the whole month's billing.
+    const visitPrice = pricePerVisit(customer.monthlyPrice, customer.frequency, customer.priceMode);
     await supabase.from("jobs").insert({
       customer_id: customer.id,
       customer_name: customer.name,
@@ -476,7 +493,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
       duration: 2,
       type: "תחזוקת גינה",
       priority: "medium",
-      price: customer.monthlyPrice,
+      price: visitPrice,
       status: "pending",
       assigned_to: [],
       user_id: user?.id,

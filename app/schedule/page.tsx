@@ -592,7 +592,7 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobCategory, setJobCategory] = useState<JobCategory>("work");
-  const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; city: string; phone: string; monthly_price: number }[]>([]);
+  const [existingCustomers, setExistingCustomers] = useState<{ id: string; name: string; address: string; city: string; phone: string; monthly_price: number; price_mode: "monthly" | "per_visit"; frequency: string }[]>([]);
   const [showCustomerList, setShowCustomerList] = useState(false);
   // Initialise from the user's default-VAT preference (set in /settings).
   // If they never visited settings, getDefaultVatMode falls back to
@@ -602,30 +602,55 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("customers").select("id, name, address, city, phone, monthly_price")
+      // price_mode + frequency let us compute the per-visit price when a
+      // gardener picks a customer with a "monthly retainer" pricing — they
+      // shouldn't be billed the whole month for one visit.
+      supabase.from("customers").select("id, name, address, city, phone, monthly_price, price_mode, frequency")
         .eq("user_id", user.id).order("name")
         .then(({ data }) => {
           if (data) setExistingCustomers(data.map(c => ({
             id: String(c.id), name: String(c.name), address: String(c.address || ""),
-            city: String(c.city || ""), phone: String(c.phone || ""), monthly_price: Number(c.monthly_price || 0),
+            city: String(c.city || ""), phone: String(c.phone || ""),
+            monthly_price: Number(c.monthly_price || 0),
+            price_mode: (c.price_mode === "per_visit" ? "per_visit" : "monthly") as "monthly" | "per_visit",
+            frequency: String(c.frequency || ""),
           })));
         });
     });
   }, []);
 
+  // Per-visit price helper — kept local to this file to avoid coupling to
+  // /customers. Mirrors pricePerVisit() over there. Same cadence map:
+  //   weekly = 4, bi-weekly = 8, twice-monthly = 2, monthly = 1, etc.
+  function visitsPerMonthLocal(frequency: string): number {
+    if (frequency === "פעם בשבוע")       return 4;
+    if (frequency === "פעמיים בשבוע")    return 8;
+    if (frequency === "פעמיים בחודש")    return 2;
+    if (frequency === "פעם בחודש")       return 1;
+    if (frequency === "פעם בחודשיים")    return 0.5;
+    if (frequency === "פעם ב-3 חודשים") return 1 / 3;
+    return 1;
+  }
+  function customerVisitPrice(c: { monthly_price: number; price_mode: "monthly" | "per_visit"; frequency: string }): number {
+    if (c.price_mode === "per_visit") return c.monthly_price;
+    const visits = visitsPerMonthLocal(c.frequency);
+    return visits > 0 ? Math.round(c.monthly_price / visits) : c.monthly_price;
+  }
+
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
   }
 
-  function handleSelectCustomer(c: { id: string; name: string; address: string; city: string; monthly_price: number }) {
+  function handleSelectCustomer(c: { id: string; name: string; address: string; city: string; monthly_price: number; price_mode: "monthly" | "per_visit"; frequency: string }) {
     const fullAddress = c.address && c.city
       ? `${c.address}, ${c.city}`
       : c.address || c.city || "";
+    const visitPrice = customerVisitPrice(c);
     setForm(prev => ({
       ...prev,
       customer_name: c.name,
       address: fullAddress,
-      price: c.monthly_price ? String(c.monthly_price) : prev.price,
+      price: visitPrice ? String(visitPrice) : prev.price,
     }));
     setShowCustomerList(false);
   }
