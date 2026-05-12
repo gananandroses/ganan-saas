@@ -38,13 +38,17 @@ import { SkeletonBlock, SkeletonCustomerCard } from "@/components/Skeleton";
 
 // ===== HELPERS =====
 
+// Spreads a monthly retainer across the actual cadence of visits so the
+// revenue projection reflects long-tail customers (e.g. "פעם בחודשיים"
+// who pays 500 → only ₪250 attributable to any single month). For "פעם
+// בשבוע" / "פעמיים בחודש" / "פעם בחודש" — the customer pays once per
+// month, so the field IS the monthly total and the spread is 1.
 function frequencyMultiplier(frequency: string): number {
-  if (frequency === "פעם בשבוע")       return 4;
-  if (frequency === "פעמיים בשבוע")    return 8;
-  if (frequency === "פעמיים בחודש")    return 2;
-  if (frequency === "פעם בחודש")       return 1;
   if (frequency === "פעם בחודשיים")    return 0.5;
   if (frequency === "פעם ב-3 חודשים") return 1 / 3;
+  // Every other cadence (weekly, bi-weekly, twice-monthly, monthly):
+  // the gardener charges a flat monthly retainer, so the field is
+  // already the monthly amount and we just trust it.
   return 1;
 }
 
@@ -574,10 +578,11 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">מחיר חודשי (₪)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">סכום חודשי כולל (₪)</label>
                 <input type="number" value={editForm.monthly_price} onChange={e => setEditForm(p => ({...p, monthly_price: e.target.value}))}
                   autoComplete="off" inputMode="decimal"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500" />
+                <p className="text-[11px] text-gray-400 mt-1">הסכום הכולל שהלקוח משלם בחודש — לא לכל ביקור</p>
                 <div className="flex gap-1 mt-2">
                   <button type="button" onClick={() => setEditVatType("include")}
                     className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors ${editVatType === "include" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
@@ -1610,11 +1615,12 @@ function CustomersPageInner() {
                     placeholder="רחוב הורד 12" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">מחיר חודשי (₪)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">סכום חודשי כולל (₪)</label>
                   <input type="number" value={newCustomer.monthly_price} onChange={e => setNewCustomer(p => ({...p, monthly_price: e.target.value}))}
                     autoComplete="off" inputMode="decimal"
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="400" />
+                  <p className="text-[11px] text-gray-400 mt-1">הסכום הכולל שהלקוח משלם בחודש — לא לכל ביקור</p>
                   {/* VAT toggle */}
                   <div className="flex gap-1 mt-2">
                     <button type="button"
