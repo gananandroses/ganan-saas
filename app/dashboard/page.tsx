@@ -417,6 +417,10 @@ export default function DashboardPage() {
   // every morning automatically. This is a *verification* — leaving
   // an item unchecked is fine, no consequences elsewhere.
   type ChecklistItem = { id: string; label: string };
+  // Hard caps so a runaway loop / paste-in mistake can't bloat the JSONB
+  // row in user_profile or the localStorage entry.
+  const MAX_CHECKLIST_ITEMS = 30;
+  const MAX_LABEL_LEN = 120;
   const DEFAULT_CHECKLIST: ChecklistItem[] = [
     { id: "default-quotes",    label: "הצעות מחיר לרשום" },
     { id: "default-schedule",  label: "גינות לשבץ ביומן" },
@@ -476,6 +480,13 @@ export default function DashboardPage() {
   // Falls back to DEFAULT_CHECKLIST when the column is empty or the
   // migration hasn't been run. "Checked today" is per-device in
   // localStorage, keyed by date so it auto-resets each morning.
+  //
+  // Storage hygiene:
+  //   • Each day creates a new localStorage entry. We sweep yesterday-
+  //     and-older keys for this user on every load so the bag doesn't
+  //     grow unbounded over the gardener's career on the app.
+  //   • The items list is capped at MAX_CHECKLIST_ITEMS so a stray loop
+  //     can never blow up user_profile.checklist_items.
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -489,7 +500,7 @@ export default function DashboardPage() {
       // If the column doesn't exist yet (migration not run) `error` will be
       // truthy — silently keep the defaults so the dashboard still works.
       if (!error && data && Array.isArray(data.checklist_items) && data.checklist_items.length > 0) {
-        setChecklistItems(data.checklist_items as ChecklistItem[]);
+        setChecklistItems((data.checklist_items as ChecklistItem[]).slice(0, MAX_CHECKLIST_ITEMS));
       }
     })();
     // Restore today's checks from localStorage.
@@ -501,6 +512,20 @@ export default function DashboardPage() {
       }
     } catch {
       // Corrupt JSON — ignore, start fresh.
+    }
+    // Garbage-collect stale check entries from previous days. We don't
+    // show history anywhere, so any key that isn't today's is dead weight.
+    try {
+      const prefix = `checklist_checks_${userId}_`;
+      const todayKey = `${prefix}${todayISO}`;
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(prefix) && key !== todayKey) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // private mode / quota → can't read keys, give up silently
     }
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -543,8 +568,12 @@ export default function DashboardPage() {
   }
 
   async function addChecklistItem() {
-    const label = newChecklistLabel.trim();
+    const label = newChecklistLabel.trim().slice(0, MAX_LABEL_LEN);
     if (!label) return;
+    if (checklistItems.length >= MAX_CHECKLIST_ITEMS) {
+      toast.error(`מקסימום ${MAX_CHECKLIST_ITEMS} משימות`, "מחק קודם משימה ישנה");
+      return;
+    }
     const next = [...checklistItems, { id: `c-${Date.now()}`, label }];
     await persistChecklistItems(next);
     setNewChecklistLabel("");
@@ -956,34 +985,44 @@ export default function DashboardPage() {
                 )}
 
                 {showAddChecklistInput && (
-                  <div className="flex items-center gap-2 px-2 py-1 mt-1">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={newChecklistLabel}
-                      onChange={(e) => setNewChecklistLabel(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); }
-                        if (e.key === "Escape") { setNewChecklistLabel(""); setShowAddChecklistInput(false); }
-                      }}
-                      placeholder="לדוגמה: לבדוק הזמנות חומרים"
-                      autoComplete="off"
-                      className="flex-1 bg-gray-50 border border-transparent rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
-                    />
-                    <button
-                      onClick={addChecklistItem}
-                      disabled={!newChecklistLabel.trim()}
-                      className="px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white text-xs font-bold transition-colors"
-                    >
-                      הוסף
-                    </button>
-                    <button
-                      onClick={() => { setNewChecklistLabel(""); setShowAddChecklistInput(false); }}
-                      className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-                      aria-label="ביטול"
-                    >
-                      <X size={14} />
-                    </button>
+                  <div className="px-2 py-1 mt-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newChecklistLabel}
+                        onChange={(e) => setNewChecklistLabel(e.target.value.slice(0, MAX_LABEL_LEN))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); addChecklistItem(); }
+                          if (e.key === "Escape") { setNewChecklistLabel(""); setShowAddChecklistInput(false); }
+                        }}
+                        maxLength={MAX_LABEL_LEN}
+                        placeholder="לדוגמה: לבדוק הזמנות חומרים"
+                        autoComplete="off"
+                        className="flex-1 bg-gray-50 border border-transparent rounded-xl px-3 py-2 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
+                      />
+                      <button
+                        onClick={addChecklistItem}
+                        disabled={!newChecklistLabel.trim()}
+                        className="px-3 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 text-white text-xs font-bold transition-colors"
+                      >
+                        הוסף
+                      </button>
+                      <button
+                        onClick={() => { setNewChecklistLabel(""); setShowAddChecklistInput(false); }}
+                        className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+                        aria-label="ביטול"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {/* Approaching the limit? Surface that quietly so the
+                        gardener isn't blindsided when "הוסף" is rejected. */}
+                    {checklistItems.length >= MAX_CHECKLIST_ITEMS - 3 && (
+                      <p className="text-[10px] text-gray-400 tabular-nums pr-2">
+                        {checklistItems.length}/{MAX_CHECKLIST_ITEMS} משימות ברשימה
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
