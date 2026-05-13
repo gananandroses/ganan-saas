@@ -959,6 +959,23 @@ export default function DashboardPage() {
               אין עבודות היום — יום נעים 🌱
             </div>
           )}
+
+          {/* End-of-day shortcut. Calm purple-tinted strip so the button
+              reads as "the wrapping-up affordance", distinct from the
+              emerald progress hierarchy above. Always visible — the
+              gardener may want to glance the summary mid-day, not just
+              at sunset. */}
+          {!loading && (
+            <button
+              onClick={() => router.push("/end-of-day")}
+              className="w-full border-t border-gray-100 px-5 sm:px-6 py-2.5 flex items-center justify-between text-xs font-semibold text-gray-700 hover:bg-indigo-50/40 transition-colors text-right group"
+            >
+              <span className="flex items-center gap-2">
+                🌙 <span>סיכום יום — בדיקה לפני שמכבים</span>
+              </span>
+              <ChevronRight size={13} className="text-gray-400 group-hover:text-gray-700 transition-colors" />
+            </button>
+          )}
         </div>
 
         {/* ── DAILY CHECKLIST — personal verification list. Items live in
