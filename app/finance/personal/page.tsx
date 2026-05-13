@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   TrendingUp, Flame, PiggyBank, Calendar, Plus,
   ChevronUp, ChevronDown, Loader2, RefreshCw, X, Pencil, Trash2,
@@ -87,18 +88,21 @@ function ScopePill() {
 
 import type { CashFlowMetrics } from "@/lib/personal-finance";
 
-function BusinessScopeCard({ metrics }: { metrics: CashFlowMetrics }) {
+function BusinessScopeCard({ metrics, onSelect }: { metrics: CashFlowMetrics; onSelect?: (scope: Scope) => void }) {
   const total = metrics.businessExpensesThisMonth + metrics.personalExpensesThisMonth;
   if (total <= 0) return null;
   const businessShare = total > 0 ? metrics.businessExpensesThisMonth / total : 0;
   const personalShare = 1 - businessShare;
+  const clickable = !!onSelect;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 border border-gray-100">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
           <h2 className="text-base font-bold text-gray-900">פילוח לפי שייכות</h2>
-          <p className="text-xs text-gray-400 mt-0.5">כמה מההוצאות החודש הלכו לעסק</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {clickable ? "לחץ על קטגוריה לפירוט מלא" : "כמה מההוצאות החודש הלכו לעסק"}
+          </p>
         </div>
         <div className="text-xs text-gray-500">
           סה״כ: <span className="font-bold text-gray-800">{ils(total)}</span>
@@ -107,32 +111,48 @@ function BusinessScopeCard({ metrics }: { metrics: CashFlowMetrics }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Personal */}
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+        <button
+          type="button"
+          onClick={() => onSelect?.("personal")}
+          disabled={!clickable}
+          className={`text-right bg-slate-50 border border-slate-100 rounded-xl p-4 transition-all ${
+            clickable ? "hover:border-slate-300 hover:shadow-sm active:scale-[0.99] cursor-pointer" : "cursor-default"
+          }`}
+        >
           <div className="flex items-center gap-2 mb-1">
             <div className="w-7 h-7 rounded-lg bg-slate-200 flex items-center justify-center">
               <UserIcon size={14} className="text-slate-700" />
             </div>
             <span className="text-xs font-semibold text-slate-700">אישי טהור</span>
-            <span className="text-xs text-slate-400 mr-auto">{(personalShare * 100).toFixed(0)}%</span>
+            <span className="text-xs text-slate-400 mr-auto tabular-nums">{(personalShare * 100).toFixed(0)}%</span>
+            {clickable && <ChevronLeft size={13} className="text-slate-400" />}
           </div>
-          <p className="text-xl font-bold text-slate-900">{ils(metrics.personalExpensesThisMonth)}</p>
-        </div>
+          <p className="text-xl font-bold text-slate-900 tabular-nums">{ils(metrics.personalExpensesThisMonth)}</p>
+        </button>
         {/* Business-related */}
-        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+        <button
+          type="button"
+          onClick={() => onSelect?.("business")}
+          disabled={!clickable}
+          className={`text-right bg-emerald-50 border border-emerald-100 rounded-xl p-4 transition-all ${
+            clickable ? "hover:border-emerald-300 hover:shadow-sm active:scale-[0.99] cursor-pointer" : "cursor-default"
+          }`}
+        >
           <div className="flex items-center gap-2 mb-1">
             <div className="w-7 h-7 rounded-lg bg-emerald-200 flex items-center justify-center">
               <Briefcase size={14} className="text-emerald-700" />
             </div>
             <span className="text-xs font-semibold text-emerald-700">עסקי-קשור</span>
-            <span className="text-xs text-emerald-500 mr-auto">{(businessShare * 100).toFixed(0)}%</span>
+            <span className="text-xs text-emerald-500 mr-auto tabular-nums">{(businessShare * 100).toFixed(0)}%</span>
+            {clickable && <ChevronLeft size={13} className="text-emerald-400" />}
           </div>
-          <p className="text-xl font-bold text-emerald-900">{ils(metrics.businessExpensesThisMonth)}</p>
+          <p className="text-xl font-bold text-emerald-900 tabular-nums">{ils(metrics.businessExpensesThisMonth)}</p>
           {metrics.businessExpensesThisMonth > 0 && (
             <p className="text-[10px] text-emerald-700 mt-1">
               💡 אלו הוצאות עסקיות שיצאו מהכיס האישי — שקול לתבוע החזר
             </p>
           )}
-        </div>
+        </button>
       </div>
 
       {/* Visual bar */}
@@ -141,6 +161,137 @@ function BusinessScopeCard({ metrics }: { metrics: CashFlowMetrics }) {
           style={{ width: `${personalShare * 100}%` }} />
         <div className="bg-emerald-500 h-full transition-all"
           style={{ width: `${businessShare * 100}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Scope drill-down modal ───────────────────────────────────────────────────
+// Surfaces the actual transactions behind a scope segment in
+// "פילוח לפי שייכות". Tapping the box on the parent card opens this
+// sheet pre-filtered to that scope ("personal" / "business"), expense
+// transactions only, in the selected month — so the gardener sees the
+// exact list of numbers that built that pie slice.
+
+function ScopeDrillDownModal({
+  scope, month, txs, onClose, onEdit,
+}: {
+  scope: Scope;
+  month: string;       // "YYYY-MM"
+  txs: PersonalTx[];   // all txs (we filter inside)
+  onClose: () => void;
+  onEdit: (tx: PersonalTx) => void;
+}) {
+  const isPersonal = scope === "personal";
+
+  // Filter: expense + matching scope + active during the chosen month.
+  // Recurring transactions that span this month count; one-time that
+  // started this month count. Anything ending before this month is out.
+  const ym = month;
+  const rows = useMemo(() => {
+    return txs
+      .filter(t => t.type === "expense")
+      .filter(t => (t.scope ?? "personal") === scope)
+      .filter(t => {
+        const start = isoMonth(t.start_date);
+        if (start > ym) return false;
+        if (t.recurrence === "one_time") return start === ym;
+        if (t.end_date && isoMonth(t.end_date) < ym) return false;
+        return true;
+      })
+      .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0));
+  }, [txs, scope, ym]);
+
+  const total = rows.reduce((s, t) => s + (t.amount ?? 0), 0);
+  const title = isPersonal ? "אישי טהור" : "עסקי-קשור";
+  const accentBg = isPersonal ? "bg-slate-100" : "bg-emerald-100";
+  const accentText = isPersonal ? "text-slate-700" : "text-emerald-700";
+  const Icon = isPersonal ? UserIcon : Briefcase;
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white w-full sm:max-w-lg sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[88vh]" dir="rtl">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${accentBg}`}>
+              <Icon size={16} className={accentText} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-bold text-gray-900">{title}</h3>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {rows.length} {rows.length === 1 ? "תנועה" : "תנועות"} · {hebrewMonthLabel(ym)}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0">
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Total */}
+        <div className="px-5 py-3 border-b border-gray-100 flex items-baseline justify-between bg-gray-50/50 flex-shrink-0">
+          <span className="text-xs font-semibold text-gray-500">סה״כ החודש</span>
+          <span className="text-xl font-black text-gray-900 tabular-nums">{ils(total)}</span>
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto flex-1 px-3 py-3">
+          {rows.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-gray-50 flex items-center justify-center">
+                <Icon size={18} className="text-gray-300" />
+              </div>
+              <p className="text-sm font-medium text-gray-500">אין תנועות בקטגוריה זו החודש</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {rows.map(tx => {
+                const cat = getCategory(tx.category);
+                const CatIcon = cat?.icon;
+                const recur = tx.recurrence !== "one_time";
+                return (
+                  <button
+                    key={tx.id}
+                    onClick={() => onEdit(tx)}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-right"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0 text-gray-500">
+                      {CatIcon ? <CatIcon size={16} /> : <span className="text-base">💸</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
+                        {tx.description?.trim() || cat?.label || tx.category}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5 truncate flex items-center gap-1.5">
+                        {recur && <Repeat size={10} className="flex-shrink-0" />}
+                        <span>{recurrenceLabel(tx.recurrence)}</span>
+                        {tx.description && cat && <span>· {cat.label}</span>}
+                      </p>
+                    </div>
+                    <div className="text-left flex-shrink-0">
+                      <p className="text-base font-black text-gray-900 tabular-nums">{ils(tx.amount)}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer hint */}
+        {!isPersonal && total > 0 && (
+          <div className="px-5 py-3 border-t border-emerald-100 bg-emerald-50/50 flex-shrink-0">
+            <p className="text-[11px] text-emerald-700 leading-relaxed">
+              💡 שקול לתבוע החזר עסקי על {ils(total)} מההכנסה החודשית של העסק
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -458,6 +609,10 @@ function TxModal({
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PersonalCashFlowPage() {
+  const router = useRouter();
+  // Which scope (if any) the user is drilling into via BusinessScopeCard.
+  // null = no modal open; "personal"/"business" → list modal for that scope.
+  const [scopeDrillDown, setScopeDrillDown] = useState<Scope | null>(null);
   const [txs, setTxs] = useState<PersonalTx[]>([]);
   const [businessTxs, setBusinessTxs] = useState<PersonalTx[]>([]);
   const [loading, setLoading] = useState(true);
@@ -547,11 +702,20 @@ export default function PersonalCashFlowPage() {
       {/* Page header */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-5 flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">תזרים אישי</h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              כמה באמת נשאר לך בסוף החודש — כולל תחזית שנתית
-            </p>
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => router.push("/finance")}
+              aria-label="חזרה לפיננסים"
+              className="hit-44 w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+            >
+              <ChevronRight size={18} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">תזרים אישי</h1>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+                כמה באמת נשאר לך בסוף החודש — כולל תחזית שנתית
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setRefreshTick(t => t + 1)} disabled={loading}
@@ -695,7 +859,7 @@ export default function PersonalCashFlowPage() {
             </div>
 
             {/* Personal vs business-related expense split */}
-            <BusinessScopeCard metrics={metrics} />
+            <BusinessScopeCard metrics={metrics} onSelect={(s) => setScopeDrillDown(s)} />
 
             {/* Cash flow chart */}
             <div className="bg-white rounded-2xl shadow-sm p-5 sm:p-6 border border-gray-100">
@@ -907,6 +1071,18 @@ export default function PersonalCashFlowPage() {
           initial={editing && !isVirtualTx(editing) ? editing : null}
           onClose={() => { setShowAdd(false); setEditing(null); }}
           onSaved={() => setRefreshTick(t => t + 1)}
+        />
+      )}
+      {scopeDrillDown && (
+        <ScopeDrillDownModal
+          scope={scopeDrillDown}
+          month={month}
+          txs={allTxs}
+          onClose={() => setScopeDrillDown(null)}
+          onEdit={(tx) => {
+            setScopeDrillDown(null);
+            if (!isVirtualTx(tx)) setEditing(tx);
+          }}
         />
       )}
     </div>
