@@ -235,13 +235,14 @@ export default function PlanPage() {
           hasFutureJob: hasFuture,
         };
       })
-      // Filter: only customers whose next visit is due within ±14 days
-      // AND who don't already have a future job booked. The point is to
-      // SURFACE who's been forgotten — not to spam customers already on
-      // the calendar.
-      .filter(c => !c.hasFutureJob)
-      .filter(c => c.daysOverdue >= -14)
-      .sort((a, b) => b.daysOverdue - a.daysOverdue);
+      // Show every active/VIP/new customer. Customers already on the
+      // calendar are flagged (hasFutureJob) and default-unselected; the
+      // gardener decides whether to add a second booking. Sort: most
+      // overdue → due soon → already-booked → freshly visited.
+      .sort((a, b) => {
+        if (a.hasFutureJob !== b.hasFutureJob) return a.hasFutureJob ? 1 : -1;
+        return b.daysOverdue - a.daysOverdue;
+      });
 
       // Group by city, sort cities by urgency (max overdue first).
       const byCity = new Map<string, DueCustomer[]>();
@@ -275,7 +276,12 @@ export default function PlanPage() {
         const base = g.earliestSuggested < today ? today : g.earliestSuggested;
         initialDate[g.city] = rollPastWeekend(base);
         initialTime[g.city] = "09:00";
-        for (const c of g.customers) initialSelected[c.id] = true;
+        for (const c of g.customers) {
+          // Default-select customers who NEED a visit (no future job yet).
+          // Customers already on the calendar start unchecked — the gardener
+          // can tick them on explicitly to add a second booking.
+          initialSelected[c.id] = !c.hasFutureJob;
+        }
       }
       setGroups(cityGroups);
       setSelectedIds(initialSelected);
@@ -374,8 +380,8 @@ export default function PlanPage() {
               </h1>
               <p className="text-[11px] text-gray-400 mt-0.5">
                 {totalCustomers > 0
-                  ? `${totalCustomers} לקוחות בקבוצות של ${groups.length} ${groups.length === 1 ? "עיר" : "ערים"}`
-                  : "אין לקוחות שמחכים לתיאום"}
+                  ? `${totalCustomers} לקוחות · ${groups.length} ${groups.length === 1 ? "עיר" : "ערים"} · בחר וקבע בקליק אחד`
+                  : "אין לקוחות פעילים"}
               </p>
             </div>
           </div>
@@ -456,12 +462,14 @@ export default function PlanPage() {
                 {g.customers.map(c => {
                   const checked = !!selectedIds[c.id];
                   const overdue = c.daysOverdue > 0;
-                  const early = c.daysOverdue < -3;
+                  const isNewCustomer = !c.effectiveLastVisit;
                   return (
                     <button
                       key={c.id}
                       onClick={() => toggleSelect(c.id)}
-                      className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors text-right"
+                      className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl transition-colors text-right ${
+                        c.hasFutureJob ? "opacity-70 hover:bg-gray-50" : "hover:bg-gray-50"
+                      }`}
                     >
                       <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${
                         checked ? "bg-emerald-500" : "bg-white border border-gray-300"
@@ -469,18 +477,37 @@ export default function PlanPage() {
                         {checked && <CheckCircle2 size={14} className="text-white" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-semibold truncate ${
-                          checked ? "text-gray-900" : "text-gray-400"
-                        }`}>
-                          {c.name}
-                        </p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`text-sm font-semibold truncate ${
+                            checked ? "text-gray-900" : "text-gray-500"
+                          }`}>
+                            {c.name}
+                          </p>
+                          {/* Status badges — one of: כבר משובץ / מאחר X ימים / חדש */}
+                          {c.hasFutureJob && (
+                            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                              ✓ כבר משובץ
+                            </span>
+                          )}
+                          {!c.hasFutureJob && overdue && (
+                            <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded-full whitespace-nowrap tabular-nums">
+                              {c.daysOverdue} ימי איחור
+                            </span>
+                          )}
+                          {!c.hasFutureJob && isNewCustomer && (
+                            <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                              חדש
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-gray-400 mt-0.5 truncate">
                           {c.effectiveLastVisit
                             ? `אחרון ${dateLabel(c.effectiveLastVisit)}`
                             : "טרם בוקר"}
                           {" · "}{c.frequency}
-                          {overdue && <span className="text-amber-600 font-bold mr-1">· {c.daysOverdue} ימי איחור</span>}
-                          {early && <span className="text-gray-400 mr-1">· {-c.daysOverdue} ימי הקדמה</span>}
+                          {!overdue && !c.hasFutureJob && c.daysOverdue < 0 && (
+                            <span className="mr-1">· מומלץ ב-{dateLabel(c.suggestedDate)}</span>
+                          )}
                         </p>
                       </div>
                       <span className="text-xs font-semibold text-gray-700 tabular-nums flex-shrink-0">
