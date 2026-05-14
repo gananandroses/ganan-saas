@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, Suspense } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
   Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw, ArrowRight,
-  MessageCircle, StickyNote,
+  MessageCircle, StickyNote, Sparkles,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -1559,13 +1559,30 @@ function SchedulePageInner() {
                   : `${selectedDayJobs.length} ${selectedDayJobs.length === 1 ? "עבודה" : "עבודות"} · ₪${dayRevenue.toLocaleString()}${dayCompleted > 0 ? ` · ${dayCompleted} הושלמו` : ""}`}
               </p>
             </div>
-            <button
-              onClick={() => fetchJobs()}
-              className="hit-44 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
-              aria-label="רענן"
-            >
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => router.push("/schedule/plan")}
+                className="hidden sm:flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-gray-200 transition-colors"
+                title="תכנון ביקורים לקבוצות לפי עיר"
+              >
+                ✨ תכנון
+              </button>
+              <button
+                onClick={() => router.push("/schedule/plan")}
+                className="sm:hidden hit-44 p-2 rounded-lg text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 transition-colors"
+                aria-label="תכנון ביקורים"
+                title="תכנון ביקורים"
+              >
+                <Sparkles size={16} />
+              </button>
+              <button
+                onClick={() => fetchJobs()}
+                className="hit-44 p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+                aria-label="רענן"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              </button>
+            </div>
           </div>
 
           {/* View tabs + date navigator */}

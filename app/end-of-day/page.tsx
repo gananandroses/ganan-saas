@@ -16,7 +16,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, CheckCircle2, AlertCircle, MessageSquare, ChevronRight,
-  Calendar, Moon, ClipboardCheck, Flame, ArrowLeft,
+  Calendar, Moon, ClipboardCheck, Flame, ArrowLeft, Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/Toaster";
@@ -408,6 +408,23 @@ export default function EndOfDayPage() {
             <ArrowLeft size={14} className="text-gray-300 flex-shrink-0" />
           </button>
         )}
+
+        {/* ── Plan next visits — link to the bulk-by-city planner ── */}
+        <button
+          onClick={() => router.push("/schedule/plan")}
+          className="w-full bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 flex items-center gap-3 hover:border-gray-200 hover:shadow-sm transition-all text-right"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+            <Sparkles size={16} className="text-emerald-500" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-gray-900">תכנן את שבוע הבא</h2>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              לקוחות שצריך לבקר אצלם — מקובצים לפי עיר
+            </p>
+          </div>
+          <ArrowLeft size={14} className="text-gray-300 flex-shrink-0" />
+        </button>
 
         {/* ── Tomorrow ── */}
         <section className="bg-white border border-gray-100 rounded-3xl p-5 sm:p-6">
