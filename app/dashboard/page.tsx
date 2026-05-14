@@ -1237,24 +1237,30 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <div className="px-3 sm:px-4 pb-3 pt-2 space-y-1.5">
+            {/* Dense list of action signals. The previous layout used a
+                large coloured card per signal — visually loud and quickly
+                overwhelming when more than 1-2 signals were active. Now
+                each is a slim row: small tinted icon, label + thin meta,
+                count in mono, chevron. Cards stay quietly tinted (just
+                the icon chip) but the dominant background is white. */}
+            <div className="pb-2">
               {hotActions.missedCount > 0 && (
                 <button
                   onClick={() => router.push("/automations")}
-                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-red-50 hover:bg-red-100 border border-red-100 transition-colors text-right"
+                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
-                      <CalendarPlus size={16} className="text-red-500" />
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+                      <CalendarPlus size={14} className="text-red-500" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-red-700 leading-tight">דרושים תיאום מחדש</p>
-                      <p className="text-[11px] text-red-500 mt-0.5">לקוחות שלא הופיעו / בלת״מ</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">דרושים תיאום מחדש</p>
+                      <p className="text-[11px] text-gray-400 truncate">לקוחות שלא הופיעו / בלת״מ</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-2xl font-black text-red-700 tabular-nums">{hotActions.missedCount}</span>
-                    <ChevronRight size={16} className="text-red-300" />
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.missedCount}</span>
+                    <ChevronRight size={14} className="text-gray-300" />
                   </div>
                 </button>
               )}
@@ -1262,20 +1268,20 @@ export default function DashboardPage() {
               {hotActions.debtCount > 0 && (
                 <button
                   onClick={() => router.push("/automations")}
-                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-100 transition-colors text-right"
+                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
-                      <CreditCard size={16} className="text-amber-500" />
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <CreditCard size={14} className="text-amber-500" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-amber-800 leading-tight">חובות פתוחים מעל 7 ימים</p>
-                      <p className="text-[11px] text-amber-600 mt-0.5">סה״כ ₪{Math.round(hotActions.debtTotal).toLocaleString()}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">חובות פתוחים מעל 7 ימים</p>
+                      <p className="text-[11px] text-gray-400 truncate tabular-nums">סה״כ ₪{Math.round(hotActions.debtTotal).toLocaleString()}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-2xl font-black text-amber-700 tabular-nums">{hotActions.debtCount}</span>
-                    <ChevronRight size={16} className="text-amber-300" />
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.debtCount}</span>
+                    <ChevronRight size={14} className="text-gray-300" />
                   </div>
                 </button>
               )}
@@ -1283,24 +1289,24 @@ export default function DashboardPage() {
               {hotActions.unbookedCount > 0 && (
                 <button
                   onClick={() => router.push("/schedule/plan")}
-                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-100 transition-colors text-right"
+                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
-                      <Calendar size={16} className="text-orange-500" />
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+                      <Calendar size={14} className="text-orange-500" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-orange-800 leading-tight">לקוחות שצריך לשריין</p>
-                      <p className="text-[11px] text-orange-600 mt-0.5 truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">לקוחות שצריך לשריין</p>
+                      <p className="text-[11px] text-gray-400 truncate">
                         {hotActions.unbookedSample.length > 0
                           ? `${hotActions.unbookedSample.join(", ")}${hotActions.unbookedCount > hotActions.unbookedSample.length ? ` ועוד ${hotActions.unbookedCount - hotActions.unbookedSample.length}` : ""}`
                           : "אין להם תיאום עתידי לפי התדירות"}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-2xl font-black text-orange-700 tabular-nums">{hotActions.unbookedCount}</span>
-                    <ChevronRight size={16} className="text-orange-300" />
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.unbookedCount}</span>
+                    <ChevronRight size={14} className="text-gray-300" />
                   </div>
                 </button>
               )}
@@ -1308,20 +1314,20 @@ export default function DashboardPage() {
               {hotActions.inactiveCount > 0 && (
                 <button
                   onClick={() => router.push("/automations")}
-                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-purple-50 hover:bg-purple-100 border border-purple-100 transition-colors text-right"
+                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
-                      <UserX size={16} className="text-purple-500" />
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+                      <UserX size={14} className="text-purple-500" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-purple-800 leading-tight">לקוחות לא פעילים</p>
-                      <p className="text-[11px] text-purple-600 mt-0.5">לא בוקרו 30+ ימים</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">לקוחות לא פעילים</p>
+                      <p className="text-[11px] text-gray-400 truncate">לא בוקרו 30+ ימים</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-2xl font-black text-purple-700 tabular-nums">{hotActions.inactiveCount}</span>
-                    <ChevronRight size={16} className="text-purple-300" />
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.inactiveCount}</span>
+                    <ChevronRight size={14} className="text-gray-300" />
                   </div>
                 </button>
               )}
