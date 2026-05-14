@@ -1474,9 +1474,15 @@ function SchedulePageInner() {
         if (!effectiveLast) continue;
         const cadence = cadenceDays(c.frequency);
         const expected = new Date(effectiveLast + "T00:00:00");
-        expected.setDate(expected.getDate() + cadence);
+        expected.setDate(expected.getDate() + Math.round(cadence));
         const daysOverdue = Math.floor((todayMs - expected.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysOverdue >= -3) {
+        // Proportional lead time: warn earlier for longer cadences.
+        //   weekly (7)        → ~2 days early
+        //   monthly (30)      → ~10 days early
+        //   bi-monthly (60)   → 14 days early (cap)
+        //   3-monthly (90)    → 14 days early (cap)
+        const leadDays = Math.min(Math.ceil(cadence / 3), 14);
+        if (daysOverdue >= -leadDays) {
           needsList.push({ id: c.id, name: c.name ?? "", daysOverdue });
         }
       }
