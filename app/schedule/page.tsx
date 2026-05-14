@@ -1213,6 +1213,16 @@ function SchedulePageInner() {
   }>>([]);
   const [fixingPrices, setFixingPrices] = useState(false);
 
+  // "Needs scheduling" — active customers whose cadence says it's time
+  // for their next visit AND they don't have a future job yet. Surfaces
+  // as a compact orange banner at the top of the schedule body so the
+  // gardener sees it without leaving the calendar.
+  const [needsScheduling, setNeedsScheduling] = useState<Array<{
+    id: string;
+    name: string;
+    daysOverdue: number;
+  }>>([]);
+
   const today = useMemo(() => {
     const d = new Date(); d.setHours(0,0,0,0); return d;
   }, []);
@@ -1263,7 +1273,7 @@ function SchedulePageInner() {
     // so we can spot orphan completed jobs that never created a transaction.
     const [jobsRes, custRes, txRes] = await Promise.all([
       supabase.from("jobs").select("*").eq("user_id", user?.id).order("job_date").order("job_time"),
-      supabase.from("customers").select("id, name, address, city, phone, monthly_price, frequency, price_mode").eq("user_id", user?.id),
+      supabase.from("customers").select("id, name, address, city, phone, monthly_price, frequency, price_mode, status, last_visit").eq("user_id", user?.id),
       supabase.from("transactions")
         .select("customer_name, type, description, transaction_date, amount")
         .eq("user_id", user?.id)
@@ -1405,6 +1415,73 @@ function SchedulePageInner() {
         }
       }
       setMispriced(foundMispriced);
+
+      // ── Needs scheduling — cadence-based ────────────────────────────
+      // For each active/VIP customer:
+      //   last_visit  = max(completed job_date), else customers.last_visit
+      //   cadence     = days_per_frequency(customer.frequency)
+      //   expected    = last_visit + cadence
+      //   surface     when no future non-cancelled job AND
+      //               daysOverdue ≥ -3 (within 3 days or already past)
+      // Unlike the dashboard's "inactive" bucket, this is PURELY about
+      // cadence — so a weekly customer at day 8 lands here regardless
+      // of whether they've been quiet for a long time or not.
+      const cadenceDays = (freq: string | null | undefined): number => {
+        if (freq === "פעם בשבוע")       return 7;
+        if (freq === "פעמיים בשבוע")    return 3.5;
+        if (freq === "פעמיים בחודש")    return 15;
+        if (freq === "פעם בחודש")       return 30;
+        if (freq === "פעם בחודשיים")    return 60;
+        if (freq === "פעם ב-3 חודשים") return 90;
+        return 30;
+      };
+      // Build last-completed per customer + future-job presence (reuse
+      // the loop pattern from the planner so signatures stay identical).
+      const lastDoneById = new Map<string, string>();
+      const lastDoneByName = new Map<string, string>();
+      const hasFutureById = new Set<string>();
+      const hasFutureByName = new Set<string>();
+      for (const j of mapped) {
+        if (j.status === "completed" && j.date) {
+          if (j.customerId) {
+            const cur = lastDoneById.get(j.customerId);
+            if (!cur || j.date > cur) lastDoneById.set(j.customerId, j.date);
+          }
+          const n = normName(j.customerName);
+          if (n) {
+            const cur = lastDoneByName.get(n);
+            if (!cur || j.date > cur) lastDoneByName.set(n, j.date);
+          }
+        }
+        if (j.status !== "completed" && j.status !== "cancelled" && j.date && j.date >= todayISO) {
+          if (j.customerId) hasFutureById.add(j.customerId);
+          const n = normName(j.customerName);
+          if (n) hasFutureByName.add(n);
+        }
+      }
+      // Walk the customer rows we already fetched at the top of this load.
+      type CustForSched = { id: string; name: string | null; status: string | null; frequency: string | null; last_visit: string | null };
+      const allCusts: CustForSched[] = (custRes.data ?? []) as CustForSched[];
+      const todayMs = new Date(todayISO + "T00:00:00").getTime();
+      const needsList: Array<{ id: string; name: string; daysOverdue: number }> = [];
+      for (const c of allCusts) {
+        if (c.status !== "active" && c.status !== "vip") continue;
+        const cid = String(c.id);
+        const nName = normName(c.name);
+        if (hasFutureById.has(cid) || (nName && hasFutureByName.has(nName))) continue;
+        const fromJobs = lastDoneById.get(cid) ?? (nName ? lastDoneByName.get(nName) : null);
+        const effectiveLast = fromJobs ?? c.last_visit ?? null;
+        if (!effectiveLast) continue;
+        const cadence = cadenceDays(c.frequency);
+        const expected = new Date(effectiveLast + "T00:00:00");
+        expected.setDate(expected.getDate() + cadence);
+        const daysOverdue = Math.floor((todayMs - expected.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOverdue >= -3) {
+          needsList.push({ id: c.id, name: c.name ?? "", daysOverdue });
+        }
+      }
+      needsList.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      setNeedsScheduling(needsList);
     }
     setLoading(false);
   }
@@ -1638,6 +1715,34 @@ function SchedulePageInner() {
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28">
+
+        {/* Needs-scheduling banner — customers whose cadence says it's
+            time for their next visit and have no future job booked.
+            Routes straight to /schedule/plan for one-click batch booking. */}
+        {needsScheduling.length > 0 && !loading && (
+          <div className="mb-4 bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-orange-100">
+              <Calendar size={16} className="text-orange-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-orange-900 leading-tight">
+                {needsScheduling.length} {needsScheduling.length === 1 ? "לקוח" : "לקוחות"} צריכים תיאום לפי התדירות
+              </p>
+              <p className="text-[11px] text-orange-700 mt-1 leading-relaxed truncate">
+                {needsScheduling.slice(0, 3).map(c => c.name).filter(Boolean).join(", ")}
+                {needsScheduling.length > 3 ? ` ועוד ${needsScheduling.length - 3}` : ""}
+                {" · "}שריין עכשיו לפני שזה ייפול
+              </p>
+              <button
+                onClick={() => router.push("/schedule/plan")}
+                className="mt-2.5 inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+              >
+                <Sparkles size={13} />
+                פתח תכנון
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Misprice banner — jobs whose price equals the customer's full
             monthly retainer instead of the per-visit slice. One tap to
