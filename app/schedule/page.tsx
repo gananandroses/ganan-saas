@@ -1471,17 +1471,23 @@ function SchedulePageInner() {
         if (hasFutureById.has(cid) || (nName && hasFutureByName.has(nName))) continue;
         const fromJobs = lastDoneById.get(cid) ?? (nName ? lastDoneByName.get(nName) : null);
         const effectiveLast = fromJobs ?? c.last_visit ?? null;
-        if (!effectiveLast) continue;
+        // First-timers (no last visit on record AND no completed job) are
+        // included as "infinitely overdue" so they don't get silently
+        // dropped — most active customers without history are simply
+        // active customers that never had their last_visit field set.
+        if (!effectiveLast) {
+          needsList.push({ id: c.id, name: c.name ?? "", daysOverdue: 9999 });
+          continue;
+        }
         const cadence = cadenceDays(c.frequency);
         const expected = new Date(effectiveLast + "T00:00:00");
         expected.setDate(expected.getDate() + Math.round(cadence));
         const daysOverdue = Math.floor((todayMs - expected.getTime()) / (1000 * 60 * 60 * 24));
-        // Proportional lead time: warn earlier for longer cadences.
-        //   weekly (7)        → ~2 days early
-        //   monthly (30)      → ~10 days early
-        //   bi-monthly (60)   → 14 days early (cap)
-        //   3-monthly (90)    → 14 days early (cap)
-        const leadDays = Math.min(Math.ceil(cadence / 3), 14);
+        // Lead time per the gardener's rule: 7 days for short cadences
+        // (weekly / bi-weekly / twice-monthly), 14 days for monthly and
+        // anything longer. Gives him a full week heads-up generally and
+        // a two-week heads-up for low-frequency customers.
+        const leadDays = cadence >= 30 ? 14 : 7;
         if (daysOverdue >= -leadDays) {
           needsList.push({ id: c.id, name: c.name ?? "", daysOverdue });
         }
@@ -1724,8 +1730,10 @@ function SchedulePageInner() {
 
         {/* Needs-scheduling banner — customers whose cadence says it's
             time for their next visit and have no future job booked.
-            Routes straight to /schedule/plan for one-click batch booking. */}
-        {needsScheduling.length > 0 && !loading && (
+            Routes straight to /schedule/plan for one-click batch booking.
+            When the list is empty we still show a subtle gray pill so the
+            gardener gets explicit confirmation the feature is alive. */}
+        {!loading && needsScheduling.length > 0 && (
           <div className="mb-4 bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-start gap-3">
             <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-orange-100">
               <Calendar size={16} className="text-orange-500" />
@@ -1748,6 +1756,21 @@ function SchedulePageInner() {
               </button>
             </div>
           </div>
+        )}
+        {!loading && needsScheduling.length === 0 && (
+          <button
+            onClick={() => router.push("/schedule/plan")}
+            className="mb-4 w-full bg-white border border-gray-100 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors text-right"
+          >
+            <span className="flex items-center gap-2 min-w-0">
+              <CheckCircle size={14} className="text-emerald-500 flex-shrink-0" />
+              <span className="text-xs font-semibold text-gray-700">כל הלקוחות בקצב</span>
+              <span className="text-[11px] text-gray-400 truncate">אין מי שצריך תיאום לפי תדירות</span>
+            </span>
+            <span className="text-[11px] font-bold text-gray-500 flex items-center gap-0.5 flex-shrink-0">
+              פתח תכנון <ChevronLeft size={11} />
+            </span>
+          </button>
         )}
 
         {/* Misprice banner — jobs whose price equals the customer's full

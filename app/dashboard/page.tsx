@@ -790,13 +790,19 @@ export default function DashboardPage() {
         if (hasFutureById.has(cid) || (nName && hasFutureByName.has(nName))) continue; // already booked
         const lastFromJobs = lastDoneById.get(cid) ?? (nName ? lastDoneByName.get(nName) : null);
         const effectiveLast = lastFromJobs ?? c.last_visit ?? null;
-        if (!effectiveLast) continue; // first-timers handled separately (no rhythm yet)
+        if (!effectiveLast) {
+          // Active customer with no recorded visit at all. Treat as
+          // very-overdue so it surfaces — these are typically real
+          // customers whose last_visit was never written to the DB.
+          unbookedDetails.push({ name: c.name ?? "", daysOverdue: 9999 });
+          continue;
+        }
         const cadence = cadenceDays(c.frequency);
         const expected = new Date(effectiveLast + "T00:00:00");
         expected.setDate(expected.getDate() + Math.round(cadence));
         const daysOverdue = Math.floor((todayDate - expected.getTime()) / (1000 * 60 * 60 * 24));
-        // Proportional lead — weekly ~2d, monthly ~10d, bi-monthly 14d cap.
-        const leadDays = Math.min(Math.ceil(cadence / 3), 14);
+        // 7 days for short cadences, 14 days for monthly and longer.
+        const leadDays = cadence >= 30 ? 14 : 7;
         if (daysOverdue >= -leadDays) {
           unbookedDetails.push({ name: c.name ?? "", daysOverdue });
         }
