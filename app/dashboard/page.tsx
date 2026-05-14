@@ -33,6 +33,7 @@ import {
   Plus,
   Trash2,
   ClipboardList,
+  Calendar,
 } from "lucide-react";
 import {
   BarChart,
@@ -409,6 +410,11 @@ export default function DashboardPage() {
     debtCount: 0,
     debtTotal: 0,
     inactiveCount: 0,
+    // Customers whose cadence says it's time for their next visit AND
+    // they have no future job booked yet. Sourced from customers.frequency
+    // + most-recent completed job date, compared to today.
+    unbookedCount: 0,
+    unbookedSample: [] as string[],  // first 3 names for the card subtitle
   });
 
   // Daily verification checklist. Items are personal (stored in
@@ -691,8 +697,8 @@ export default function DashboardPage() {
         supabase.from("jobs").select("id, customer_id, customer_name, job_date, status, cancellation_reason").eq("user_id", user?.id),
         // For "open debt > 7 days" badge.
         supabase.from("transactions").select("amount, status, transaction_date").eq("user_id", user?.id).eq("type", "income").in("status", ["pending", "overdue"]),
-        // For "inactive customer" badge.
-        supabase.from("customers").select("id, last_visit").eq("user_id", user?.id),
+        // For "inactive customer" badge + "needs booking" detection.
+        supabase.from("customers").select("id, name, last_visit, frequency, status").eq("user_id", user?.id),
       ]);
 
       const customers = custRes.data || [];
@@ -726,10 +732,81 @@ export default function DashboardPage() {
       const debtCount = stale.length;
       const debtTotal = stale.reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-      const allCusts = (custFullRes.data || []) as Array<{ id: string; last_visit: string | null }>;
+      const allCusts = (custFullRes.data || []) as Array<{
+        id: string;
+        name: string | null;
+        last_visit: string | null;
+        frequency: string | null;
+        status: string | null;
+      }>;
       const inactiveCount = allCusts.filter(c => c.last_visit && daysSince(c.last_visit) >= INACTIVE_DAYS).length;
 
-      setHotActions({ missedCount, debtCount, debtTotal, inactiveCount });
+      // ── "Needs booking" detection ──────────────────────────────────────
+      // For each active/VIP customer:
+      //   • last_visit  = max(completed job_date), fall back to customers.last_visit
+      //   • cadence     = days for their frequency
+      //   • is the next visit within 3 days OR already overdue?
+      //   • AND do they have NO future non-cancelled job?
+      // Booking-overdue customers get surfaced. Inactive (>30d quiet)
+      // customers are excluded since they already show under "inactive".
+      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      const lastDoneById = new Map<string, string>();
+      const lastDoneByName = new Map<string, string>();
+      const hasFutureById = new Set<string>();
+      const hasFutureByName = new Set<string>();
+      for (const j of allJobsForHot) {
+        if (j.status === "completed" && j.job_date) {
+          if (j.customer_id) {
+            const cur = lastDoneById.get(String(j.customer_id));
+            if (!cur || j.job_date > cur) lastDoneById.set(String(j.customer_id), j.job_date);
+          }
+          const n = norm(j.customer_name);
+          if (n) {
+            const cur = lastDoneByName.get(n);
+            if (!cur || j.job_date > cur) lastDoneByName.set(n, j.job_date);
+          }
+        }
+        if (j.status !== "completed" && j.status !== "cancelled" && j.job_date && j.job_date >= today) {
+          if (j.customer_id) hasFutureById.add(String(j.customer_id));
+          const n = norm(j.customer_name);
+          if (n) hasFutureByName.add(n);
+        }
+      }
+      const cadenceDays = (freq: string | null) => {
+        if (freq === "פעם בשבוע")       return 7;
+        if (freq === "פעמיים בשבוע")    return 3.5;
+        if (freq === "פעמיים בחודש")    return 15;
+        if (freq === "פעם בחודש")       return 30;
+        if (freq === "פעם בחודשיים")    return 60;
+        if (freq === "פעם ב-3 חודשים") return 90;
+        return 30;
+      };
+      const BOOK_LEAD = 3; // surface customers whose next visit is within 3 days or already past
+      const todayDate = new Date(today + "T00:00:00").getTime();
+      const unbookedDetails: Array<{ name: string; daysOverdue: number }> = [];
+      for (const c of allCusts) {
+        if (c.status !== "active" && c.status !== "vip") continue;
+        const cid = String(c.id);
+        const nName = norm(c.name);
+        if (hasFutureById.has(cid) || (nName && hasFutureByName.has(nName))) continue; // already booked
+        const lastFromJobs = lastDoneById.get(cid) ?? (nName ? lastDoneByName.get(nName) : null);
+        const effectiveLast = lastFromJobs ?? c.last_visit ?? null;
+        if (!effectiveLast) continue; // first-timers handled separately (no rhythm yet)
+        // Skip inactive — already counted in "inactiveCount" bucket.
+        if (daysSince(effectiveLast) >= INACTIVE_DAYS) continue;
+        const cadence = cadenceDays(c.frequency);
+        const expected = new Date(effectiveLast + "T00:00:00");
+        expected.setDate(expected.getDate() + cadence);
+        const daysOverdue = Math.floor((todayDate - expected.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysOverdue >= -BOOK_LEAD) {
+          unbookedDetails.push({ name: c.name ?? "", daysOverdue });
+        }
+      }
+      unbookedDetails.sort((a, b) => b.daysOverdue - a.daysOverdue);
+      const unbookedCount = unbookedDetails.length;
+      const unbookedSample = unbookedDetails.slice(0, 3).map(d => d.name).filter(Boolean);
+
+      setHotActions({ missedCount, debtCount, debtTotal, inactiveCount, unbookedCount, unbookedSample });
 
       // ── Today snapshot ──
       const todaysJobs = (allJobsForHot || []).filter(j => j.job_date === today);
@@ -883,7 +960,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const totalHotActions = hotActions.missedCount + hotActions.debtCount + hotActions.inactiveCount;
+  const totalHotActions = hotActions.missedCount + hotActions.debtCount + hotActions.inactiveCount + hotActions.unbookedCount;
   const dayProgress = todaySnap.total > 0 ? Math.round((todaySnap.done / todaySnap.total) * 100) : 0;
 
   return (
@@ -1194,6 +1271,31 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="text-2xl font-black text-amber-700 tabular-nums">{hotActions.debtCount}</span>
                     <ChevronRight size={16} className="text-amber-300" />
+                  </div>
+                </button>
+              )}
+
+              {hotActions.unbookedCount > 0 && (
+                <button
+                  onClick={() => router.push("/schedule/plan")}
+                  className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-100 transition-colors text-right"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
+                      <Calendar size={16} className="text-orange-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-orange-800 leading-tight">לקוחות שצריך לשריין</p>
+                      <p className="text-[11px] text-orange-600 mt-0.5 truncate">
+                        {hotActions.unbookedSample.length > 0
+                          ? `${hotActions.unbookedSample.join(", ")}${hotActions.unbookedCount > hotActions.unbookedSample.length ? ` ועוד ${hotActions.unbookedCount - hotActions.unbookedSample.length}` : ""}`
+                          : "אין להם תיאום עתידי לפי התדירות"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-2xl font-black text-orange-700 tabular-nums">{hotActions.unbookedCount}</span>
+                    <ChevronRight size={16} className="text-orange-300" />
                   </div>
                 </button>
               )}
