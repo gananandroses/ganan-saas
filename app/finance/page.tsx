@@ -22,6 +22,7 @@ import {
   Send,
   Loader2,
   Trash2,
+  Check,
 } from "lucide-react";
 import {
   AreaChart,
@@ -218,6 +219,219 @@ function ChartTooltip({
 }
 
 // ─── New Transaction Modal ────────────────────────────────────────────────────
+
+// ── QuickAddExpenseModal ─────────────────────────────────────────────────────
+// Focused, single-purpose: log an expense (with VAT input) so the gardener
+// can immediately reduce their VAT-to-pay number. Opened from the VAT card's
+// "+ הוסף הוצאה" button. Separate from NewTransactionModal which is
+// income-only and quote-oriented.
+function QuickAddExpenseModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [vatType, setVatType] = useState<"include" | "before">("include");
+  const [form, setForm] = useState({
+    supplier: "",     // free-text vendor name, lands in customer_name for consistency
+    description: "",
+    amount: "",
+    date: new Date().toISOString().split("T")[0],
+    has_invoice: true, // affects whether vat_amount counts toward input-vat deduction
+  });
+
+  const raw = parseFloat(form.amount) || 0;
+  const vatAmount = vatType === "before" ? Math.round(raw * 0.18) : Math.round(raw / 1.18 * 0.18);
+  const totalAmount = vatType === "before" ? Math.round(raw * 1.18) : raw;
+  const beforeVat = vatType === "before" ? raw : Math.round(raw / 1.18);
+
+  async function handleSubmit() {
+    if (!form.description.trim() || raw <= 0) return;
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("transactions").insert({
+      customer_name: form.supplier.trim() || "ספק",
+      type: "expense",
+      // vat_amount is only counted toward input-VAT deduction when the
+      // gardener has an actual חשבונית מס on file. Without it, we still
+      // log the expense but zero the VAT so it doesn't reduce VAT owed.
+      vat_amount: form.has_invoice ? vatAmount : 0,
+      amount: totalAmount,
+      description: form.description.trim(),
+      method: "cash",
+      status: "paid",
+      transaction_date: form.date,
+      user_id: user?.id,
+    });
+    setSaving(false);
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col" style={{ maxHeight: "92dvh" }} dir="rtl">
+        <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
+          <div className="w-10 h-1 bg-gray-200 rounded-full" />
+        </div>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 flex items-center justify-center">
+              <FileText size={16} className="text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">הוצאה חדשה</h2>
+              <p className="text-[11px] text-gray-400 mt-0.5">תקטין את המע״מ לתשלום</p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">תיאור *</label>
+            <input
+              type="text"
+              autoFocus
+              autoComplete="off"
+              value={form.description}
+              onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="למשל: דשן 50 קג ממשתלת השרון"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">ספק (אופציונלי)</label>
+            <input
+              type="text"
+              autoComplete="organization"
+              value={form.supplier}
+              onChange={(e) => setForm(f => ({ ...f, supplier: e.target.value }))}
+              placeholder="משתלת השרון"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">סכום *</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.amount}
+                onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="240"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">תאריך</label>
+              <input
+                type="date"
+                dir="ltr"
+                value={form.date}
+                onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+            </div>
+          </div>
+
+          {/* VAT toggle */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">הסכום הוא:</label>
+            <div className="inline-flex w-full bg-gray-100 rounded-xl p-0.5">
+              <button
+                type="button"
+                onClick={() => setVatType("include")}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  vatType === "include" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                כולל מע״מ
+              </button>
+              <button
+                type="button"
+                onClick={() => setVatType("before")}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  vatType === "before" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                לפני מע״מ
+              </button>
+            </div>
+          </div>
+
+          {/* Has-invoice toggle — affects VAT input deduction */}
+          <button
+            type="button"
+            onClick={() => setForm(f => ({ ...f, has_invoice: !f.has_invoice }))}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-right ${
+              form.has_invoice
+                ? "bg-purple-50/60 border-purple-100"
+                : "bg-gray-50 border-gray-200"
+            }`}
+          >
+            <div className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 ${
+              form.has_invoice ? "bg-purple-500" : "bg-white border border-gray-300"
+            }`}>
+              {form.has_invoice && <Check size={14} className="text-white" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-gray-900">יש חשבונית מס</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                {form.has_invoice
+                  ? "המע״מ יקוזז מהמע״מ לתשלום"
+                  : "ללא חשבונית מס — לא ניתן לקזז מע״מ"}
+              </p>
+            </div>
+          </button>
+
+          {/* Preview */}
+          {raw > 0 && (
+            <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-3 space-y-1 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>לפני מע״מ</span>
+                <span className="font-bold text-gray-800 tabular-nums">₪{beforeVat.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>מע״מ (18%)</span>
+                <span className="font-bold text-gray-800 tabular-nums">₪{vatAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between border-t border-purple-100 pt-1 mt-1">
+                <span className="font-bold text-gray-900">סך הוצאה</span>
+                <span className="font-black text-gray-900 tabular-nums">₪{totalAmount.toLocaleString()}</span>
+              </div>
+              {form.has_invoice && vatAmount > 0 && (
+                <p className="text-[11px] text-emerald-700 mt-2 font-semibold flex items-center gap-1">
+                  ✓ יפחית ₪{vatAmount.toLocaleString()} מהמע״מ לתשלום
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0 flex gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <button onClick={onClose} className="flex-1 py-3 rounded-2xl border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+            ביטול
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || !form.description.trim() || raw <= 0}
+            className="flex-[2] flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-bold transition-colors"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            {saving ? "שומר..." : "שמור הוצאה"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface NewTransactionModalProps {
   onClose: () => void;
@@ -662,6 +876,7 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [showInvoice, setShowInvoice] = useState(false);
   const [showNewTransaction, setShowNewTransaction] = useState(false);
+  const [showQuickExpense, setShowQuickExpense] = useState(false);
   const [showDebtModal, setShowDebtModal] = useState(false);
   const [detailModal, setDetailModal] = useState<null | "income" | "expense" | "profit">(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -1187,6 +1402,13 @@ export default function FinancePage() {
         />
       )}
 
+      {showQuickExpense && (
+        <QuickAddExpenseModal
+          onClose={() => setShowQuickExpense(false)}
+          onSaved={fetchTransactions}
+        />
+      )}
+
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
         {/* ── Page title row ── */}
@@ -1321,6 +1543,23 @@ export default function FinancePage() {
                 <span className="font-bold text-purple-700">-₪{inputVat.toLocaleString()}</span>
               </div>
             </div>
+
+            {/* Add-expense affordance — the natural reflex when seeing
+                "I owe X to the tax authority" is "wait, I have unentered
+                receipts". One tap → focused expense form → VAT drops live. */}
+            <button
+              onClick={() => setShowQuickExpense(true)}
+              className="w-full flex items-center justify-between gap-2 bg-white hover:bg-purple-50 border border-purple-200 rounded-xl px-3 py-2.5 text-xs font-bold text-purple-700 transition-colors group"
+            >
+              <span className="flex items-center gap-1.5">
+                <Plus size={13} />
+                הוסף הוצאה
+              </span>
+              <span className="text-[10px] text-purple-500 font-medium group-hover:text-purple-700">
+                כל חשבונית מס מקטינה את הסכום לתשלום
+              </span>
+            </button>
+
             <div className="pt-2 border-t border-purple-100 space-y-1.5">
               <p className="text-[11px] text-purple-600 leading-relaxed">
                 <span className="font-semibold">⚠️ הערה:</span> החישוב מניח שכל ההוצאות כוללות מע״מ וקיימת חשבונית מס. הוצאות ללא חשבונית מס לא מזכות בקיזוז מע״מ.
