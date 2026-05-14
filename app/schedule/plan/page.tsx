@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast } from "@/components/Toaster";
+import { regionForCity, REGION_ORDER, type Region } from "@/lib/israel-regions";
 
 // ── Cadence helpers ──────────────────────────────────────────────────────────
 
@@ -115,27 +116,34 @@ interface DueCustomer extends CustomerRow {
   daysOverdue: number;                 // negative = early, positive = overdue
   visitPrice: number;
   hasFutureJob: boolean;               // true if a non-cancelled future job already exists
+  region: Region;                      // derived from city
 }
 
-interface CityGroup {
-  city: string;
+interface PlanGroup {
+  key: string;          // city name OR region name — the bucket label
+  label: string;        // what the gardener sees
   customers: DueCustomer[];
   totalPrice: number;
   earliestSuggested: string;
 }
+
+type GroupMode = "city" | "region";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function PlanPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [groups, setGroups] = useState<CityGroup[]>([]);
+  // The flat list of due customers. Grouping is derived from this +
+  // groupMode so toggling between עיר/אזור doesn't re-fetch.
+  const [allDue, setAllDue] = useState<DueCustomer[]>([]);
+  const [groupMode, setGroupMode] = useState<GroupMode>("city");
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
-  // Per-city date + time. Keyed by normalised city name.
+  // Per-group date + time. Keyed by the group's key (city OR region).
   const [groupDate, setGroupDate] = useState<Record<string, string>>({});
   const [groupTime, setGroupTime] = useState<Record<string, string>>({});
-  // Per-city saving spinner.
-  const [savingCity, setSavingCity] = useState<string | null>(null);
+  // Per-group saving spinner.
+  const [savingGroup, setSavingGroup] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -194,7 +202,7 @@ export default function PlanPage() {
       }
 
       const todayDate = new Date(today + "T00:00:00");
-      const due: DueCustomer[] = customers.map(c => {
+      const dueCustomers: DueCustomer[] = customers.map(c => {
         const fromJobs = lastByCustomerId.get(c.id) ?? lastByName.get(normName(c.name)) ?? null;
         const fromDb = c.last_visit ?? null;
         // Prefer the freshest available date.
@@ -217,10 +225,11 @@ export default function PlanPage() {
         const hasFuture =
           (hasFutureById.get(c.id) ?? false) ||
           (hasFutureByName.get(normName(c.name)) ?? false);
+        const cityClean = (c.city ?? "").trim() || "ללא עיר";
         return {
           id: c.id,
           name: c.name ?? "",
-          city: (c.city ?? "").trim() || "ללא עיר",
+          city: cityClean,
           address: c.address ?? "",
           phone: c.phone ?? "",
           status: c.status ?? "active",
@@ -233,6 +242,7 @@ export default function PlanPage() {
           daysOverdue,
           visitPrice: pricePerVisit(monthly, c.frequency, mode),
           hasFutureJob: hasFuture,
+          region: regionForCity(cityClean),
         };
       })
       // Show every active/VIP/new customer. Customers already on the
@@ -244,49 +254,13 @@ export default function PlanPage() {
         return b.daysOverdue - a.daysOverdue;
       });
 
-      // Group by city, sort cities by urgency (max overdue first).
-      const byCity = new Map<string, DueCustomer[]>();
-      for (const c of due) {
-        const k = c.city;
-        if (!byCity.has(k)) byCity.set(k, []);
-        byCity.get(k)!.push(c);
-      }
-      const cityGroups: CityGroup[] = Array.from(byCity.entries())
-        .map(([city, customersInCity]) => ({
-          city,
-          customers: customersInCity,
-          totalPrice: customersInCity.reduce((s, c) => s + c.visitPrice, 0),
-          earliestSuggested: customersInCity.reduce((min, c) => (c.suggestedDate < min ? c.suggestedDate : min), customersInCity[0].suggestedDate),
-        }))
-        .sort((a, b) => {
-          // Cities with overdue customers first.
-          const aOverdue = a.customers.some(c => c.daysOverdue > 0);
-          const bOverdue = b.customers.some(c => c.daysOverdue > 0);
-          if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
-          // Then by count descending.
-          return b.customers.length - a.customers.length;
-        });
-
-      // Pre-select every due customer, default the group date to MIN
-      // (earliest) suggested date, default time to 09:00.
+      // Default-select customers who need a visit; the per-group date/
+      // time defaults are computed from the derived grouping (see useMemo
+      // below), but we can seed selectedIds from the flat list now.
       const initialSelected: Record<string, boolean> = {};
-      const initialDate: Record<string, string> = {};
-      const initialTime: Record<string, string> = {};
-      for (const g of cityGroups) {
-        const base = g.earliestSuggested < today ? today : g.earliestSuggested;
-        initialDate[g.city] = rollPastWeekend(base);
-        initialTime[g.city] = "09:00";
-        for (const c of g.customers) {
-          // Default-select customers who NEED a visit (no future job yet).
-          // Customers already on the calendar start unchecked — the gardener
-          // can tick them on explicitly to add a second booking.
-          initialSelected[c.id] = !c.hasFutureJob;
-        }
-      }
-      setGroups(cityGroups);
+      for (const c of dueCustomers) initialSelected[c.id] = !c.hasFutureJob;
+      setAllDue(dueCustomers);
       setSelectedIds(initialSelected);
-      setGroupDate(initialDate);
-      setGroupTime(initialTime);
       setLoading(false);
     })();
   }, []);
@@ -295,11 +269,76 @@ export default function PlanPage() {
     setSelectedIds(prev => ({ ...prev, [id]: !prev[id] }));
   }
 
-  // Bulk-insert: every selected customer in this city gets a pending job
+  // Derive the planning groups from allDue + groupMode. When the user
+  // toggles עיר/אזור the same flat list is just re-bucketed and re-sorted.
+  const groups: PlanGroup[] = useMemo(() => {
+    const buckets = new Map<string, DueCustomer[]>();
+    for (const c of allDue) {
+      const key = groupMode === "city" ? c.city : c.region;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key)!.push(c);
+    }
+    const list: PlanGroup[] = Array.from(buckets.entries()).map(([key, customersInGroup]) => ({
+      key,
+      label: key,
+      customers: customersInGroup,
+      totalPrice: customersInGroup.reduce((s, c) => s + c.visitPrice, 0),
+      earliestSuggested: customersInGroup.reduce(
+        (min, c) => (c.suggestedDate < min ? c.suggestedDate : min),
+        customersInGroup[0].suggestedDate,
+      ),
+    }));
+    list.sort((a, b) => {
+      // Groups with at least one overdue customer first.
+      const aOverdue = a.customers.some(c => c.daysOverdue > 0 && !c.hasFutureJob);
+      const bOverdue = b.customers.some(c => c.daysOverdue > 0 && !c.hasFutureJob);
+      if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+      if (groupMode === "region") {
+        const ai = REGION_ORDER.indexOf(a.key as Region);
+        const bi = REGION_ORDER.indexOf(b.key as Region);
+        if (ai !== bi) return ai - bi;
+      }
+      // Then by count descending — bigger pile first.
+      return b.customers.length - a.customers.length;
+    });
+    return list;
+  }, [allDue, groupMode]);
+
+  // Lazy-seed group dates whenever a group key first shows up (e.g.
+  // toggling to "אזור" creates new keys like "מרכז (גוש דן)" that
+  // don't yet have a default date in state).
+  useEffect(() => {
+    const today = todayISO();
+    setGroupDate(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const g of groups) {
+        if (!next[g.key]) {
+          const base = g.earliestSuggested < today ? today : g.earliestSuggested;
+          next[g.key] = rollPastWeekend(base);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setGroupTime(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const g of groups) {
+        if (!next[g.key]) {
+          next[g.key] = "09:00";
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [groups]);
+
+  // Bulk-insert: every selected customer in this group gets a pending job
   // at the chosen date + time + per-visit price.
-  async function createForCity(group: CityGroup) {
-    const date = groupDate[group.city];
-    const time = groupTime[group.city] || "09:00";
+  async function createForGroup(group: PlanGroup) {
+    const date = groupDate[group.key];
+    const time = groupTime[group.key] || "09:00";
     if (!date) { toast.error("בחר תאריך"); return; }
     if (isWeekend(date)) {
       toast.error("יום שישי / שבת לא זמין", "בחר יום חול");
@@ -307,9 +346,9 @@ export default function PlanPage() {
     }
     const ids = group.customers.filter(c => selectedIds[c.id]).map(c => c.id);
     if (ids.length === 0) { toast.error("בחר לפחות לקוח אחד"); return; }
-    setSavingCity(group.city);
+    setSavingGroup(group.key);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.id) { setSavingCity(null); toast.error("לא מחובר"); return; }
+    if (!user?.id) { setSavingGroup(null); toast.error("לא מחובר"); return; }
 
     const rows = group.customers
       .filter(c => selectedIds[c.id])
@@ -329,12 +368,21 @@ export default function PlanPage() {
         assigned_to: [],
       }));
     const { error } = await supabase.from("jobs").insert(rows);
-    setSavingCity(null);
+    setSavingGroup(null);
     if (error) { toast.error("שגיאה ביצירת עבודות", error.message); return; }
-    toast.success(`${rows.length} עבודות נקבעו ל-${dateLabel(date)}`, `עיר ${group.city}`);
+    toast.success(`${rows.length} עבודות נקבעו ל-${dateLabel(date)}`, group.label);
 
-    // Drop the city out of the planning view — its work is done.
-    setGroups(prev => prev.filter(g => g.city !== group.city));
+    // Mark the inserted customers as "already booked" so they drop to
+    // the bottom of any subsequent grouping (without re-fetching).
+    const insertedIds = new Set(group.customers.filter(c => selectedIds[c.id]).map(c => c.id));
+    setAllDue(prev => prev.map(c =>
+      insertedIds.has(c.id) ? { ...c, hasFutureJob: true } : c,
+    ));
+    setSelectedIds(prev => {
+      const next = { ...prev };
+      for (const id of insertedIds) next[id] = false;
+      return next;
+    });
   }
 
   // Filtered groups by search.
@@ -344,7 +392,11 @@ export default function PlanPage() {
     return groups
       .map(g => ({
         ...g,
-        customers: g.customers.filter(c => c.name.toLowerCase().includes(q) || g.city.toLowerCase().includes(q)),
+        customers: g.customers.filter(c =>
+          c.name.toLowerCase().includes(q) ||
+          g.label.toLowerCase().includes(q) ||
+          c.city.toLowerCase().includes(q),
+        ),
       }))
       .filter(g => g.customers.length > 0);
   }, [groups, search]);
@@ -380,7 +432,7 @@ export default function PlanPage() {
               </h1>
               <p className="text-[11px] text-gray-400 mt-0.5">
                 {totalCustomers > 0
-                  ? `${totalCustomers} לקוחות · ${groups.length} ${groups.length === 1 ? "עיר" : "ערים"} · בחר וקבע בקליק אחד`
+                  ? `${totalCustomers} לקוחות · ${groups.length} ${groupMode === "city" ? (groups.length === 1 ? "עיר" : "ערים") : (groups.length === 1 ? "אזור" : "אזורים")} · בחר וקבע בקליק אחד`
                   : "אין לקוחות פעילים"}
               </p>
             </div>
@@ -395,15 +447,43 @@ export default function PlanPage() {
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-4 space-y-4">
 
-        {/* Search */}
+        {/* Group-mode toggle + search */}
         {groups.length > 0 && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-3">
+          <div className="bg-white border border-gray-100 rounded-2xl p-3 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-gray-500 flex-shrink-0">קיבוץ:</span>
+              <div className="inline-flex bg-gray-100 rounded-xl p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setGroupMode("city")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    groupMode === "city" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  לפי עיר
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupMode("region")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    groupMode === "region" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  לפי אזור
+                </button>
+              </div>
+              {groupMode === "region" && (
+                <span className="hidden sm:inline text-[10px] text-gray-400 mr-auto">
+                  ערים קרובות יחד — חיסכון בזמן נסיעה
+                </span>
+              )}
+            </div>
             <div className="relative">
               <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="חיפוש לקוח או עיר..."
+                placeholder="חיפוש לקוח, עיר או אזור..."
                 autoComplete="off"
                 inputMode="search"
                 className="w-full bg-gray-50 border border-transparent rounded-xl px-4 py-2 pr-9 text-sm focus:outline-none focus:bg-white focus:border-gray-200 transition-colors"
@@ -439,8 +519,15 @@ export default function PlanPage() {
             .reduce((s, c) => s + c.visitPrice, 0);
           const hasOverdue = g.customers.some(c => c.daysOverdue > 0);
 
+          // When grouping by region, surface the unique cities under the
+          // region name so the gardener knows what "מרכז (גוש דן)"
+          // actually contains for him.
+          const citiesInGroup = groupMode === "region"
+            ? Array.from(new Set(g.customers.map(c => c.city))).filter(Boolean)
+            : [];
+
           return (
-            <section key={g.city} className="bg-white border border-gray-100 rounded-3xl overflow-hidden">
+            <section key={g.key} className="bg-white border border-gray-100 rounded-3xl overflow-hidden">
               <div className="px-5 sm:px-6 pt-5 pb-3 flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
@@ -449,9 +536,12 @@ export default function PlanPage() {
                     <MapPin size={16} className={hasOverdue ? "text-amber-600" : "text-gray-500"} />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-base font-bold text-gray-900">{g.city}</h2>
+                    <h2 className="text-base font-bold text-gray-900">{g.label}</h2>
                     <p className="text-[11px] text-gray-400 mt-0.5">
                       {g.customers.length} {g.customers.length === 1 ? "לקוח" : "לקוחות"} · {fmtMoney(g.totalPrice)}
+                      {citiesInGroup.length > 1 && (
+                        <span className="text-gray-400"> · {citiesInGroup.join(" · ")}</span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -501,6 +591,9 @@ export default function PlanPage() {
                           )}
                         </div>
                         <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                          {groupMode === "region" && c.city && (
+                            <span className="font-semibold text-gray-500">{c.city} · </span>
+                          )}
                           {c.effectiveLastVisit
                             ? `אחרון ${dateLabel(c.effectiveLastVisit)}`
                             : "טרם בוקר"}
@@ -526,15 +619,15 @@ export default function PlanPage() {
                     <input
                       type="date"
                       dir="ltr"
-                      value={groupDate[g.city] ?? ""}
-                      onChange={e => setGroupDate(prev => ({ ...prev, [g.city]: e.target.value }))}
+                      value={groupDate[g.key] ?? ""}
+                      onChange={e => setGroupDate(prev => ({ ...prev, [g.key]: e.target.value }))}
                       className={`w-full border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 transition-colors ${
-                        groupDate[g.city] && isWeekend(groupDate[g.city])
+                        groupDate[g.key] && isWeekend(groupDate[g.key])
                           ? "bg-red-50 border-red-200 text-red-700 focus:ring-red-200"
                           : "bg-white border-gray-200 focus:ring-gray-300"
                       }`}
                     />
-                    {groupDate[g.city] && isWeekend(groupDate[g.city]) && (
+                    {groupDate[g.key] && isWeekend(groupDate[g.key]) && (
                       <p className="text-[10px] text-red-600 mt-1">יום שישי/שבת — בחר יום חול</p>
                     )}
                   </div>
@@ -543,19 +636,19 @@ export default function PlanPage() {
                     <input
                       type="time"
                       dir="ltr"
-                      value={groupTime[g.city] ?? "09:00"}
-                      onChange={e => setGroupTime(prev => ({ ...prev, [g.city]: e.target.value }))}
+                      value={groupTime[g.key] ?? "09:00"}
+                      onChange={e => setGroupTime(prev => ({ ...prev, [g.key]: e.target.value }))}
                       className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 transition-colors"
                     />
                   </div>
                 </div>
                 <button
-                  onClick={() => createForCity(g)}
-                  disabled={selectedCount === 0 || savingCity === g.city}
+                  onClick={() => createForGroup(g)}
+                  disabled={selectedCount === 0 || savingGroup === g.key}
                   className="w-full flex items-center justify-between gap-2 bg-gray-900 hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    {savingCity === g.city
+                    {savingGroup === g.key
                       ? <Loader2 size={14} className="animate-spin" />
                       : <Calendar size={14} />}
                     קבע {selectedCount} {selectedCount === 1 ? "ביקור" : "ביקורים"}
