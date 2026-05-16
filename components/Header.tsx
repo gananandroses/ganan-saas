@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { pendingMissedVisits } from "@/lib/missed-visits";
+import { getUnbookedCustomers, getInactiveCustomers } from "@/lib/customer-alerts";
 import BackButton from "@/components/BackButton";
 
 interface HeaderProps {
@@ -13,16 +14,32 @@ interface HeaderProps {
   showBack?: boolean;
 }
 
+// Category groups the bell dropdown into collapsible sections — one
+// per kind of attention the user owes. Order matters: most actionable
+// first (payments → scheduling), housekeeping last (inventory).
+type NotifCategory = "payment" | "scheduling" | "missed" | "inactive" | "inventory";
+
 interface Notif {
   id: string;
   text: string;
   type: "red" | "yellow" | "green" | "orange";
+  category: NotifCategory;
   href?: string;
   // When set, clicking the notif opens an inline payment-confirm modal
   // instead of navigating. Used for open-debt notifications so the user
   // can mark "paid / not paid" in one tap without leaving the page.
   payment?: { txId: string; customerName: string; amount: number };
 }
+
+const CATEGORY_META: Record<NotifCategory, { label: string; emoji: string }> = {
+  payment:    { label: "תשלומים",        emoji: "💰" },
+  scheduling: { label: "לקוחות לשריין",  emoji: "📅" },
+  missed:     { label: "דרוש תיאום מחדש", emoji: "🔥" },
+  inactive:   { label: "לקוחות לא פעילים", emoji: "🌙" },
+  inventory:  { label: "מלאי נמוך",      emoji: "📦" },
+};
+
+const CATEGORY_ORDER: NotifCategory[] = ["payment", "scheduling", "missed", "inactive", "inventory"];
 
 // Search result types ─ a single dropdown shows three buckets
 interface SearchResultCustomer { kind: "customer"; id: string; name: string; phone: string | null; city: string | null }
@@ -154,8 +171,9 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         const reasonLabel = j.cancellation_reason === "no_show" ? "לא הופיע" : "בלת״מ";
         list.push({
           id: `missed-${j.id}`,
-          text: `🔥 ${j.customer_name} — דרוש תיאום מחדש (${reasonLabel} · ${j.job_date})`,
+          text: `${j.customer_name} — ${reasonLabel} · ${j.job_date}`,
           type: "orange",
+          category: "missed",
           href: "/automations",
         });
       });
@@ -171,13 +189,61 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       (pending || []).forEach((t) => {
         list.push({
           id: `tx-${t.id}`,
-          text: `${t.customer_name} — חוב פתוח של ₪${Number(t.amount).toLocaleString()}`,
+          text: `${t.customer_name} — ₪${Number(t.amount).toLocaleString()}`,
           type: "red",
+          category: "payment",
           payment: {
             txId: t.id,
             customerName: t.customer_name,
             amount: Number(t.amount),
           },
+        });
+      });
+
+      // לקוחות שצריך לשריין + לקוחות לא פעילים — both depend on the
+      // customers table. Fetch once, run both calculators.
+      const { data: custs } = await supabase
+        .from("customers")
+        .select("id, name, last_visit, frequency, status")
+        .eq("user_id", user.id);
+
+      const today = new Date().toISOString().slice(0, 10);
+      const allJobsTyped = (allJobs || []).map((j) => ({
+        id: String(j.id),
+        customer_id: j.customer_id,
+        customer_name: j.customer_name,
+        job_date: j.job_date,
+        status: j.status,
+      }));
+      const allCusts = (custs || []).map((c) => ({
+        id: String(c.id),
+        name: c.name,
+        last_visit: c.last_visit,
+        frequency: c.frequency,
+        status: c.status,
+      }));
+
+      getUnbookedCustomers(allJobsTyped, allCusts, today).forEach((u) => {
+        list.push({
+          id: `unbooked-${u.id}`,
+          text: u.daysOverdue >= 9999
+            ? `${u.name} — אין ביקור קודם רשום`
+            : u.daysOverdue >= 0
+              ? `${u.name} — באיחור של ${u.daysOverdue} ימים`
+              : `${u.name} — בעוד ${Math.abs(u.daysOverdue)} ימים`,
+          type: "orange",
+          category: "scheduling",
+          href: "/schedule/plan",
+        });
+      });
+
+      getInactiveCustomers(allCusts).forEach((c) => {
+        list.push({
+          id: `inactive-${c.id}`,
+          text: `${c.name} — שקט ${c.daysSinceVisit} ימים`,
+          type: "yellow",
+          category: "inactive",
+          href: `/customers?focus=${c.id}`,
         });
       });
 
@@ -192,8 +258,9 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         .forEach((i) => {
           list.push({
             id: `inv-${i.name}`,
-            text: `מלאי נמוך: ${i.name} (${i.quantity} יחידות)`,
+            text: `${i.name} (${i.quantity} יחידות)`,
             type: "yellow",
+            category: "inventory",
             href: "/inventory",
           });
         });
@@ -370,8 +437,22 @@ export default function Header({ title, subtitle, action, showBack = false }: He
           )}
         </button>
 
-        {showNotif && (
-          <div className="absolute top-12 left-0 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50" dir="rtl">
+        {showNotif && (() => {
+          // Group notifs by category for the section-headed dropdown.
+          // Order is fixed (CATEGORY_ORDER) — most actionable first.
+          const grouped = new Map<NotifCategory, Notif[]>();
+          for (const n of notifs) {
+            const arr = grouped.get(n.category) ?? [];
+            arr.push(n);
+            grouped.set(n.category, arr);
+          }
+          // For the payment category, also compute the total amount so
+          // it can be shown next to the count in the header.
+          const paymentTotal = (grouped.get("payment") ?? [])
+            .reduce((s, n) => s + (n.payment?.amount ?? 0), 0);
+
+          return (
+          <div className="absolute top-12 left-0 w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50" dir="rtl">
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <h3 className="font-bold text-gray-800 text-sm">התראות {notifs.length > 0 && `(${notifs.length})`}</h3>
               {notifs.length > 0 && (
@@ -381,49 +462,71 @@ export default function Header({ title, subtitle, action, showBack = false }: He
               )}
             </div>
 
-            <div className="px-3 pb-3 space-y-2 max-h-72 overflow-y-auto">
+            <div className="px-3 pb-3 max-h-96 overflow-y-auto">
               {notifs.length === 0 ? (
                 <div className="py-6 text-center text-gray-400 text-sm">
                   <CheckCircle size={22} className="mx-auto mb-1.5 text-green-400" />
                   אין התראות חדשות
                 </div>
               ) : (
-                notifs.map((n) => {
-                  const isClickable = !!n.href || !!n.payment;
+                CATEGORY_ORDER.map((cat) => {
+                  const items = grouped.get(cat) ?? [];
+                  if (items.length === 0) return null;
+                  const meta = CATEGORY_META[cat];
+                  const countLabel = cat === "payment" && paymentTotal > 0
+                    ? `${items.length} · ₪${Math.round(paymentTotal).toLocaleString()}`
+                    : String(items.length);
                   return (
-                  <div
-                    key={n.id}
-                    onClick={() => {
-                      if (n.payment) {
-                        setShowNotif(false);
-                        setPaymentConfirm(n.payment);
-                        return;
-                      }
-                      if (n.href) {
-                        setShowNotif(false);
-                        router.push(n.href);
-                      }
-                    }}
-                    className={`flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-2.5 ${isClickable ? "cursor-pointer hover:bg-gray-100" : ""} transition-colors`}
-                  >
-                    <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${colorMap[n.type]}`}>
-                      {iconMap[n.type]}
-                    </span>
-                    <p className="text-sm text-gray-700 flex-1 leading-snug">{n.text}</p>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
-                      aria-label="סגור התראה"
-                      className="text-gray-300 hover:text-gray-500 flex-shrink-0 mt-0.5 transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
+                    <div key={cat} className="mt-3 first:mt-1">
+                      <div className="flex items-center justify-between px-1 pb-1.5">
+                        <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                          <span className="text-sm leading-none">{meta.emoji}</span>
+                          {meta.label}
+                        </p>
+                        <span className="text-[11px] font-semibold text-gray-400 tabular-nums">{countLabel}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {items.map((n) => {
+                          const isClickable = !!n.href || !!n.payment;
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                if (n.payment) {
+                                  setShowNotif(false);
+                                  setPaymentConfirm(n.payment);
+                                  return;
+                                }
+                                if (n.href) {
+                                  setShowNotif(false);
+                                  router.push(n.href);
+                                }
+                              }}
+                              className={`flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-2 ${isClickable ? "cursor-pointer hover:bg-gray-100" : ""} transition-colors`}
+                            >
+                              <span className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${colorMap[n.type]}`}>
+                                {iconMap[n.type]}
+                              </span>
+                              <p className="text-sm text-gray-700 flex-1 leading-snug">{n.text}</p>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
+                                aria-label="סגור התראה"
+                                className="text-gray-300 hover:text-gray-500 flex-shrink-0 mt-0.5 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Action button */}

@@ -7,7 +7,6 @@ import { toast, confirmDialog } from "@/components/Toaster";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import { SkeletonKpi, SkeletonList, SkeletonChart } from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase/client";
-import { pendingMissedVisits } from "@/lib/missed-visits";
 import {
   TrendingUp,
   Users,
@@ -397,20 +396,6 @@ export default function DashboardPage() {
     nextJobLabel: "" as string,
   });
 
-  // "Hot actions" — only the things that need YOU today. Hidden when empty.
-  // This is the marquee block of the redesigned dashboard.
-  const [hotActions, setHotActions] = useState({
-    missedCount: 0,
-    debtCount: 0,
-    debtTotal: 0,
-    inactiveCount: 0,
-    // Customers whose cadence says it's time for their next visit AND
-    // they have no future job booked yet. Sourced from customers.frequency
-    // + most-recent completed job date, compared to today.
-    unbookedCount: 0,
-    unbookedSample: [] as string[],  // first 3 names for the card subtitle
-  });
-
   // Daily verification checklist. Items are personal (stored in
   // user_profile.checklist_items, synced across devices). The "checked
   // today" state lives in localStorage keyed by date so it resets
@@ -671,19 +656,16 @@ export default function DashboardPage() {
           // weather unavailable — keep null
         }
       }
-      const [custRes, txRes, jobsRes, txRes2, empRes, projRes, allJobsRes, openTxRes, custFullRes] = await Promise.all([
+      const [custRes, txRes, jobsRes, txRes2, empRes, projRes, allJobsRes] = await Promise.all([
         supabase.from("customers").select("id, status, monthly_price, balance, name, phone").eq("user_id", user?.id),
         supabase.from("transactions").select("type, amount, status, transaction_date, description, customer_name").eq("type", "income").eq("user_id", user?.id),
         supabase.from("jobs").select("*").eq("user_id", user?.id).gte("job_date", today).order("job_date").limit(50),
         supabase.from("transactions").select("type, amount, status, transaction_date").eq("user_id", user?.id),
         supabase.from("employees").select("id, status").eq("user_id", user?.id),
         supabase.from("projects").select("id, status").eq("user_id", user?.id),
-        // For "hot actions" — pull every job to apply pendingMissedVisits().
+        // Today-snapshot only needs basic job fields; the bell owns the
+        // "missed visits / unbooked / inactive" detection now.
         supabase.from("jobs").select("id, customer_id, customer_name, job_date, status, cancellation_reason").eq("user_id", user?.id),
-        // For "open debt > 7 days" badge.
-        supabase.from("transactions").select("amount, status, transaction_date").eq("user_id", user?.id).eq("type", "income").in("status", ["pending", "overdue"]),
-        // For "inactive customer" badge + "needs booking" detection.
-        supabase.from("customers").select("id, name, last_visit, frequency, status").eq("user_id", user?.id),
       ]);
 
       const customers = custRes.data || [];
@@ -698,105 +680,11 @@ export default function DashboardPage() {
       const activeProjs = projects.filter((p: Record<string,unknown>) => p.status === "active").length;
       setMiniStats({ activeEmployees: activeEmps, activeProjects: activeProjs });
 
-      // ── Hot actions ── three signals every gardener wants in the morning:
-      //   🔥 missed visits (cancelled, customer not yet rebooked)
-      //   💰 open debts older than 7 days
-      //   🌙 customers who haven't been visited in 30+ days
+      // Hot actions calc removed — the bell dropdown (Header.tsx) now
+      // owns all "needs your attention" signals via lib/customer-alerts.
+      // We still cast allJobsRes into a typed local for the today-snapshot
+      // block immediately below.
       const allJobsForHot = (allJobsRes.data || []) as Array<{ id: string; customer_id: string | null; customer_name: string; job_date: string | null; status: string; cancellation_reason: string | null }>;
-      const missedCount = pendingMissedVisits(allJobsForHot).length;
-
-      const DEBT_DAYS = 7;
-      const INACTIVE_DAYS = 30;
-      const daysSince = (iso: string | null | undefined) => {
-        if (!iso) return Infinity;
-        const ms = Date.now() - new Date(iso).getTime();
-        return Math.floor(ms / (1000 * 60 * 60 * 24));
-      };
-      const openTxs = (openTxRes.data || []) as Array<{ amount: number; status: string; transaction_date: string }>;
-      const stale = openTxs.filter(t => daysSince(t.transaction_date) >= DEBT_DAYS);
-      const debtCount = stale.length;
-      const debtTotal = stale.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-
-      const allCusts = (custFullRes.data || []) as Array<{
-        id: string;
-        name: string | null;
-        last_visit: string | null;
-        frequency: string | null;
-        status: string | null;
-      }>;
-      const inactiveCount = allCusts.filter(c => c.last_visit && daysSince(c.last_visit) >= INACTIVE_DAYS).length;
-
-      // ── "Needs booking" detection ──────────────────────────────────────
-      // For each active/VIP customer:
-      //   • last_visit  = max(completed job_date), fall back to customers.last_visit
-      //   • cadence     = days for their frequency
-      //   • is the next visit within 3 days OR already overdue?
-      //   • AND do they have NO future non-cancelled job?
-      // Booking-overdue customers get surfaced. Inactive (>30d quiet)
-      // customers are excluded since they already show under "inactive".
-      const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-      const lastDoneById = new Map<string, string>();
-      const lastDoneByName = new Map<string, string>();
-      const hasFutureById = new Set<string>();
-      const hasFutureByName = new Set<string>();
-      for (const j of allJobsForHot) {
-        if (j.status === "completed" && j.job_date) {
-          if (j.customer_id) {
-            const cur = lastDoneById.get(String(j.customer_id));
-            if (!cur || j.job_date > cur) lastDoneById.set(String(j.customer_id), j.job_date);
-          }
-          const n = norm(j.customer_name);
-          if (n) {
-            const cur = lastDoneByName.get(n);
-            if (!cur || j.job_date > cur) lastDoneByName.set(n, j.job_date);
-          }
-        }
-        if (j.status !== "completed" && j.status !== "cancelled" && j.job_date && j.job_date >= today) {
-          if (j.customer_id) hasFutureById.add(String(j.customer_id));
-          const n = norm(j.customer_name);
-          if (n) hasFutureByName.add(n);
-        }
-      }
-      const cadenceDays = (freq: string | null) => {
-        if (freq === "פעם בשבוע")       return 7;
-        if (freq === "פעמיים בשבוע")    return 3.5;
-        if (freq === "פעמיים בחודש")    return 15;
-        if (freq === "פעם בחודש")       return 30;
-        if (freq === "פעם בחודשיים")    return 60;
-        if (freq === "פעם ב-3 חודשים") return 90;
-        return 30;
-      };
-      const todayDate = new Date(today + "T00:00:00").getTime();
-      const unbookedDetails: Array<{ name: string; daysOverdue: number }> = [];
-      for (const c of allCusts) {
-        if (c.status !== "active" && c.status !== "vip") continue;
-        const cid = String(c.id);
-        const nName = norm(c.name);
-        if (hasFutureById.has(cid) || (nName && hasFutureByName.has(nName))) continue; // already booked
-        const lastFromJobs = lastDoneById.get(cid) ?? (nName ? lastDoneByName.get(nName) : null);
-        const effectiveLast = lastFromJobs ?? c.last_visit ?? null;
-        if (!effectiveLast) {
-          // Active customer with no recorded visit at all. Treat as
-          // very-overdue so it surfaces — these are typically real
-          // customers whose last_visit was never written to the DB.
-          unbookedDetails.push({ name: c.name ?? "", daysOverdue: 9999 });
-          continue;
-        }
-        const cadence = cadenceDays(c.frequency);
-        const expected = new Date(effectiveLast + "T00:00:00");
-        expected.setDate(expected.getDate() + Math.round(cadence));
-        const daysOverdue = Math.floor((todayDate - expected.getTime()) / (1000 * 60 * 60 * 24));
-        // 7 days for short cadences, 14 days for monthly and longer.
-        const leadDays = cadence >= 30 ? 14 : 7;
-        if (daysOverdue >= -leadDays) {
-          unbookedDetails.push({ name: c.name ?? "", daysOverdue });
-        }
-      }
-      unbookedDetails.sort((a, b) => b.daysOverdue - a.daysOverdue);
-      const unbookedCount = unbookedDetails.length;
-      const unbookedSample = unbookedDetails.slice(0, 3).map(d => d.name).filter(Boolean);
-
-      setHotActions({ missedCount, debtCount, debtTotal, inactiveCount, unbookedCount, unbookedSample });
 
       // ── Today snapshot ──
       const todaysJobs = (allJobsForHot || []).filter(j => j.job_date === today);
@@ -950,7 +838,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const totalHotActions = hotActions.missedCount + hotActions.debtCount + hotActions.inactiveCount + hotActions.unbookedCount;
   const dayProgress = todaySnap.total > 0 ? Math.round((todaySnap.done / todaySnap.total) * 100) : 0;
 
   return (
@@ -1174,43 +1061,9 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* ── HOT ACTIONS — condensed into a single quiet strip.
-            The previous layout stacked 1-4 separate rows inside a tall
-            card, which dominated the top of the dashboard. Now it's a
-            single thin pill: bell + comma-separated summary segments
-            + chevron. One tap → /automations for the full breakdown. */}
-        {!loading && totalHotActions > 0 && (() => {
-          const segments: string[] = [];
-          if (hotActions.missedCount > 0) segments.push(`${hotActions.missedCount} התראות`);
-          if (hotActions.debtCount > 0) segments.push(`₪${Math.round(hotActions.debtTotal).toLocaleString()} חובות`);
-          if (hotActions.unbookedCount > 0) segments.push(`${hotActions.unbookedCount} לקוחות לשריין`);
-          if (hotActions.inactiveCount > 0) segments.push(`${hotActions.inactiveCount} לא פעילים`);
-          return (
-            <button
-              onClick={() => router.push("/automations")}
-              className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-right shadow-sm"
-            >
-              <span className="text-base flex-shrink-0">🔔</span>
-              <span className="text-sm font-semibold text-gray-800 leading-tight flex-1 min-w-0 truncate">
-                {segments.join(" · ")}
-              </span>
-              <ChevronRight size={14} className="text-gray-300 flex-shrink-0" />
-            </button>
-          );
-        })()}
-
-        {/* All-clear banner — light, encouraging, only when nothing's pending */}
-        {!loading && totalHotActions === 0 && (
-          <div className="bg-emerald-50/60 border border-emerald-100 rounded-2xl px-4 py-3 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center">
-              <CheckCircle2 size={18} className="text-emerald-500" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-emerald-800">הכל תחת שליטה</p>
-              <p className="text-[11px] text-emerald-600">אין פעולות דחופות שמחכות לך</p>
-            </div>
-          </div>
-        )}
+        {/* Hot actions / all-clear strip removed — the bell dropdown in
+            the global Header is now the single source of truth for
+            "things that need your attention" (grouped by category). */}
 
         {/* Push notifications — moved out of the hero so it doesn't compete
             with the day snapshot. Shows only if user hasn't acted on it. */}
