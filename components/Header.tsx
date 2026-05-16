@@ -18,6 +18,10 @@ interface Notif {
   text: string;
   type: "red" | "yellow" | "green" | "orange";
   href?: string;
+  // When set, clicking the notif opens an inline payment-confirm modal
+  // instead of navigating. Used for open-debt notifications so the user
+  // can mark "paid / not paid" in one tap without leaving the page.
+  payment?: { txId: string; customerName: string; amount: number };
 }
 
 // Search result types ─ a single dropdown shows three buckets
@@ -32,6 +36,30 @@ export default function Header({ title, subtitle, action, showBack = false }: He
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [notifTick, setNotifTick] = useState(0);
+
+  // Pending payment-confirm modal — set when the user taps a debt
+  // notification; cleared on close or after marking as paid.
+  const [paymentConfirm, setPaymentConfirm] = useState<
+    { txId: string; customerName: string; amount: number } | null
+  >(null);
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  async function markPaid(txId: string) {
+    setSavingPayment(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase
+        .from("transactions")
+        .update({ status: "paid" })
+        .eq("id", txId)
+        .eq("user_id", user.id);
+      setNotifs((prev) => prev.filter((n) => n.payment?.txId !== txId));
+      setPaymentConfirm(null);
+    } finally {
+      setSavingPayment(false);
+    }
+  }
 
   // ── Global search ─────────────────────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -135,17 +163,21 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       // חובות פתוחים
       const { data: pending } = await supabase
         .from("transactions")
-        .select("customer_name, amount")
+        .select("id, customer_name, amount")
         .eq("user_id", user.id)
         .eq("type", "income")
         .in("status", ["pending", "overdue"]);
 
       (pending || []).forEach((t) => {
         list.push({
-          id: `tx-${t.customer_name}`,
+          id: `tx-${t.id}`,
           text: `${t.customer_name} — חוב פתוח של ₪${Number(t.amount).toLocaleString()}`,
           type: "red",
-          href: "/automations",
+          payment: {
+            txId: t.id,
+            customerName: t.customer_name,
+            amount: Number(t.amount),
+          },
         });
       });
 
@@ -356,16 +388,23 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                   אין התראות חדשות
                 </div>
               ) : (
-                notifs.map((n) => (
+                notifs.map((n) => {
+                  const isClickable = !!n.href || !!n.payment;
+                  return (
                   <div
                     key={n.id}
                     onClick={() => {
+                      if (n.payment) {
+                        setShowNotif(false);
+                        setPaymentConfirm(n.payment);
+                        return;
+                      }
                       if (n.href) {
                         setShowNotif(false);
                         router.push(n.href);
                       }
                     }}
-                    className={`flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-2.5 ${n.href ? "cursor-pointer hover:bg-gray-100" : ""} transition-colors`}
+                    className={`flex items-start gap-2 bg-gray-50 rounded-xl px-3 py-2.5 ${isClickable ? "cursor-pointer hover:bg-gray-100" : ""} transition-colors`}
                   >
                     <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${colorMap[n.type]}`}>
                       {iconMap[n.type]}
@@ -379,7 +418,8 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                       <X size={14} />
                     </button>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -395,6 +435,45 @@ export default function Header({ title, subtitle, action, showBack = false }: He
           <Plus size={16} />
           <span>{action.label}</span>
         </button>
+      )}
+
+      {/* Payment-confirm modal — opens when the user taps a debt
+          notification. Two clear actions: mark as paid (writes
+          status="paid" to the transaction + drops the notif) or
+          dismiss (just closes). Backdrop click = dismiss. */}
+      {paymentConfirm && (
+        <div
+          className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4"
+          onClick={() => !savingPayment && setPaymentConfirm(null)}
+          dir="rtl"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-gray-900 mb-1.5">אישור תשלום</h3>
+            <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+              האם <strong className="text-gray-900">{paymentConfirm.customerName}</strong> שילם ₪{paymentConfirm.amount.toLocaleString()}?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => markPaid(paymentConfirm.txId)}
+                disabled={savingPayment}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                {savingPayment && <Loader2 size={14} className="animate-spin" />}
+                כן, שילם
+              </button>
+              <button
+                onClick={() => setPaymentConfirm(null)}
+                disabled={savingPayment}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                לא, עדיין לא
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </header>
   );
