@@ -885,15 +885,6 @@ export default function DashboardPage() {
                 <p className="text-xs sm:text-sm text-gray-500">🌱 אין עבודות היום</p>
               </>
             )}
-            <div className="flex-1" />
-            {!loading && (
-              <button
-                onClick={() => router.push("/end-of-day")}
-                className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors"
-              >
-                🌙 סיכום יום <ChevronRight size={13} />
-              </button>
-            )}
           </div>
           {!loading && todaySnap.total > 0 && (
             <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
@@ -1057,6 +1048,24 @@ export default function DashboardPage() {
                   )}
                 </div>
               )}
+
+              {/* End-of-day shortcut — pinned footer of the checklist
+                  card. Always visible. When the day's checklist is
+                  fully checked the strip lights up emerald to nudge the
+                  user toward the wrap-up summary; otherwise it's quiet. */}
+              <button
+                onClick={() => router.push("/end-of-day")}
+                className={`w-full border-t flex items-center justify-between px-4 sm:px-5 py-2.5 text-xs font-semibold transition-colors text-right group ${
+                  allDone
+                    ? "border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                    : "border-gray-100 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  🌙 <span>{allDone ? "סכם את היום ›" : "סיכום יום — בדיקה לפני שמכבים"}</span>
+                </span>
+                <ChevronRight size={13} className="text-gray-400 group-hover:text-gray-700 transition-colors" />
+              </button>
             </div>
           );
         })()}
