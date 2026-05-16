@@ -384,8 +384,6 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [weather, setWeather] = useState<{ temp: number; humidity: number; icon: string; city: string } | null>(null);
   const [miniStats, setMiniStats] = useState({ activeEmployees: 0, activeProjects: 0 });
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [showInstallSheet, setShowInstallSheet] = useState(false);
   const [pushStatus, setPushStatus] = useState<"idle"|"loading"|"enabled"|"denied">("idle");
   const [refreshTick, setRefreshTick] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
@@ -470,16 +468,7 @@ export default function DashboardPage() {
     } catch { setPushStatus("idle"); }
   }
 
-  // Show install banner once per device
-  useEffect(() => {
-    const dismissed = localStorage.getItem("install_banner_dismissed");
-    if (!dismissed) setShowInstallBanner(true);
-  }, []);
-
-  function dismissInstallBanner() {
-    localStorage.setItem("install_banner_dismissed", "1");
-    setShowInstallBanner(false);
-  }
+  // Install reminder moved to /settings (see "התקנת אפליקציה" card).
 
   // ─── Daily checklist load ──
   // Items list source-of-truth ladder:
@@ -973,86 +962,59 @@ export default function DashboardPage() {
 
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 max-w-screen-xl mx-auto">
 
-        {/* ── HERO — answers "מה אצלי היום?" in 3 seconds ──
-            Greeting + date + weather + today snapshot in a single quiet
-            card. Replaces the four scattered widgets that used to live
-            here (greeting, weather, push pill, refresh button). */}
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-                שלום {userName || "👋"}
-              </h1>
-              <p className="text-sm text-gray-500 mt-1">{hebrewDate()}</p>
-            </div>
+        {/* ── HERO — single compact bar answering "מה אצלי היום?" in
+            one line. Replaces the previous 3-section card (greeting +
+            today snapshot + end-of-day) which was the biggest source of
+            visual crowding above the fold. Now: name · date · weather
+            on the right, today summary inline, end-of-day as a small
+            chip on the left. Progress bar tucked under for jobs days. */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 sm:px-5 py-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
+              שלום {userName || "👋"}
+            </h1>
+            <span className="text-gray-300">·</span>
+            <p className="text-xs sm:text-sm text-gray-500">{hebrewDate()}</p>
             {weather && (
-              <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-2.5 self-start">
-                <span className="text-2xl leading-none">{weather.icon}</span>
-                <div>
-                  <p className="text-base font-bold text-gray-800 leading-tight">{weather.temp}°</p>
-                  <p className="text-[11px] text-gray-500 leading-tight">{weather.city} · {weather.humidity}%</p>
-                </div>
-              </div>
+              <>
+                <span className="text-gray-300">·</span>
+                <p className="text-xs sm:text-sm text-gray-600 flex items-center gap-1">
+                  <span className="text-base leading-none">{weather.icon}</span>
+                  <span className="font-semibold">{weather.temp}°</span>
+                </p>
+              </>
+            )}
+            {!loading && todaySnap.total > 0 && (
+              <>
+                <span className="text-gray-300">·</span>
+                <p className="text-xs sm:text-sm text-emerald-700 font-semibold">
+                  {todaySnap.done}/{todaySnap.total} הושלמו
+                </p>
+              </>
+            )}
+            {!loading && todaySnap.total === 0 && (
+              <>
+                <span className="text-gray-300">·</span>
+                <p className="text-xs sm:text-sm text-gray-500">🌱 אין עבודות היום</p>
+              </>
+            )}
+            <div className="flex-1" />
+            {!loading && (
+              <button
+                onClick={() => router.push("/end-of-day")}
+                className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1 transition-colors"
+              >
+                🌙 סיכום יום <ChevronRight size={13} />
+              </button>
             )}
           </div>
-
-          {/* Today snapshot strip — only when there's actually something today */}
-          {todaySnap.total > 0 && (
-            <div className="border-t border-gray-100 bg-gradient-to-l from-emerald-50/40 to-transparent px-5 sm:px-6 py-4">
-              <div className="flex items-end justify-between gap-3 flex-wrap">
-                <div>
-                  <p className="text-xs font-semibold text-emerald-700 mb-0.5 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                    היום אצלך
-                  </p>
-                  <p className="text-lg font-bold text-gray-900 leading-tight">
-                    {todaySnap.done}/{todaySnap.total} עבודות הושלמו
-                    {todaySnap.expectedRevenue > 0 && (
-                      <span className="text-gray-400 font-medium"> · ₪{todaySnap.expectedRevenue.toLocaleString()} צפוי</span>
-                    )}
-                  </p>
-                  {todaySnap.nextJobLabel && (
-                    <p className="text-xs text-gray-500 mt-0.5">הבא: {todaySnap.nextJobLabel}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => router.push("/schedule")}
-                  className="text-xs font-semibold text-emerald-700 bg-white border border-emerald-200 rounded-xl px-3 py-2 hover:bg-emerald-50 transition-colors flex items-center gap-1"
-                >
-                  ליומן <ChevronRight size={13} />
-                </button>
-              </div>
-              {/* Progress bar */}
-              <div className="mt-3 h-1.5 bg-white rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-500"
-                  style={{ width: `${dayProgress}%` }}
-                />
-              </div>
+          {!loading && todaySnap.total > 0 && (
+            <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${dayProgress}%` }}
+              />
             </div>
-          )}
-
-          {todaySnap.total === 0 && !loading && (
-            <div className="border-t border-gray-100 px-5 sm:px-6 py-3 text-xs text-gray-500">
-              אין עבודות היום — יום נעים 🌱
-            </div>
-          )}
-
-          {/* End-of-day shortcut. Calm purple-tinted strip so the button
-              reads as "the wrapping-up affordance", distinct from the
-              emerald progress hierarchy above. Always visible — the
-              gardener may want to glance the summary mid-day, not just
-              at sunset. */}
-          {!loading && (
-            <button
-              onClick={() => router.push("/end-of-day")}
-              className="w-full border-t border-gray-100 px-5 sm:px-6 py-2.5 flex items-center justify-between text-xs font-semibold text-gray-700 hover:bg-indigo-50/40 transition-colors text-right group"
-            >
-              <span className="flex items-center gap-2">
-                🌙 <span>סיכום יום — בדיקה לפני שמכבים</span>
-              </span>
-              <ChevronRight size={13} className="text-gray-400 group-hover:text-gray-700 transition-colors" />
-            </button>
           )}
         </div>
 
@@ -1263,70 +1225,9 @@ export default function DashboardPage() {
           </button>
         )}
 
-        {/* ── Install reminder — compact strip ── */}
-        {/* The original banner was a 200px-tall block of platform-specific
-            install instructions. On mobile that pushed every actionable
-            element below the fold. Now: a slim, dismissable strip that
-            opens a sheet with the same instructions on demand. */}
-        {showInstallBanner && (
-          <button
-            onClick={() => setShowInstallSheet(true)}
-            className="w-full bg-gradient-to-l from-green-600 to-emerald-600 text-white rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow text-right"
-          >
-            <span className="text-xl flex-shrink-0">📲</span>
-            <span className="flex-1 text-sm font-semibold truncate">הוסף את גנן Pro למסך הבית — כניסה בקליק אחד</span>
-            <span className="text-xs opacity-80 flex-shrink-0 hidden sm:inline">איך?</span>
-            <span
-              role="button"
-              aria-label="סגור"
-              onClick={(e) => { e.stopPropagation(); dismissInstallBanner(); }}
-              className="hit-44 flex-shrink-0 text-white/70 hover:text-white p-0.5"
-            >
-              <X size={16} />
-            </span>
-          </button>
-        )}
-
-        {/* Install instructions sheet */}
-        {showInstallSheet && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center"
-            onClick={(e) => { if (e.target === e.currentTarget) setShowInstallSheet(false); }}
-          >
-            <div className="bg-white w-full sm:max-w-md sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl">
-              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-                <h3 className="text-base font-bold text-gray-900">הוסף למסך הבית</h3>
-                <button
-                  onClick={() => setShowInstallSheet(false)}
-                  aria-label="סגור"
-                  className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
-                >
-                  <X size={16} className="text-gray-500" />
-                </button>
-              </div>
-              <div className="px-5 pb-5 space-y-3">
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-xs font-bold text-gray-800 mb-1">🍎 iPhone (Safari)</p>
-                  <ol className="text-gray-600 text-xs space-y-0.5 list-none leading-relaxed">
-                    <li>1. כפתור השיתוף ⬆ בתחתית</li>
-                    <li>2. &ldquo;הוסף למסך הבית&rdquo;</li>
-                    <li>3. הוסף</li>
-                  </ol>
-                </div>
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-xs font-bold text-gray-800 mb-1">🤖 Android (Chrome)</p>
-                  <ol className="text-gray-600 text-xs space-y-0.5 list-none leading-relaxed">
-                    <li>1. שלוש הנקודות ⋮ למעלה</li>
-                    <li>2. &ldquo;הוסף למסך הבית&rdquo;</li>
-                    <li>3. הוסף</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Install reminder moved to /settings → "התקנת אפליקציה". The
+            previous dashboard banner pulled too much attention to a
+            once-in-a-lifetime action. */}
 
         {/* ── KPI Cards — 2x2 on mobile, 4-up on desktop ── */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">

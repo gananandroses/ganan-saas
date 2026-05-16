@@ -941,6 +941,41 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Install app — moved from dashboard. One-time action, doesn't
+          deserve a permanent spot above the fold. Lives here so users
+          who want it can find it; everyone else gets a quiet dashboard. */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+            <span className="text-base leading-none">📱</span>
+          </div>
+          <h2 className="font-bold text-gray-900">התקנת אפליקציה</h2>
+        </div>
+        <div className="p-6 space-y-3">
+          <p className="text-sm text-gray-600 leading-relaxed">
+            הוסף את גנן Pro למסך הבית של הטלפון כדי להיכנס בקליק אחד, בלי הדפדפן.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div className="bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-sm font-bold text-gray-800 mb-2">🍎 iPhone (Safari)</p>
+              <ol className="text-gray-600 text-xs space-y-1 list-none leading-relaxed">
+                <li>1. כפתור השיתוף ⬆ בתחתית</li>
+                <li>2. &ldquo;הוסף למסך הבית&rdquo;</li>
+                <li>3. הוסף</li>
+              </ol>
+            </div>
+            <div className="bg-gray-50 rounded-xl px-4 py-3">
+              <p className="text-sm font-bold text-gray-800 mb-2">🤖 Android (Chrome)</p>
+              <ol className="text-gray-600 text-xs space-y-1 list-none leading-relaxed">
+                <li>1. שלוש הנקודות ⋮ למעלה</li>
+                <li>2. &ldquo;הוסף למסך הבית&rdquo;</li>
+                <li>3. הוסף</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Save Button */}
       <div className="flex justify-end">
         <button
