@@ -24,16 +24,12 @@ import {
   X,
   ChevronRight,
   Phone,
-  Flame,
-  CreditCard,
-  UserX,
   CheckCircle2,
   Square,
   CheckSquare,
   Plus,
   Trash2,
   ClipboardList,
-  Calendar,
 } from "lucide-react";
 import {
   BarChart,
@@ -1216,124 +1212,30 @@ export default function DashboardPage() {
           );
         })()}
 
-        {/* ── HOT ACTIONS — only renders when there's actually something on fire ── */}
-        {!loading && totalHotActions > 0 && (
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-5 sm:px-6 pt-4 pb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center">
-                  <Flame size={16} className="text-orange-500" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-gray-900">דורש ממך פעולה</h2>
-                  <p className="text-[11px] text-gray-400">{totalHotActions} פריטים</p>
-                </div>
-              </div>
-              <button
-                onClick={() => router.push("/automations")}
-                className="text-xs font-semibold text-gray-600 hover:text-gray-900 flex items-center gap-1"
-              >
-                הכל <ChevronRight size={13} />
-              </button>
-            </div>
-
-            {/* Dense list of action signals. The previous layout used a
-                large coloured card per signal — visually loud and quickly
-                overwhelming when more than 1-2 signals were active. Now
-                each is a slim row: small tinted icon, label + thin meta,
-                count in mono, chevron. Cards stay quietly tinted (just
-                the icon chip) but the dominant background is white. */}
-            <div className="pb-2">
-              {hotActions.missedCount > 0 && (
-                <button
-                  onClick={() => router.push("/automations")}
-                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
-                      <CalendarPlus size={14} className="text-red-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">דרושים תיאום מחדש</p>
-                      <p className="text-[11px] text-gray-400 truncate">לקוחות שלא הופיעו / בלת״מ</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.missedCount}</span>
-                    <ChevronRight size={14} className="text-gray-300" />
-                  </div>
-                </button>
-              )}
-
-              {hotActions.debtCount > 0 && (
-                <button
-                  onClick={() => router.push("/automations")}
-                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                      <CreditCard size={14} className="text-amber-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">חובות פתוחים מעל 7 ימים</p>
-                      <p className="text-[11px] text-gray-400 truncate tabular-nums">סה״כ ₪{Math.round(hotActions.debtTotal).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.debtCount}</span>
-                    <ChevronRight size={14} className="text-gray-300" />
-                  </div>
-                </button>
-              )}
-
-              {hotActions.unbookedCount > 0 && (
-                <button
-                  onClick={() => router.push("/schedule/plan")}
-                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
-                      <Calendar size={14} className="text-orange-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">לקוחות שצריך לשריין</p>
-                      <p className="text-[11px] text-gray-400 truncate">
-                        {hotActions.unbookedSample.length > 0
-                          ? `${hotActions.unbookedSample.join(", ")}${hotActions.unbookedCount > hotActions.unbookedSample.length ? ` ועוד ${hotActions.unbookedCount - hotActions.unbookedSample.length}` : ""}`
-                          : "אין להם תיאום עתידי לפי התדירות"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.unbookedCount}</span>
-                    <ChevronRight size={14} className="text-gray-300" />
-                  </div>
-                </button>
-              )}
-
-              {hotActions.inactiveCount > 0 && (
-                <button
-                  onClick={() => router.push("/automations")}
-                  className="w-full flex items-center justify-between gap-3 px-5 sm:px-6 py-2.5 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                      <UserX size={14} className="text-purple-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 leading-tight truncate">לקוחות לא פעילים</p>
-                      <p className="text-[11px] text-gray-400 truncate">לא בוקרו 30+ ימים</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-lg font-extrabold text-gray-900 tabular-nums">{hotActions.inactiveCount}</span>
-                    <ChevronRight size={14} className="text-gray-300" />
-                  </div>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+        {/* ── HOT ACTIONS — condensed into a single quiet strip.
+            The previous layout stacked 1-4 separate rows inside a tall
+            card, which dominated the top of the dashboard. Now it's a
+            single thin pill: bell + comma-separated summary segments
+            + chevron. One tap → /automations for the full breakdown. */}
+        {!loading && totalHotActions > 0 && (() => {
+          const segments: string[] = [];
+          if (hotActions.missedCount > 0) segments.push(`${hotActions.missedCount} התראות`);
+          if (hotActions.debtCount > 0) segments.push(`₪${Math.round(hotActions.debtTotal).toLocaleString()} חובות`);
+          if (hotActions.unbookedCount > 0) segments.push(`${hotActions.unbookedCount} לקוחות לשריין`);
+          if (hotActions.inactiveCount > 0) segments.push(`${hotActions.inactiveCount} לא פעילים`);
+          return (
+            <button
+              onClick={() => router.push("/automations")}
+              className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 transition-colors text-right shadow-sm"
+            >
+              <span className="text-base flex-shrink-0">🔔</span>
+              <span className="text-sm font-semibold text-gray-800 leading-tight flex-1 min-w-0 truncate">
+                {segments.join(" · ")}
+              </span>
+              <ChevronRight size={14} className="text-gray-300 flex-shrink-0" />
+            </button>
+          );
+        })()}
 
         {/* All-clear banner — light, encouraging, only when nothing's pending */}
         {!loading && totalHotActions === 0 && (
