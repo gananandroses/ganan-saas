@@ -447,6 +447,26 @@ export default function PlanPage() {
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-4 space-y-4">
 
+        {/* Auto-planner promo strip — jumps to the month-ahead planner
+            which auto-fills 30 days with recurring + unbooked customers
+            using nearest-neighbour routing. The manual flow below stays
+            for one-off batch scheduling. */}
+        <button
+          onClick={() => router.push("/schedule/plan/auto")}
+          className="w-full bg-gradient-to-l from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-2xl p-4 flex items-center gap-3 transition-colors shadow-sm text-right"
+        >
+          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+            <Sparkles size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold leading-tight">תכנון אוטומטי לחודש הקרוב</p>
+            <p className="text-[11px] opacity-90 leading-tight mt-0.5">
+              מסלול חכם · יעד יומי 2,500₪ · אישור לפני שמירה
+            </p>
+          </div>
+          <ChevronRight size={18} className="opacity-80 flex-shrink-0" />
+        </button>
+
         {/* Group-mode toggle + search */}
         {groups.length > 0 && (
           <div className="bg-white border border-gray-100 rounded-2xl p-3 space-y-2.5">
