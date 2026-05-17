@@ -1391,6 +1391,16 @@ function CustomersPageInner() {
   async function handleUpdateCustomer(id: string, data: Partial<Customer>) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // The jobs and transactions tables store customer_name as a
+    // denormalized string (for query speed + historical accuracy), so
+    // a rename in the customers table doesn't propagate automatically.
+    // We cascade on every save below so a stale display gets fixed
+    // the next time the user opens the customer and re-saves.
+    const previous = customers.find(c => c.id === id);
+    const oldName = previous?.name;
+    const newName = data.name;
+
     // Build the update payload. price_mode is included only if defined so
     // the request still works pre-migration (Supabase silently ignores
     // updates to non-existent columns).
@@ -1416,6 +1426,36 @@ function CustomersPageInner() {
       delete payload.price_mode;
       await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id);
     }
+
+    // Cascade the name. Runs on every save (not only on detected
+    // renames) so historical drift — e.g. jobs created before the
+    // rename cascade existed — gets reconciled the next time the
+    // user re-saves the customer. Idempotent: if names already match,
+    // the UPDATE is a no-op.
+    if (newName) {
+      // jobs: update by customer_id (most reliable)
+      await supabase
+        .from("jobs")
+        .update({ customer_name: newName })
+        .eq("customer_id", id)
+        .eq("user_id", user.id);
+      // legacy jobs without customer_id — match by previously-known name
+      if (oldName) {
+        await supabase
+          .from("jobs")
+          .update({ customer_name: newName })
+          .is("customer_id", null)
+          .eq("customer_name", oldName)
+          .eq("user_id", user.id);
+        // transactions also denormalize customer_name
+        await supabase
+          .from("transactions")
+          .update({ customer_name: newName })
+          .eq("customer_name", oldName)
+          .eq("user_id", user.id);
+      }
+    }
+
     setCustomers(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
     setSelectedCustomer(prev => prev ? { ...prev, ...data } : null);
   }
