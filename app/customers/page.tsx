@@ -1682,28 +1682,32 @@ function CustomersPageInner() {
       )}
 
       {/* ===== ADD CUSTOMER MODAL =====
-          Mobile fix: the modal now uses a fixed-height column with a
-          scrollable body and a sticky footer. On small screens it
-          slides up from the bottom (items-end), takes the full viewport
-          height (max-h-[100dvh]), and the footer respects the iOS home
-          indicator (safe-area-inset-bottom). Previously the form was
-          longer than the screen, so the "הוסף לקוח" button sat below
-          the viewport and was unreachable. */}
+          Mobile-reliable pattern: the BACKDROP scrolls (not the modal
+          body), so iOS Safari doesn't get confused by nested flex
+          containers with dvh constraints. The footer is `sticky bottom-0`
+          inside the form — always visible above the keyboard, respects
+          the iOS home indicator via safe-area-inset-bottom. */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" onClick={() => setShowAddModal(false)}>
-          <div
-            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg max-h-[100dvh] sm:max-h-[90vh] flex flex-col"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-5 sm:p-6 border-b border-gray-100 flex-shrink-0">
-              <h2 className="text-xl font-bold text-gray-900">לקוח חדש</h2>
-              <button onClick={() => setShowAddModal(false)} aria-label="סגור" className="w-10 h-10 -mr-2 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleAddCustomer} className="flex flex-col flex-1 min-h-0">
-              <div className="overflow-y-auto p-5 sm:p-6 space-y-4 flex-1">
-              <div className="grid grid-cols-2 gap-4">
+        <div
+          className="fixed inset-0 bg-black/50 z-50 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowAddModal(false)}
+        >
+          <div className="min-h-full flex items-end sm:items-center justify-center sm:p-4">
+            <div
+              className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-lg"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-5 sm:p-6 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900">לקוח חדש</h2>
+                <button type="button" onClick={() => setShowAddModal(false)} aria-label="סגור" className="w-10 h-10 -mr-2 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleAddCustomer}>
+                <div className="p-5 sm:p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
                   <input required value={newCustomer.name} onChange={e => setNewCustomer(p => ({...p, name: e.target.value}))}
@@ -1829,28 +1833,32 @@ function CustomersPageInner() {
                     placeholder="הערות מיוחדות, דרישות, שעות עדיפות..." />
                 </div>
               </div>
-                {saveError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-                    שגיאה: {saveError}
-                  </div>
-                )}
-              </div>
-              {/* Sticky footer — always visible, respects iOS home indicator */}
-              <div
-                className="flex gap-3 px-5 sm:px-6 pt-3 border-t border-gray-100 bg-white flex-shrink-0"
-                style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
-              >
-                <button type="button" onClick={() => setShowAddModal(false)}
-                  className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                  ביטול
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                  {saving ? "שומר..." : "הוסף לקוח"}
-                </button>
-              </div>
-            </form>
+                  {saveError && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                      שגיאה: {saveError}
+                    </div>
+                  )}
+                </div>
+                {/* Footer — sticky-bottom relative to the outer scroller
+                    so the save button stays visible even when the user
+                    scrolls the modal up to make room for the keyboard.
+                    Respects the iOS home indicator. */}
+                <div
+                  className="sticky bottom-0 flex gap-3 px-5 sm:px-6 pt-3 border-t border-gray-100 bg-white rounded-b-2xl"
+                  style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+                >
+                  <button type="button" onClick={() => setShowAddModal(false)}
+                    className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                    ביטול
+                  </button>
+                  <button type="submit" disabled={saving}
+                    className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                    {saving ? "שומר..." : "הוסף לקוח"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
