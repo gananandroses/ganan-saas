@@ -21,22 +21,25 @@ export default function BottomNav() {
   return (
     <>
       <nav className="fixed bottom-0 right-0 left-0 bg-white border-t border-gray-200 z-50 safe-area-pb">
-        <div className="flex items-center justify-around px-2 py-2">
+        {/* Each tab now meets the iOS HIG 44×44 minimum: container is
+            min-h-12 with vertical padding, and the icon chip itself is
+            44×44. Previous py-1 layout produced ~24px tap targets. */}
+        <div className="flex items-stretch justify-around px-1">
           {mainItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
               <Link
                 key={href}
                 href={href}
-                className="flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all"
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] rounded-xl transition-all active:bg-gray-50"
               >
-                <div className={`p-1.5 rounded-xl ${active ? "bg-green-100" : ""}`}>
+                <div className={`w-11 h-11 flex items-center justify-center rounded-xl ${active ? "bg-green-100" : ""}`}>
                   <Icon
                     size={22}
-                    className={active ? "text-green-600" : "text-gray-400"}
+                    className={active ? "text-green-600" : "text-gray-500"}
                   />
                 </div>
-                <span className={`text-xs font-medium ${active ? "text-green-600" : "text-gray-400"}`}>
+                <span className={`text-[11px] font-medium leading-none ${active ? "text-green-600" : "text-gray-500"}`}>
                   {label}
                 </span>
               </Link>
@@ -46,12 +49,13 @@ export default function BottomNav() {
           {/* More button */}
           <button
             onClick={() => setMenuOpen(true)}
-            className="flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all"
+            aria-label="פתח תפריט נוסף"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] rounded-xl transition-all active:bg-gray-50"
           >
-            <div className="p-1.5 rounded-xl">
-              <MoreHorizontal size={22} className="text-gray-400" />
+            <div className="w-11 h-11 flex items-center justify-center rounded-xl">
+              <MoreHorizontal size={22} className="text-gray-500" />
             </div>
-            <span className="text-xs font-medium text-gray-400">עוד</span>
+            <span className="text-[11px] font-medium leading-none text-gray-500">עוד</span>
           </button>
         </div>
       </nav>

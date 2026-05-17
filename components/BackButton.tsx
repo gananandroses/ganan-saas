@@ -38,7 +38,8 @@ export default function BackButton({ href, className, title = "חזור" }: Back
       aria-label={title}
       className={
         className ||
-        "w-9 h-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100 active:bg-gray-200 active:scale-95 transition-all duration-100"
+        // 44x44 meets iOS HIG / W3C minimum. Previous 36x36 was 18% below.
+        "w-11 h-11 flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100 active:bg-gray-200 active:scale-95 transition-all duration-100"
       }
     >
       <ChevronRight className="w-5 h-5 text-gray-500" />

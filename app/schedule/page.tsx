@@ -699,17 +699,28 @@ function NewJobModal({ onClose, onCreated, defaultDate }: {
     // Full-screen on mobile — most reliable approach for iOS
     <div className="fixed inset-0 z-[70] bg-white overflow-y-auto" dir="rtl" role="dialog" aria-modal="true">
 
-      {/* Top nav bar — always visible, never hidden by keyboard */}
+      {/* Top nav bar — always visible, never hidden by keyboard.
+          The "שמור" button on the right is the primary action; the
+          bottom big button still exists as a redundant CTA but the
+          top one is always one tap away even when the keyboard is up. */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
         <button
           type="button"
           onClick={onClose}
-          className="text-gray-500 font-medium text-sm px-2 py-1"
+          className="text-gray-500 font-medium text-sm px-2 py-2 min-w-[44px]"
         >
           ביטול
         </button>
         <h2 className="text-base font-bold text-gray-900">עבודה חדשה</h2>
-        <div className="w-16" />
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleSubmit}
+          className="text-green-600 font-bold text-sm px-2 py-2 min-w-[44px] disabled:opacity-50 flex items-center gap-1 justify-end"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+          שמור
+        </button>
       </div>
 
       {/* Form fields */}

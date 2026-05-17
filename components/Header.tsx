@@ -334,7 +334,11 @@ export default function Header({ title, subtitle, action, showBack = false }: He
           />
           {searching && <Loader2 size={12} className="animate-spin text-gray-400 flex-shrink-0" />}
           {query && !searching && (
-            <button onClick={() => { setQuery(""); setResults([]); }} aria-label="נקה" className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+            <button
+              onClick={() => { setQuery(""); setResults([]); }}
+              aria-label="נקה"
+              className="hit-44 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 flex-shrink-0"
+            >
               <X size={13} />
             </button>
           )}

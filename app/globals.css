@@ -66,5 +66,16 @@ body {
   pointer-events: auto;
 }
 
-/* Safe-area aware bottom padding (used by BottomNav). */
+/* Safe-area utilities — bottom & top padding that respects iPhone
+ * notch / home indicator. `viewport-fit=cover` must be set in
+ * app/layout.tsx (`export const viewport`) for these to resolve. */
 .safe-area-pb { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.safe-area-pt { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+.safe-area-pl { padding-left: max(0.5rem, env(safe-area-inset-left)); }
+.safe-area-pr { padding-right: max(0.5rem, env(safe-area-inset-right)); }
+
+/* Prevent iOS Safari from horizontally jumping the page when an input
+ * is focused. Combined with viewport-fit=cover + initialScale=1 this
+ * also prevents auto-zoom on inputs < 16px font-size. */
+html, body { overscroll-behavior-x: none; }
+input, select, textarea { font-size: max(16px, 0.875rem); }
