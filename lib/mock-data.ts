@@ -38,6 +38,10 @@ export interface Customer {
   balance: number;
   lat: number;
   lng: number;
+  /** Per-customer default visit duration in hours. Used by the
+   * auto-planner to budget each working day. Null/undefined = the
+   * planner falls back to its global default (2h). */
+  defaultDurationHours?: number | null;
 }
 
 export interface Employee {

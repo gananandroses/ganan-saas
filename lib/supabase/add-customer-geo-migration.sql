@@ -11,7 +11,11 @@
 
 alter table public.customers
   add column if not exists lat double precision,
-  add column if not exists lng double precision;
+  add column if not exists lng double precision,
+  -- Per-customer default visit duration in hours. The auto-planner
+  -- uses this to budget each working day (8h cap). NULL = use the
+  -- planner's global fallback (2h).
+  add column if not exists default_duration_hours numeric;
 
 -- Optional index — only useful if you start running geo queries server-side.
 -- Skip if you're not sure; the planner does distance math client-side.

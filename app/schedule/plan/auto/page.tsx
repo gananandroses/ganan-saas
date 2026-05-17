@@ -32,10 +32,12 @@ import {
 
 // Default parameters — the user can tweak before generating.
 const DEFAULT_DAYS_AHEAD = 30;
-const DEFAULT_DAILY_TARGET_BEFORE_VAT = 2500;
+const DEFAULT_DAILY_HOURS_BUDGET = 8;          // primary cap — hours of work / day
+const DEFAULT_REVENUE_TARGET_HINT = 2500;      // display-only "you've hit the goal" line
 const DEFAULT_WORK_DAYS = [0, 1, 2, 3, 4];     // Sun-Thu
 const DEFAULT_START_HOUR = 9;
-const DEFAULT_DURATION_HOURS = 1.5;
+const DEFAULT_DURATION_HOURS = 2;              // fallback when a customer has no default_duration_hours
+const RECURRING_FLEX_DAYS = 3;                 // slide cadence dates ±3 days for better packing
 
 const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -60,7 +62,8 @@ export default function AutoPlanPage() {
 
   const [phase, setPhase] = useState<Phase>("setup");
   const [daysAhead, setDaysAhead] = useState(DEFAULT_DAYS_AHEAD);
-  const [dailyTarget, setDailyTarget] = useState(DEFAULT_DAILY_TARGET_BEFORE_VAT);
+  const [dailyHours, setDailyHours] = useState(DEFAULT_DAILY_HOURS_BUDGET);
+  const [revenueHint, setRevenueHint] = useState(DEFAULT_REVENUE_TARGET_HINT);
   const [workDays, setWorkDays] = useState<number[]>(DEFAULT_WORK_DAYS);
 
   // Optional starting point — defaults to first customer's coord if blank.
@@ -96,7 +99,7 @@ export default function AutoPlanPage() {
     const [custRes, jobsRes] = await Promise.all([
       supabase
         .from("customers")
-        .select("id, name, city, address, status, monthly_price, price_mode, frequency, last_visit, lat, lng")
+        .select("id, name, city, address, status, monthly_price, price_mode, frequency, last_visit, lat, lng, default_duration_hours")
         .eq("user_id", user.id)
         .in("status", ["active", "vip"]),
       supabase
@@ -187,6 +190,10 @@ export default function AutoPlanPage() {
         null,
       lat: c.lat == null ? null : Number(c.lat),
       lng: c.lng == null ? null : Number(c.lng),
+      durationHours:
+        c.default_duration_hours == null
+          ? DEFAULT_DURATION_HOURS
+          : Math.max(0.5, Number(c.default_duration_hours)),
     }));
 
     const existingFutureJobs: ExistingFutureJob[] = (jobsRes.data ?? []).map(j => ({
@@ -206,11 +213,11 @@ export default function AutoPlanPage() {
       existingFutureJobs,
       today: todayISO(),
       daysAhead,
-      dailyTargetBeforeVat: dailyTarget,
+      dailyHoursBudget: dailyHours,
       workDays,
       startHour: DEFAULT_START_HOUR,
-      defaultDurationHours: DEFAULT_DURATION_HOURS,
       homeBase,
+      recurringFlexDays: RECURRING_FLEX_DAYS,
     });
 
     setPlan(result);
@@ -235,7 +242,8 @@ export default function AutoPlanPage() {
       .map(d => {
         const jobs = d.jobs.filter(j => !removedJobKeys.has(jobKey(j)));
         const total = jobs.reduce((s, j) => s + j.price, 0);
-        return { ...d, jobs, totalPrice: total };
+        const hours = jobs.reduce((s, j) => s + j.durationHours, 0);
+        return { ...d, jobs, totalPrice: total, totalHours: hours };
       })
       .filter(d => d.jobs.length > 0);
   }, [plan, removedJobKeys]);
@@ -313,8 +321,10 @@ export default function AutoPlanPage() {
           <SetupView
             daysAhead={daysAhead}
             setDaysAhead={setDaysAhead}
-            dailyTarget={dailyTarget}
-            setDailyTarget={setDailyTarget}
+            dailyHours={dailyHours}
+            setDailyHours={setDailyHours}
+            revenueHint={revenueHint}
+            setRevenueHint={setRevenueHint}
             workDays={workDays}
             toggleWorkDay={toggleWorkDay}
             homeAddress={homeAddress}
@@ -332,6 +342,8 @@ export default function AutoPlanPage() {
             visibleDays={visibleDays}
             unplaceable={plan.unplaceable}
             summary={summary}
+            revenueHint={revenueHint}
+            dailyHoursBudget={dailyHours}
             onRemove={removeJob}
             onBack={() => setPhase("setup")}
             onApprove={approveAndSave}
@@ -368,8 +380,10 @@ export default function AutoPlanPage() {
 function SetupView(props: {
   daysAhead: number;
   setDaysAhead: (n: number) => void;
-  dailyTarget: number;
-  setDailyTarget: (n: number) => void;
+  dailyHours: number;
+  setDailyHours: (n: number) => void;
+  revenueHint: number;
+  setRevenueHint: (n: number) => void;
   workDays: number[];
   toggleWorkDay: (d: number) => void;
   homeAddress: string;
@@ -399,14 +413,28 @@ function SetupView(props: {
           />
           <span className="text-xs text-gray-400">ימים מהיום</span>
         </Row>
-        <Row label="יעד יומי לפני מע״מ">
+        <Row label="שעות עבודה ביום">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={12}
+              step={0.5}
+              value={props.dailyHours}
+              onChange={e => props.setDailyHours(Math.max(1, Math.min(12, Number(e.target.value) || 0)))}
+              className="w-24 border border-gray-200 rounded-xl px-3 py-2 text-sm text-center"
+            />
+            <span className="text-xs text-gray-400">שעות</span>
+          </div>
+        </Row>
+        <Row label="יעד הכנסה ליום (תצוגה בלבד)">
           <div className="flex items-center gap-2">
             <input
               type="number"
               min={0}
               step={100}
-              value={props.dailyTarget}
-              onChange={e => props.setDailyTarget(Math.max(0, Number(e.target.value) || 0))}
+              value={props.revenueHint}
+              onChange={e => props.setRevenueHint(Math.max(0, Number(e.target.value) || 0))}
               className="w-32 border border-gray-200 rounded-xl px-3 py-2 text-sm text-center"
             />
             <span className="text-xs text-gray-400">₪</span>
@@ -501,9 +529,11 @@ function GeocodingView({ progress }: { progress: { done: number; total: number; 
 }
 
 function PreviewView(props: {
-  visibleDays: { date: string; jobs: PlannedJob[]; totalPrice: number }[];
+  visibleDays: { date: string; jobs: PlannedJob[]; totalPrice: number; totalHours: number }[];
   unplaceable: PlanResult["unplaceable"];
   summary: { jobs: number; revenue: number; days: number };
+  revenueHint: number;
+  dailyHoursBudget: number;
   onRemove: (j: PlannedJob) => void;
   onBack: () => void;
   onApprove: () => void;
@@ -536,15 +566,34 @@ function PreviewView(props: {
       )}
 
       {/* Days */}
-      {props.visibleDays.map(day => (
+      {props.visibleDays.map(day => {
+        const hoursPct = Math.min(100, Math.round((day.totalHours / props.dailyHoursBudget) * 100));
+        const overBudget = day.totalHours > props.dailyHoursBudget;
+        const reachedRevenue = day.totalPrice >= props.revenueHint && props.revenueHint > 0;
+        return (
         <div key={day.date} className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <div>
+          <div className="px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between gap-2 mb-1">
               <p className="text-sm font-bold text-gray-900">{dateLabel(day.date)}</p>
-              <p className="text-[11px] text-gray-400">
-                {day.jobs.length} עבודות · {fmtMoney(day.totalPrice)} לפני מע״מ
-              </p>
+              <div className="flex items-center gap-2 text-[11px] tabular-nums">
+                <span className={`font-bold ${overBudget ? "text-red-600" : "text-gray-700"}`}>
+                  {day.totalHours.toFixed(1)}ש&apos;
+                </span>
+                <span className="text-gray-300">·</span>
+                <span className={`font-bold ${reachedRevenue ? "text-emerald-600" : "text-gray-700"}`}>
+                  {fmtMoney(day.totalPrice)}
+                </span>
+              </div>
             </div>
+            <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all ${overBudget ? "bg-red-500" : "bg-gray-700"}`}
+                style={{ width: `${hoursPct}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">
+              {day.jobs.length} עבודות · יעד {props.dailyHoursBudget}ש&apos; · {fmtMoney(props.revenueHint)}
+            </p>
           </div>
           <ul className="divide-y divide-gray-50">
             {day.jobs.map(j => (
@@ -568,7 +617,8 @@ function PreviewView(props: {
             ))}
           </ul>
         </div>
-      ))}
+        );
+      })}
 
       {props.visibleDays.length === 0 && (
         <div className="bg-white border border-gray-100 rounded-2xl p-8 text-center text-sm text-gray-400">

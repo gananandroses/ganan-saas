@@ -1,26 +1,26 @@
-// Month-ahead schedule planner.
+// Month-ahead schedule planner — v2: city-first clustering, time budget.
 //
-// Produces a draft plan (NOT inserted into the DB — the user reviews
-// and approves) covering the next N days. The plan has two layers:
+// v1 walked days sequentially and picked the closest unbooked customer
+// at each step. Symptom: customers from the same city got scattered
+// (one alone on day 3, three more on day 14). v2 reverses the order —
+// it groups unbooked customers BY CITY first, then assigns each city
+// to a sequence of working days, packing each day to a HOURS budget
+// (8h by default) rather than a revenue cap.
 //
-//   1) RECURRING — for each active/VIP customer with a frequency, drop
-//      visits on the dates their cadence says they're due
-//      (last_visit + cadence, last_visit + 2·cadence, …) up to the
-//      horizon. Customers who already have a future job for a given
-//      date are skipped on that date.
-//
-//   2) UNBOOKED — every customer who is active/VIP but has no frequency
-//      and no future job, OR whose frequency-derived dates didn't fill
-//      a working day to the user's daily revenue target. These are
-//      packed onto the same days, ordered by nearest-neighbour from
-//      the previous customer's location, until the per-day total
-//      crosses the target. Surplus customers spill over to subsequent
-//      working days.
-//
-// The output is a list of PlannedDay objects. Each day's jobs are in
-// route order. The caller turns approved plan days into `jobs` rows.
+// Pipeline:
+//   1) Recurring customers get placed on their cadence dates, with a
+//      ±3 day slide if the natural date has no time left or is a
+//      non-working day.
+//   2) Unbooked customers are grouped by city. Largest city first,
+//      we pack consecutive working days until the city is exhausted.
+//      A small city (≤2 customers) can share a day with another small
+//      city in the SAME region.
+//   3) Anything that didn't fit is reported as unplaceable.
+//   4) Within each day, jobs are re-ordered by nearest-neighbour from
+//      homeBase, then times assigned sequentially from startHour.
 
 import { haversineKm, nearestNeighbourOrder, type LatLng } from "./geocoding";
+import { regionForCity, type Region } from "./israel-regions";
 
 // ── Cadence helpers (kept local — same numbers used elsewhere) ──────────────
 
@@ -72,6 +72,9 @@ function dayOfWeekISO(iso: string): number {
   return new Date(iso + "T00:00:00").getDay();
 }
 
+const normCity = (s: string | null | undefined) =>
+  (s ?? "").trim().toLowerCase().replace(/\s+/g, " ") || "לא ידוע";
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface PlannerCustomer {
@@ -86,6 +89,7 @@ export interface PlannerCustomer {
   lastVisit: string | null;     // effective: max(completed job_date) || customers.last_visit
   lat: number | null;
   lng: number | null;
+  durationHours: number;        // resolved from default_duration_hours or fallback
 }
 
 export interface ExistingFutureJob {
@@ -112,6 +116,7 @@ export interface PlannedDay {
   date: string;
   jobs: PlannedJob[];
   totalPrice: number;       // sum of before-VAT prices
+  totalHours: number;
 }
 
 export interface PlanInput {
@@ -119,11 +124,11 @@ export interface PlanInput {
   existingFutureJobs: ExistingFutureJob[];
   today: string;                  // ISO
   daysAhead: number;              // e.g. 30
-  dailyTargetBeforeVat: number;   // e.g. 2500
+  dailyHoursBudget: number;       // e.g. 8
   workDays: number[];             // 0 = Sun … 6 = Sat. Default [0,1,2,3,4]
   startHour: number;              // hour of first job, e.g. 9
-  defaultDurationHours: number;   // e.g. 1.5
   homeBase: LatLng | null;        // user's start point for each day's route
+  recurringFlexDays: number;      // how far we can slide a recurring date to fit
 }
 
 export interface PlanResult {
@@ -139,27 +144,37 @@ export function planMonth(input: PlanInput): PlanResult {
     existingFutureJobs,
     today,
     daysAhead,
-    dailyTargetBeforeVat,
+    dailyHoursBudget,
     workDays,
     startHour,
-    defaultDurationHours,
     homeBase,
+    recurringFlexDays,
   } = input;
 
-  // 1) Build the list of candidate working dates.
+  // 1) Build the list of candidate working dates and a day map.
   const dates: string[] = [];
   for (let i = 0; i < daysAhead; i++) {
     const iso = addDaysISO(today, i);
     if (workDays.includes(dayOfWeekISO(iso))) dates.push(iso);
   }
+  const days = new Map<string, PlannedDay>();
+  for (const d of dates) days.set(d, { date: d, jobs: [], totalPrice: 0, totalHours: 0 });
 
-  // 2) Index existing future jobs so we never schedule a customer on a
-  //    date they already have a job booked. Match by customer_id when
-  //    present, otherwise fall back to a normalised name.
+  function dayHasCapacity(day: PlannedDay, addHours: number): boolean {
+    return day.totalHours + addHours <= dailyHoursBudget + 0.001;
+  }
+  function placeOn(day: PlannedDay, j: PlannedJob) {
+    day.jobs.push(j);
+    day.totalHours += j.durationHours;
+    day.totalPrice += j.price;
+  }
+
+  // 2) Index existing future jobs so we never schedule a customer on
+  //    a date they already have a job booked.
   const norm = (s: string | null | undefined) =>
     (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-  const bookedById = new Map<string, Set<string>>();   // customerId → set of ISO dates
-  const bookedByName = new Map<string, Set<string>>(); // norm(name) → set of ISO dates
+  const bookedById = new Map<string, Set<string>>();
+  const bookedByName = new Map<string, Set<string>>();
   for (const j of existingFutureJobs) {
     if (j.customerId) {
       const s = bookedById.get(String(j.customerId)) ?? new Set<string>();
@@ -180,22 +195,16 @@ export function planMonth(input: PlanInput): PlanResult {
     return false;
   }
 
-  // 3) PHASE 1 — recurring layer. For each customer with a frequency,
-  //    drop visits on every cadence step that lands inside the window.
-  const days = new Map<string, PlannedDay>();
-  for (const d of dates) days.set(d, { date: d, jobs: [], totalPrice: 0 });
-
   const unplaceable: PlanResult["unplaceable"] = [];
   const placedRecurringCustomerIds = new Set<string>();
 
+  // 3) PHASE 1 — recurring layer.
   for (const c of customers) {
     if (c.status !== "active" && c.status !== "vip") continue;
     if (!c.frequency) continue;
     const cadence = cadenceDays(c.frequency);
-    if (!cadence || cadence > daysAhead * 2) continue; // unrealistic cadence
+    if (!cadence || cadence > daysAhead * 2) continue;
 
-    // Seed: next visit after lastVisit. If lastVisit is null, start at
-    // today (treat as "due now"). Round to a working day.
     let next: string;
     if (c.lastVisit) {
       next = addDaysISO(c.lastVisit, Math.round(cadence));
@@ -203,8 +212,9 @@ export function planMonth(input: PlanInput): PlanResult {
     } else {
       next = today;
     }
+    const horizon = addDaysISO(today, daysAhead);
 
-    while (next < addDaysISO(today, daysAhead)) {
+    while (next < horizon) {
       // Roll forward to a working day.
       let probe = next;
       let safety = 0;
@@ -212,40 +222,53 @@ export function planMonth(input: PlanInput): PlanResult {
         probe = addDaysISO(probe, 1);
         safety++;
       }
-      if (!days.has(probe)) break;
-      if (!isBooked(c, probe)) {
-        const day = days.get(probe)!;
+      if (probe >= horizon || !days.has(probe)) break;
+
+      // Find a placement candidate within ±recurringFlexDays.
+      let placed = false;
+      const candidates = [probe];
+      for (let d = 1; d <= recurringFlexDays; d++) {
+        const fwd = addDaysISO(probe, d);
+        const bwd = addDaysISO(probe, -d);
+        if (days.has(fwd) && fwd >= today) candidates.push(fwd);
+        if (days.has(bwd) && bwd >= today) candidates.push(bwd);
+      }
+      for (const date of candidates) {
+        const day = days.get(date);
+        if (!day) continue;
+        if (isBooked(c, date)) continue;
+        if (!dayHasCapacity(day, c.durationHours)) continue;
         const price = pricePerVisit(c.monthlyPrice, c.frequency, c.priceMode);
-        day.jobs.push({
+        placeOn(day, {
           customerId: c.id,
           customerName: c.name,
           city: c.city ?? "",
           address: c.address ?? "",
-          date: probe,
-          time: "",   // filled in after ordering
-          durationHours: defaultDurationHours,
+          date,
+          time: "",
+          durationHours: c.durationHours,
           price,
           source: "recurring",
           lat: c.lat,
           lng: c.lng,
         });
-        day.totalPrice += price;
         placedRecurringCustomerIds.add(c.id);
+        placed = true;
+        break;
+      }
+      if (!placed) {
+        // Couldn't fit this cadence step — skip it silently. Don't push
+        // them onto unplaceable; later cadence steps may still fit.
       }
       next = addDaysISO(probe, Math.round(cadence));
     }
   }
 
-  // 4) PHASE 2 — unbooked layer. Customers without a frequency, or whose
-  //    cadence didn't place them in any day (e.g. no last_visit, very
-  //    long cadence), get distributed across working days, packed into
-  //    days that haven't yet hit the daily target.
+  // 4) PHASE 2 — unbooked customers, grouped by city.
   const unbookedPool: PlannerCustomer[] = [];
   for (const c of customers) {
     if (c.status !== "active" && c.status !== "vip") continue;
     if (placedRecurringCustomerIds.has(c.id)) continue;
-    // Skip if they already have ANY future job in the window — they're
-    // covered.
     const hasFuture =
       (bookedById.get(c.id)?.size ?? 0) > 0 ||
       (bookedByName.get(norm(c.name))?.size ?? 0) > 0;
@@ -253,79 +276,94 @@ export function planMonth(input: PlanInput): PlanResult {
     unbookedPool.push(c);
   }
 
-  // Sort the pool so geocoded customers come first; ungeocoded land at
-  // the end and use a city-fallback location (not implemented — we just
-  // exclude them from NN routing within the day but still place them).
-  unbookedPool.sort((a, b) => {
-    const ga = a.lat != null && a.lng != null ? 1 : 0;
-    const gb = b.lat != null && b.lng != null ? 1 : 0;
-    return gb - ga;
-  });
+  // Group by normalized city; track each group's region for fallback
+  // matching when a city has only 1-2 customers.
+  const cityGroups = new Map<string, { city: string; region: Region; customers: PlannerCustomer[] }>();
+  for (const c of unbookedPool) {
+    const key = normCity(c.city);
+    const reg = regionForCity(c.city ?? "");
+    let g = cityGroups.get(key);
+    if (!g) {
+      g = { city: c.city ?? "לא ידוע", region: reg, customers: [] };
+      cityGroups.set(key, g);
+    }
+    g.customers.push(c);
+  }
+  // Sort cities by size descending — largest first gets first pick of days.
+  const cityList = Array.from(cityGroups.values()).sort(
+    (a, b) => b.customers.length - a.customers.length,
+  );
 
-  // Greedy: walk days; for each day, keep adding the geographically-
-  // closest unbooked customer until the day's totalPrice crosses the
-  // target. The "previous location" starts as homeBase (or, if absent,
-  // the first customer's own location).
-  for (const date of dates) {
-    const day = days.get(date)!;
-    if (day.totalPrice >= dailyTargetBeforeVat) continue;
-
-    let cursor: LatLng | null = homeBase;
-    // If we already placed recurring jobs today, the last one becomes
-    // the cursor for nearest-neighbour ordering. We'll re-order the
-    // whole day at the end, but we still need a cursor for *picking*
-    // the next unbooked candidate.
-    const lastWithCoord = [...day.jobs].reverse().find(j => j.lat != null && j.lng != null);
-    if (lastWithCoord) cursor = { lat: lastWithCoord.lat!, lng: lastWithCoord.lng! };
-
-    while (day.totalPrice < dailyTargetBeforeVat && unbookedPool.length > 0) {
-      // Pick the candidate nearest to the cursor (if cursor available).
-      let pickIdx = 0;
-      if (cursor) {
-        let bestDist = Infinity;
-        for (let i = 0; i < unbookedPool.length; i++) {
-          const c = unbookedPool[i];
-          if (c.lat == null || c.lng == null) continue;
-          const d = haversineKm(cursor, { lat: c.lat, lng: c.lng });
-          if (d < bestDist) {
-            bestDist = d;
-            pickIdx = i;
-          }
-        }
+  // Helper: find a day that already has jobs in this city (preferred),
+  // else any day in the same region, else any day, with capacity.
+  function pickDayFor(cust: PlannerCustomer, fromIdx: number): { idx: number; day: PlannedDay } | null {
+    // Tier 1: day with same-city neighbour
+    for (let i = fromIdx; i < dates.length; i++) {
+      const d = days.get(dates[i])!;
+      if (!dayHasCapacity(d, cust.durationHours)) continue;
+      const hasSameCity = d.jobs.some(j => normCity(j.city) === normCity(cust.city));
+      if (hasSameCity) return { idx: i, day: d };
+    }
+    // Tier 2: day with same-region neighbour
+    const reg = regionForCity(cust.city ?? "");
+    for (let i = fromIdx; i < dates.length; i++) {
+      const d = days.get(dates[i])!;
+      if (!dayHasCapacity(d, cust.durationHours)) continue;
+      const hasSameRegion = d.jobs.some(j => regionForCity(j.city) === reg);
+      if (hasSameRegion) return { idx: i, day: d };
+    }
+    // Tier 3: any day with capacity (prefer emptier)
+    let bestIdx = -1;
+    let bestHours = Infinity;
+    for (let i = fromIdx; i < dates.length; i++) {
+      const d = days.get(dates[i])!;
+      if (!dayHasCapacity(d, cust.durationHours)) continue;
+      if (d.totalHours < bestHours) {
+        bestIdx = i;
+        bestHours = d.totalHours;
       }
-      const c = unbookedPool.splice(pickIdx, 1)[0];
+    }
+    if (bestIdx >= 0) return { idx: bestIdx, day: days.get(dates[bestIdx])! };
+    return null;
+  }
+
+  // For each city group (largest first), place its customers. We walk
+  // days from a moving cursor; small groups can spill into the same
+  // day as another group from the same region thanks to pickDayFor.
+  let cursorIdx = 0;
+  for (const group of cityList) {
+    for (const c of group.customers) {
+      const pick = pickDayFor(c, cursorIdx);
+      if (!pick) {
+        unplaceable.push({ customerId: c.id, name: c.name, reason: "אין מקום בטווח (תקציב 8 שעות ביום)" });
+        continue;
+      }
       const price = pricePerVisit(c.monthlyPrice, c.frequency, c.priceMode);
-      day.jobs.push({
+      placeOn(pick.day, {
         customerId: c.id,
         customerName: c.name,
         city: c.city ?? "",
         address: c.address ?? "",
-        date,
+        date: pick.day.date,
         time: "",
-        durationHours: defaultDurationHours,
+        durationHours: c.durationHours,
         price,
         source: "unbooked",
         lat: c.lat,
         lng: c.lng,
       });
-      day.totalPrice += price;
-      if (c.lat != null && c.lng != null) cursor = { lat: c.lat, lng: c.lng };
+      // Don't bump cursorIdx aggressively — we want to revisit earlier
+      // days that still have capacity. Only advance once the cursor's
+      // own day is full enough to refuse a 1.5h slot.
+      const cursorDay = days.get(dates[cursorIdx]);
+      if (cursorDay && !dayHasCapacity(cursorDay, 1.5)) {
+        cursorIdx++;
+      }
     }
   }
 
-  // 5) Any unbooked customer still in the pool couldn't be placed
-  //    (workdays filled, or pool exhausted on the target side). Report
-  //    them so the UI can surface a note.
-  for (const c of unbookedPool) {
-    unplaceable.push({
-      customerId: c.id,
-      name: c.name,
-      reason: "אין מקום בטווח לפי היעד היומי",
-    });
-  }
-
-  // 6) Within each day, reorder jobs by nearest-neighbour starting from
-  //    homeBase, then assign times (startHour, then +duration each).
+  // 5) PHASE 3 — within each day, reorder by nearest-neighbour and
+  //    assign times.
   const orderedDays: PlannedDay[] = [];
   for (const date of dates) {
     const day = days.get(date)!;
@@ -334,14 +372,23 @@ export function planMonth(input: PlanInput): PlanResult {
     const withCoord = day.jobs.filter(j => j.lat != null && j.lng != null);
     const withoutCoord = day.jobs.filter(j => j.lat == null || j.lng == null);
 
+    // Anchor the NN walk: prefer homeBase, else fall back to the
+    // geographic centroid of the day so the first stop is the most
+    // central customer.
+    let anchor: LatLng | null = homeBase;
+    if (!anchor && withCoord.length > 0) {
+      const sumLat = withCoord.reduce((s, j) => s + (j.lat as number), 0);
+      const sumLng = withCoord.reduce((s, j) => s + (j.lng as number), 0);
+      anchor = { lat: sumLat / withCoord.length, lng: sumLng / withCoord.length };
+    }
+
     let ordered: PlannedJob[];
-    if (withCoord.length > 0 && homeBase) {
+    if (withCoord.length > 0 && anchor) {
       const items = withCoord.map(j => ({ job: j, coord: { lat: j.lat!, lng: j.lng! } }));
-      ordered = nearestNeighbourOrder(items, homeBase).map(x => x.job);
+      ordered = nearestNeighbourOrder(items, anchor).map(x => x.job);
     } else {
       ordered = withCoord;
     }
-    // Append un-geocoded customers at the end of the day in name order.
     withoutCoord.sort((a, b) => a.customerName.localeCompare(b.customerName, "he"));
     ordered = ordered.concat(withoutCoord);
 
@@ -361,6 +408,10 @@ export function planMonth(input: PlanInput): PlanResult {
     day.jobs = ordered;
     orderedDays.push(day);
   }
+  // Silence the eslint "unused" warning while we keep haversineKm in
+  // the import (used inside nearestNeighbourOrder; explicit re-use here
+  // documents the intent if someone reads top-down).
+  void haversineKm;
 
   return { days: orderedDays, unplaceable };
 }

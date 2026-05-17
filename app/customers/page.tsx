@@ -514,6 +514,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
     frequency: customer.frequency,
     status: customer.status,
     notes: customer.notes || "",
+    duration_hours: customer.defaultDurationHours != null ? String(customer.defaultDurationHours) : "2",
   });
   const status = statusConfig[customer.status];
 
@@ -538,6 +539,7 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
       frequency: editForm.frequency,
       status: editForm.status as CustomerStatus,
       notes: editForm.notes,
+      defaultDurationHours: parseFloat(editForm.duration_hours) || null,
     });
     setSaving(false);
     setEditing(false);
@@ -700,6 +702,20 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                   <option key={f}>{f}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">משך ביקור (שעות)</label>
+              <input
+                type="number"
+                min="0.5"
+                step="0.5"
+                inputMode="decimal"
+                value={editForm.duration_hours}
+                onChange={e => setEditForm(p => ({...p, duration_hours: e.target.value}))}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="2"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">לתכנון יומי אוטומטי. ברירת מחדל 2 שעות.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
@@ -1237,6 +1253,10 @@ function CustomersPageInner() {
           balance: Math.round(balanceByName[key] ?? 0),
           lat: c.lat as number || 0,
           lng: c.lng as number || 0,
+          defaultDurationHours:
+            c.default_duration_hours == null
+              ? null
+              : Number(c.default_duration_hours),
         };
       }));
     }
@@ -1305,6 +1325,7 @@ function CustomersPageInner() {
     name: "", city: "", address: "", phone: "", email: "",
     monthly_price: "", price_mode: "monthly" as "monthly" | "per_visit",
     frequency: "פעם בחודש", status: "active", notes: "",
+    duration_hours: "2",   // visit length in hours — used by the auto-planner
   });
   const [newVatType, setNewVatType] = useState<"before" | "include">("include");
 
@@ -1346,6 +1367,7 @@ function CustomersPageInner() {
       frequency: newCustomer.frequency,
       status: newCustomer.status,
       notes: newCustomer.notes,
+      default_duration_hours: parseFloat(newCustomer.duration_hours) || 2,
       tags: [],
       balance: 0,
       total_paid: 0,
@@ -1356,6 +1378,11 @@ function CustomersPageInner() {
     // If the column doesn't exist yet (migration not run), retry without it.
     if (error && /price_mode/i.test(error.message)) {
       delete insertPayload.price_mode;
+      const retry = await supabase.from("customers").insert([insertPayload]);
+      error = retry.error;
+    }
+    if (error && /default_duration_hours/i.test(error.message)) {
+      delete insertPayload.default_duration_hours;
       const retry = await supabase.from("customers").insert([insertPayload]);
       error = retry.error;
     }
@@ -1370,7 +1397,7 @@ function CustomersPageInner() {
     await loadCustomers();
 
     setShowAddModal(false);
-    setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", price_mode: "monthly", frequency: "פעם בחודש", status: "active", notes: "" });
+    setNewCustomer({ name: "", city: "", address: "", phone: "", email: "", monthly_price: "", price_mode: "monthly", frequency: "פעם בחודש", status: "active", notes: "", duration_hours: "2" });
     setNewVatType("include");
     setSaving(false);
   }
@@ -1419,11 +1446,19 @@ function CustomersPageInner() {
     if (data.priceMode !== undefined) {
       payload.price_mode = data.priceMode;
     }
-    const { error } = await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id);
-    // If the column doesn't exist yet (migration not run), retry without
-    // price_mode so the rest of the update still succeeds.
+    if (data.defaultDurationHours !== undefined) {
+      payload.default_duration_hours = data.defaultDurationHours;
+    }
+    let { error } = await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id);
+    // If a non-migrated column gets rejected, retry without it so the
+    // rest of the update still succeeds. We check both modern columns
+    // separately so a missing migration on one doesn't block the other.
     if (error && /price_mode/i.test(error.message)) {
       delete payload.price_mode;
+      ({ error } = await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id));
+    }
+    if (error && /default_duration_hours/i.test(error.message)) {
+      delete payload.default_duration_hours;
       await supabase.from("customers").update(payload).eq("id", id).eq("user_id", user.id);
     }
 
@@ -1890,6 +1925,20 @@ function CustomersPageInner() {
                       <option key={f}>{f}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">משך ביקור (שעות)</label>
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    inputMode="decimal"
+                    value={newCustomer.duration_hours}
+                    onChange={e => setNewCustomer(p => ({...p, duration_hours: e.target.value}))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="2"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">לתכנון יומי אוטומטי</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">סטטוס</label>
