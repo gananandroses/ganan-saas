@@ -1682,34 +1682,44 @@ function CustomersPageInner() {
       )}
 
       {/* ===== ADD CUSTOMER MODAL =====
-          Uses the same proven mobile pattern as inventory/employees:
-          fixed overlay → flex-end-aligned card with maxHeight 92dvh →
-          flex-column inside (sticky header, scrollable body, sticky
-          footer). This is the only pattern that works reliably on
-          iOS Safari without scroll bleeding to the page behind. */}
+          Mobile: full-screen sheet (iOS-native style). The top nav has
+          [ביטול] on the left, [שמור] on the right — save is ALWAYS
+          visible at the top, never hidden by keyboard or scroll.
+          The single scroll container is the body region between nav
+          and bottom safe area.
+          Desktop: centered modal with the same top nav. */}
       {showAddModal && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 z-50 bg-white sm:bg-black/50 sm:backdrop-blur-sm sm:flex sm:items-center sm:justify-center"
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.target === e.currentTarget && setShowAddModal(false)}
         >
           <div
-            className="bg-white w-full sm:max-w-lg sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col"
-            style={{ maxHeight: "92dvh" }}
+            className="h-full sm:h-auto sm:max-h-[92vh] w-full sm:max-w-lg sm:mx-4 sm:rounded-3xl bg-white sm:shadow-2xl flex flex-col"
             dir="rtl"
           >
-            {/* Drag handle — mobile only, signals "swipe down to dismiss" */}
-            <div className="flex justify-center pt-3 pb-1 sm:hidden flex-shrink-0">
-              <div className="w-10 h-1 bg-gray-200 rounded-full" />
-            </div>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-              <h2 className="text-lg font-bold text-gray-900">לקוח חדש</h2>
-              <button type="button" onClick={() => setShowAddModal(false)} aria-label="סגור" className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
-                <X className="w-5 h-5 text-gray-400" />
+            {/* Top nav — save is always one tap away */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="text-gray-500 font-medium text-sm px-2 py-2 min-w-[44px] text-right"
+              >
+                ביטול
+              </button>
+              <h2 className="text-base font-bold text-gray-900">לקוח חדש</h2>
+              <button
+                type="button"
+                onClick={() => handleAddCustomer({ preventDefault: () => {} } as React.FormEvent)}
+                disabled={saving || !newCustomer.name || !newCustomer.phone}
+                className="text-green-600 font-bold text-sm px-2 py-2 min-w-[44px] disabled:opacity-40 flex items-center gap-1 justify-end"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {saving ? "שומר..." : "שמור"}
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
@@ -1841,24 +1851,16 @@ function CustomersPageInner() {
                   שגיאה: {saveError}
                 </div>
               )}
-            </div>
-            {/* Footer — flex-shrink-0 keeps it visible at all times.
-                Respects the iOS home indicator. */}
-            <div
-              className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0 bg-white"
-              style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-            >
-              <button type="button" onClick={() => setShowAddModal(false)}
-                className="flex-1 py-3 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-                ביטול
-              </button>
+              {/* Big primary save button at the bottom — redundant with
+                  the top-nav "שמור" but visible without scrolling back
+                  up after filling the form. */}
               <button
                 type="button"
                 onClick={() => handleAddCustomer({ preventDefault: () => {} } as React.FormEvent)}
                 disabled={saving || !newCustomer.name || !newCustomer.phone}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-2xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                className="w-full mt-4 py-4 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-2xl text-base font-bold transition-colors flex items-center justify-center gap-2"
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                 {saving ? "שומר..." : "הוסף לקוח"}
               </button>
             </div>
