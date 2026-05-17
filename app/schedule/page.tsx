@@ -1300,6 +1300,11 @@ function SchedulePageInner() {
     // "נטלי " in jobs.customer_name still matches "נטלי" in customers.name.
     const phoneById = new Map<string, string>();
     const phoneByName = new Map<string, string>();
+    // Current-name lookup — used to display the LIVE customer name
+    // instead of the denormalized jobs.customer_name (which can drift
+    // when a customer is renamed). Keyed by customer_id so it's
+    // immune to old-name lookups.
+    const nameById = new Map<string, string>();
     const normName = (s: string | null | undefined) =>
       (s || "").trim().toLowerCase().replace(/\s+/g, " ");
     for (const c of customers) {
@@ -1313,6 +1318,7 @@ function SchedulePageInner() {
         if (c.id) phoneById.set(String(c.id), String(c.phone));
         if (nName) phoneByName.set(nName, String(c.phone));
       }
+      if (c.id && c.name) nameById.set(String(c.id), c.name);
     }
 
     if (jobsRes.data) {
@@ -1327,9 +1333,17 @@ function SchedulePageInner() {
           (row.customer_id && phoneById.get(String(row.customer_id))) ||
           (nName && phoneByName.get(nName)) ||
           "";
+        // Resolve the customer's CURRENT name: prefer the live
+        // customers.name (via customer_id), fall back to the stored
+        // denormalized customer_name for legacy jobs that don't have
+        // a customer_id FK.
+        const liveName =
+          (row.customer_id && nameById.get(String(row.customer_id))) ||
+          row.customer_name ||
+          "";
         return {
           id: row.id, customerId: row.customer_id ?? null,
-          customerName: row.customer_name ?? "",
+          customerName: liveName,
           customerPhone: phone || undefined,
           address: stored || fallback,
           date: row.job_date, time: (row.job_time ?? "00:00").slice(0, 5),
