@@ -1308,6 +1308,23 @@ function CustomersPageInner() {
   });
   const [newVatType, setNewVatType] = useState<"before" | "include">("include");
 
+  // Body scroll-lock while the add-customer modal is open. Without
+  // this, iOS Safari "rubber-banding" lets the underlying page scroll
+  // when the user reaches the top/bottom of the modal's own scroll
+  // container — the page slides under the modal, which is jarring
+  // and breaks the illusion of a self-contained sheet.
+  useEffect(() => {
+    if (!showAddModal) return;
+    const original = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = original;
+      document.body.style.touchAction = originalTouchAction;
+    };
+  }, [showAddModal]);
+
   async function handleAddCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.phone) return;
@@ -1730,7 +1747,10 @@ function CustomersPageInner() {
                 {saving ? "שומר..." : "שמור"}
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4"
+              style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            >
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
