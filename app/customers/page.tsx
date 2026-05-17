@@ -1709,9 +1709,8 @@ function CustomersPageInner() {
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-            <form onSubmit={handleAddCustomer} className="flex-1 flex flex-col min-h-0">
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא *</label>
                   <input required value={newCustomer.name} onChange={e => setNewCustomer(p => ({...p, name: e.target.value}))}
@@ -1837,29 +1836,32 @@ function CustomersPageInner() {
                     placeholder="הערות מיוחדות, דרישות, שעות עדיפות..." />
                 </div>
               </div>
-                {saveError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
-                    שגיאה: {saveError}
-                  </div>
-                )}
-              </div>
-              {/* Footer — flex-shrink-0 keeps it visible at all times.
-                  Respects the iOS home indicator. */}
-              <div
-                className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0 bg-white"
-                style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+              {saveError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                  שגיאה: {saveError}
+                </div>
+              )}
+            </div>
+            {/* Footer — flex-shrink-0 keeps it visible at all times.
+                Respects the iOS home indicator. */}
+            <div
+              className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0 bg-white"
+              style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+            >
+              <button type="button" onClick={() => setShowAddModal(false)}
+                className="flex-1 py-3 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddCustomer({ preventDefault: () => {} } as React.FormEvent)}
+                disabled={saving || !newCustomer.name || !newCustomer.phone}
+                className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-2xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
               >
-                <button type="button" onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-3 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-                  ביטול
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white rounded-2xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {saving ? "שומר..." : "הוסף לקוח"}
-                </button>
-              </div>
-            </form>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                {saving ? "שומר..." : "הוסף לקוח"}
+              </button>
+            </div>
           </div>
         </div>
       )}
