@@ -37,7 +37,7 @@ function fmtShortDate(iso: string): string {
 
 const DEFAULT_MIN = 30000;
 const DEFAULT_TARGET = 52500;       // midpoint of the user's "50-55k" target band
-const WORK_DAYS = [0, 1, 2, 3, 4];  // Sun-Thu, same convention as the auto-planner
+const WORK_DAYS = [0, 1, 2, 3, 4, 5];  // Sun-Fri (Saturday only off)
 
 function fmtMoney(n: number): string {
   return `₪${Math.round(n).toLocaleString("he-IL")}`;

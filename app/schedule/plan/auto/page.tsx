@@ -34,7 +34,7 @@ import {
 const DEFAULT_DAYS_AHEAD = 30;
 const DEFAULT_DAILY_HOURS_BUDGET = 8;          // primary cap — hours of work / day
 const DEFAULT_REVENUE_TARGET_HINT = 2500;      // display-only "you've hit the goal" line
-const DEFAULT_WORK_DAYS = [0, 1, 2, 3, 4];     // Sun-Thu
+const DEFAULT_WORK_DAYS = [0, 1, 2, 3, 4, 5]; // Sun-Fri (Saturday only off)
 const DEFAULT_START_HOUR = 9;
 const DEFAULT_DURATION_HOURS = 2;              // fallback when a customer has no default_duration_hours
 const RECURRING_FLEX_DAYS = 3;                 // slide cadence dates ±3 days for better packing
