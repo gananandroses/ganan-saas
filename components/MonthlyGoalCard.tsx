@@ -17,8 +17,10 @@
 // actually arrived in my account", not "what's forecast".
 
 import { useEffect, useState } from "react";
-import { TrendingUp, Loader2, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { TrendingUp, Loader2, Sparkles, ChevronDown, ChevronUp, Settings, Check, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+
+const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 // ── Item lists ──────────────────────────────────────────────────────────────
 // Each forecast bucket (paid / debts / scheduled) keeps a list of the
@@ -116,6 +118,52 @@ export default function MonthlyGoalCard({ override }: Props) {
   // focus + visibility change so navigating back from the schedule
   // (after editing/adding a job) brings the card up-to-date.
   const [refreshTick, setRefreshTick] = useState(0);
+
+  // Inline quick-edit panel. Toggled by the gear icon in the header.
+  // Holds draft values that get committed to user_profile on save.
+  const [editing, setEditing] = useState(false);
+  const [editMin, setEditMin] = useState("");
+  const [editTarget, setEditTarget] = useState("");
+  const [editWorkDays, setEditWorkDays] = useState<number[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  function openEditor() {
+    setEditMin(String(minGoal));
+    setEditTarget(String(target));
+    setEditWorkDays(workDays);
+    setEditing(true);
+  }
+
+  function toggleEditDay(d: number) {
+    setEditWorkDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+    );
+  }
+
+  async function saveEdits() {
+    setSavingEdit(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSavingEdit(false);
+      return;
+    }
+    const min = parseFloat(editMin);
+    const tgt = parseFloat(editTarget);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: Record<string, any> = { user_id: user.id };
+    payload.monthly_goal_min = Number.isFinite(min) && min > 0 ? min : null;
+    payload.monthly_goal_target = Number.isFinite(tgt) && tgt > 0 ? tgt : null;
+    payload.work_days = editWorkDays.length > 0 ? editWorkDays : null;
+    let { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
+    if (error && /work_days/i.test(error.message)) {
+      delete payload.work_days;
+      ({ error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" }));
+    }
+    setSavingEdit(false);
+    if (error) return;
+    setEditing(false);
+    setRefreshTick((t) => t + 1);    // re-fetch so the card reflects the new values
+  }
 
   useEffect(() => {
     if (override) return;
@@ -314,11 +362,20 @@ export default function MonthlyGoalCard({ override }: Props) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-4 py-3 sm:px-5 sm:py-4">
-        {/* Top row — heading + percent */}
+        {/* Top row — heading + percent + quick-edit gear */}
         <div className="flex items-end justify-between gap-3 mb-1">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold text-gray-400 leading-none mb-1.5 flex items-center gap-1.5">
               <TrendingUp size={11} /> הכנסה החודש
+              <button
+                type="button"
+                onClick={openEditor}
+                aria-label="ערוך יעדים וימי עבודה"
+                title="ערוך יעדים וימי עבודה"
+                className="hit-44 w-6 h-6 -mt-1 flex items-center justify-center rounded-md text-gray-300 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <Settings size={12} />
+              </button>
             </p>
             <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 tabular-nums leading-none">
               {fmtMoney(revenue)}
@@ -334,6 +391,83 @@ export default function MonthlyGoalCard({ override }: Props) {
             <p className="text-[10px] text-gray-400 mt-1">מהיעד</p>
           </div>
         </div>
+
+        {/* Inline quick-edit panel — shown when the gear is tapped.
+            Drafts live in editMin/editTarget/editWorkDays so cancel
+            wipes them without touching the live values. */}
+        {editing && (
+          <div className="mt-3 mb-1 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">מינימום</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step={500}
+                  value={editMin}
+                  onChange={(e) => setEditMin(e.target.value)}
+                  placeholder="30,000"
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">מקסימום</label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step={500}
+                  value={editTarget}
+                  onChange={(e) => setEditTarget(e.target.value)}
+                  placeholder="52,500"
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 mb-1">ימי עבודה</label>
+              <div className="flex flex-wrap gap-1">
+                {WEEKDAY_LABELS.map((label, idx) => {
+                  const on = editWorkDays.includes(idx);
+                  return (
+                    <button
+                      type="button"
+                      key={idx}
+                      onClick={() => toggleEditDay(idx)}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                        on
+                          ? "bg-emerald-600 text-white"
+                          : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={saveEdits}
+                disabled={savingEdit}
+                className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-colors"
+              >
+                {savingEdit ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                {savingEdit ? "שומר..." : "שמור"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                disabled={savingEdit}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-100 text-gray-600 text-xs font-medium rounded-lg flex items-center gap-1 transition-colors"
+              >
+                <X size={12} /> בטל
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Progress bar with min + target markers */}
         <div className="relative h-2.5 bg-gray-100 rounded-full overflow-visible mt-3">
