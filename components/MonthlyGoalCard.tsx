@@ -53,15 +53,22 @@ function monthBounds(now: Date): { start: string; end: string } {
   return { start: iso(start), end: iso(end) };
 }
 
-/** Count remaining working days from `now` through the end of its month. */
-function remainingWorkDays(now: Date): number {
+/** Count remaining working days that don't already have a job
+ *  scheduled on them. Used by the daily-needed calc so the per-day
+ *  push reflects only the days where new work could actually be taken
+ *  on. Today is excluded — the day is partway through and shouldn't
+ *  count as a fresh capacity slot. */
+function remainingFreeWorkDays(now: Date, busyDates: Set<string>): number {
   const y = now.getFullYear();
   const m = now.getMonth();
   const lastDay = new Date(y, m + 1, 0).getDate();
   let count = 0;
-  for (let day = now.getDate(); day <= lastDay; day++) {
+  for (let day = now.getDate() + 1; day <= lastDay; day++) {
     const dow = new Date(y, m, day).getDay();
-    if (WORK_DAYS.includes(dow)) count++;
+    if (!WORK_DAYS.includes(dow)) continue;
+    const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    if (busyDates.has(iso)) continue;
+    count++;
   }
   return count;
 }
@@ -262,7 +269,14 @@ export default function MonthlyGoalCard({ override }: Props) {
   const pct = target > 0 ? Math.min(100, Math.round((revenue / target) * 100)) : 0;
   const minMarkerPct = target > 0 ? Math.min(100, Math.round((minGoal / target) * 100)) : 0;
   const remaining = Math.max(0, target - forecastTotal);
-  const workDaysLeft = remainingWorkDays(new Date());
+  // "Free" work days = Sun-Thu days remaining in the month that don't
+  // already have a scheduled job booked. Those are the only days where
+  // additional income could realistically be earned, so they're the
+  // correct denominator for "daily needed". Dividing by ALL remaining
+  // work days underestimates the push needed by overcounting capacity.
+  const scheduledDateSet = new Set(scheduledItems.map(i => i.date));
+  const freeWorkDays = remainingFreeWorkDays(new Date(), scheduledDateSet);
+  const workDaysLeft = freeWorkDays;
   const perDayNeeded =
     workDaysLeft > 0 && !hitTarget
       ? Math.ceil(remaining / workDaysLeft / 50) * 50  // round to 50₪
@@ -350,11 +364,16 @@ export default function MonthlyGoalCard({ override }: Props) {
           >
             {statusLine}
           </p>
-          {!hitTarget && (
+          {!hitTarget && workDaysLeft > 0 && (
             <p className="text-[11px] text-gray-500 leading-relaxed">
               לפי הצפי, חסר עוד {fmtMoney(remaining)} ליעד · יומי דרוש{" "}
               <span className="font-semibold text-gray-700">{fmtMoney(perDayNeeded)}</span>{" "}
-              ב-{workDaysLeft} ימי עבודה שנותרו
+              ב-{workDaysLeft} ימי עבודה פנויים שנותרו
+            </p>
+          )}
+          {!hitTarget && workDaysLeft === 0 && (
+            <p className="text-[11px] text-amber-700 leading-relaxed">
+              לפי הצפי, חסר עוד {fmtMoney(remaining)} ליעד — אבל אין יותר ימים פנויים החודש. צריך לפתוח יום נוסף או להעלות תעריף.
             </p>
           )}
           {hitTarget && (
