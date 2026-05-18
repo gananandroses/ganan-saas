@@ -111,7 +111,9 @@ export default function MonthlyGoalCard({ override }: Props) {
         if (!cancelled) setLoading(false);
         return;
       }
-      const { start, end } = monthBounds(new Date());
+      const now = new Date();
+      const { start, end } = monthBounds(now);
+      const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       // Strict-month accounting: each calendar month gets its own card.
       // May counts ONLY May (paid + owed + scheduled inside May). When
       // the user navigates into June the card will show June's numbers.
@@ -135,16 +137,18 @@ export default function MonthlyGoalCard({ override }: Props) {
           .in("status", ["pending", "overdue"])
           .gte("transaction_date", start)
           .lt("transaction_date", end),
-        // Anything not completed / cancelled counts as "still to come"
-        // for the current month. The app's TaskStatus type is
-        // "pending" | "in_progress" | "completed" | "cancelled" —
+        // "Still to come" = strictly future jobs in the current month
+        // (job_date > today). Past pending rows are excluded — they
+        // tend to be stale jobs the user simply forgot to mark
+        // completed, not real future work. The app's TaskStatus type
+        // is "pending" | "in_progress" | "completed" | "cancelled" —
         // we want the first two PLUS any legacy "scheduled" rows the
-        // auto-planner produced before this fix.
+        // auto-planner produced before the status-fix.
         supabase
           .from("jobs")
           .select("price, price_before_vat, status, job_date, customer_name, type")
           .eq("user_id", user.id)
-          .gte("job_date", start)
+          .gt("job_date", todayISO)
           .lt("job_date", end)
           .in("status", ["pending", "in_progress", "scheduled"]),
         supabase
