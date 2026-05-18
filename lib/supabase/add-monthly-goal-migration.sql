@@ -7,4 +7,8 @@
 
 alter table public.user_profile
   add column if not exists monthly_goal_min numeric,
-  add column if not exists monthly_goal_target numeric;
+  add column if not exists monthly_goal_target numeric,
+  -- Day-of-week numbers (0 = Sun … 6 = Sat) that the user works.
+  -- NULL = use the app default (Sun-Fri). Used by the monthly goal
+  -- card's "free work days" calc + the auto-planner setup default.
+  add column if not exists work_days integer[];

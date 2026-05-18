@@ -37,7 +37,10 @@ function fmtShortDate(iso: string): string {
 
 const DEFAULT_MIN = 30000;
 const DEFAULT_TARGET = 52500;       // midpoint of the user's "50-55k" target band
-const WORK_DAYS = [0, 1, 2, 3, 4, 5];  // Sun-Fri (Saturday only off)
+// Fallback when user_profile.work_days is NULL (pre-migration or never
+// configured). Saturday only off. The user can override in /settings →
+// "יעדים וימי עבודה".
+const DEFAULT_WORK_DAYS = [0, 1, 2, 3, 4, 5];
 
 function fmtMoney(n: number): string {
   return `₪${Math.round(n).toLocaleString("he-IL")}`;
@@ -58,14 +61,14 @@ function monthBounds(now: Date): { start: string; end: string } {
  *  push reflects only the days where new work could actually be taken
  *  on. Today is excluded — the day is partway through and shouldn't
  *  count as a fresh capacity slot. */
-function remainingFreeWorkDays(now: Date, busyDates: Set<string>): number {
+function remainingFreeWorkDays(now: Date, busyDates: Set<string>, workDays: number[]): number {
   const y = now.getFullYear();
   const m = now.getMonth();
   const lastDay = new Date(y, m + 1, 0).getDate();
   let count = 0;
   for (let day = now.getDate() + 1; day <= lastDay; day++) {
     const dow = new Date(y, m, day).getDay();
-    if (!WORK_DAYS.includes(dow)) continue;
+    if (!workDays.includes(dow)) continue;
     const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     if (busyDates.has(iso)) continue;
     count++;
@@ -92,6 +95,7 @@ export default function MonthlyGoalCard({ override }: Props) {
   const [revenue, setRevenue] = useState(override?.revenue ?? 0);
   const [minGoal, setMinGoal] = useState(override?.min ?? DEFAULT_MIN);
   const [target, setTarget] = useState(override?.target ?? DEFAULT_TARGET);
+  const [workDays, setWorkDays] = useState<number[]>(DEFAULT_WORK_DAYS);
   // Forecast data — separated into "what's owed but not paid" (debts)
   // and "what's coming up on the calendar but hasn't been billed yet"
   // (scheduled). Together with `revenue`, the three are disjoint so
@@ -164,7 +168,7 @@ export default function MonthlyGoalCard({ override }: Props) {
           .in("status", ["pending", "in_progress", "scheduled"]),
         supabase
           .from("user_profile")
-          .select("monthly_goal_min, monthly_goal_target")
+          .select("monthly_goal_min, monthly_goal_target, work_days")
           .eq("user_id", user.id)
           .maybeSingle(),
       ]);
@@ -224,6 +228,13 @@ export default function MonthlyGoalCard({ override }: Props) {
       const tgt = Number(profRes.data?.monthly_goal_target);
       setMinGoal(Number.isFinite(min) && min > 0 ? min : DEFAULT_MIN);
       setTarget(Number.isFinite(tgt) && tgt > 0 ? tgt : DEFAULT_TARGET);
+      const wd = profRes.data?.work_days;
+      if (Array.isArray(wd) && wd.length > 0) {
+        const clean = wd.map((n) => Number(n)).filter((n) => Number.isFinite(n));
+        setWorkDays(clean.length > 0 ? clean : DEFAULT_WORK_DAYS);
+      } else {
+        setWorkDays(DEFAULT_WORK_DAYS);
+      }
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -275,7 +286,7 @@ export default function MonthlyGoalCard({ override }: Props) {
   // correct denominator for "daily needed". Dividing by ALL remaining
   // work days underestimates the push needed by overcounting capacity.
   const scheduledDateSet = new Set(scheduledItems.map(i => i.date));
-  const freeWorkDays = remainingFreeWorkDays(new Date(), scheduledDateSet);
+  const freeWorkDays = remainingFreeWorkDays(new Date(), scheduledDateSet, workDays);
   const workDaysLeft = freeWorkDays;
   const perDayNeeded =
     workDaysLeft > 0 && !hitTarget

@@ -1007,9 +1007,13 @@ export default function SettingsPage() {
 // the progress card on /schedule. Self-contained: own load/save effect
 // so it doesn't share state with the big business-info form above.
 
+const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+const DEFAULT_WORK_DAYS = [0, 1, 2, 3, 4, 5];   // Sun-Fri
+
 function MonthlyGoalsCard({ userId }: { userId: string }) {
   const [minGoal, setMinGoal] = useState("");
   const [targetGoal, setTargetGoal] = useState("");
+  const [workDays, setWorkDays] = useState<number[]>(DEFAULT_WORK_DAYS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(0);
@@ -1019,29 +1023,45 @@ function MonthlyGoalsCard({ userId }: { userId: string }) {
     (async () => {
       const { data } = await supabase
         .from("user_profile")
-        .select("monthly_goal_min, monthly_goal_target")
+        .select("monthly_goal_min, monthly_goal_target, work_days")
         .eq("user_id", userId)
         .maybeSingle();
       if (cancelled) return;
       if (data?.monthly_goal_min != null) setMinGoal(String(data.monthly_goal_min));
       if (data?.monthly_goal_target != null) setTargetGoal(String(data.monthly_goal_target));
+      if (Array.isArray(data?.work_days) && data.work_days.length > 0) {
+        setWorkDays(data.work_days.map((n) => Number(n)).filter((n) => Number.isFinite(n)));
+      }
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [userId]);
 
+  function toggleDay(d: number) {
+    setWorkDays((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b),
+    );
+  }
+
   async function save() {
     setSaving(true);
     const min = parseFloat(minGoal);
     const tgt = parseFloat(targetGoal);
-    const payload: Record<string, number | null | string> = { user_id: userId };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: Record<string, any> = { user_id: userId };
     payload.monthly_goal_min = Number.isFinite(min) && min > 0 ? min : null;
     payload.monthly_goal_target = Number.isFinite(tgt) && tgt > 0 ? tgt : null;
-    const { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
+    payload.work_days = workDays.length > 0 ? workDays : null;
+    let { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
+    // Graceful retry if the work_days column hasn't been added yet.
+    if (error && /work_days/i.test(error.message)) {
+      delete payload.work_days;
+      ({ error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" }));
+    }
     if (error) {
       toast.error(`שגיאה: ${error.message}`);
     } else {
-      toast.success("יעדים נשמרו");
+      toast.success("הגדרות נשמרו");
       setSavedTick(t => t + 1);
     }
     setSaving(false);
@@ -1053,11 +1073,11 @@ function MonthlyGoalsCard({ userId }: { userId: string }) {
         <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
           <span className="text-base leading-none">🎯</span>
         </div>
-        <h2 className="font-bold text-gray-900">יעדי הכנסה חודשיים</h2>
+        <h2 className="font-bold text-gray-900">יעדים וימי עבודה</h2>
       </div>
-      <div className="p-6 space-y-4">
+      <div className="p-6 space-y-5">
         <p className="text-xs text-gray-500 leading-relaxed">
-          מופיע ביומן בראש הדף. מציג כמה הכנסת החודש, מה האחוז ביחס ליעד, וכמה ביום עוד צריך כדי לסגור.
+          קובע מה רואים בכרטיס היעד החודשי שביומן ומה ברירת המחדל לתכנון אוטומטי.
         </p>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
@@ -1076,7 +1096,7 @@ function MonthlyGoalsCard({ userId }: { userId: string }) {
             <p className="text-[11px] text-gray-400 mt-1">מתחת לזה — אזעקה אדומה</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">יעד שאיפה (ברוטו)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">יעד מקסימום (ברוטו)</label>
             <input
               type="number"
               inputMode="decimal"
@@ -1091,6 +1111,32 @@ function MonthlyGoalsCard({ userId }: { userId: string }) {
             <p className="text-[11px] text-gray-400 mt-1">המספר ש&quot;100%&quot; מתייחס אליו</p>
           </div>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">ימי עבודה</label>
+          <div className="flex flex-wrap gap-1.5">
+            {WEEKDAY_LABELS.map((label, idx) => {
+              const on = workDays.includes(idx);
+              return (
+                <button
+                  type="button"
+                  key={idx}
+                  onClick={() => toggleDay(idx)}
+                  disabled={loading}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                    on
+                      ? "bg-emerald-600 text-white"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1.5">
+            משפיע על ספירת &quot;ימי עבודה פנויים&quot; בכרטיס היעד וברירת המחדל לתכנון אוטומטי.
+          </p>
+        </div>
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={save}
@@ -1098,7 +1144,7 @@ function MonthlyGoalsCard({ userId }: { userId: string }) {
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl flex items-center gap-2 transition-colors"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? "שומר..." : "שמור יעדים"}
+            {saving ? "שומר..." : "שמור הגדרות"}
           </button>
           {savedTick > 0 && !saving && (
             <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">

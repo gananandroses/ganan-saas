@@ -15,7 +15,7 @@
 // The page is a DRAFT — nothing reaches the schedule until the user
 // taps "אשר וצור". This is the user's safety net.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, Loader2, CheckCircle2, MapPin, Sparkles, AlertCircle, Trash2, ChevronRight } from "lucide-react";
 import BackButton from "@/components/BackButton";
@@ -65,6 +65,28 @@ export default function AutoPlanPage() {
   const [dailyHours, setDailyHours] = useState(DEFAULT_DAILY_HOURS_BUDGET);
   const [revenueHint, setRevenueHint] = useState(DEFAULT_REVENUE_TARGET_HINT);
   const [workDays, setWorkDays] = useState<number[]>(DEFAULT_WORK_DAYS);
+
+  // Pre-fill work days from the user's saved preference (settings →
+  // "יעדים וימי עבודה"). Falls back to the in-file default if not set.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_profile")
+        .select("work_days")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const wd = data?.work_days;
+      if (Array.isArray(wd) && wd.length > 0) {
+        const clean = wd.map((n) => Number(n)).filter((n) => Number.isFinite(n));
+        if (clean.length > 0) setWorkDays(clean);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Optional starting point — defaults to first customer's coord if blank.
   const [homeAddress, setHomeAddress] = useState("");
