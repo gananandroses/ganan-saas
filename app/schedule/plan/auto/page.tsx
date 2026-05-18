@@ -278,7 +278,7 @@ export default function AutoPlanPage() {
           job_time: j.time,
           duration: j.durationHours,
           type: "תחזוקת גינה",
-          status: "scheduled",
+          status: "pending",  // matches the manual "new job" flow + TaskStatus type
           priority: "medium",
           price: j.price,
           price_before_vat: true,

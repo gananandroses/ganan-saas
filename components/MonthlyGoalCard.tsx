@@ -112,13 +112,18 @@ export default function MonthlyGoalCard({ override }: Props) {
           .in("status", ["pending", "overdue"])
           .gte("transaction_date", start)
           .lt("transaction_date", end),
+        // Anything not completed / cancelled counts as "still to come"
+        // for the current month. The app's TaskStatus type is
+        // "pending" | "in_progress" | "completed" | "cancelled" —
+        // we want the first two PLUS any legacy "scheduled" rows the
+        // auto-planner produced before this fix.
         supabase
           .from("jobs")
           .select("price, price_before_vat, status, job_date")
           .eq("user_id", user.id)
           .gte("job_date", start)
           .lt("job_date", end)
-          .in("status", ["scheduled", "in_progress"]),
+          .in("status", ["pending", "in_progress", "scheduled"]),
         supabase
           .from("user_profile")
           .select("monthly_goal_min, monthly_goal_target")
