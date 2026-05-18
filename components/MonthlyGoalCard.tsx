@@ -17,8 +17,23 @@
 // actually arrived in my account", not "what's forecast".
 
 import { useEffect, useState } from "react";
-import { TrendingUp, Loader2, Sparkles } from "lucide-react";
+import { TrendingUp, Loader2, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+
+// ── Item lists ──────────────────────────────────────────────────────────────
+// Each forecast bucket (paid / debts / scheduled) keeps a list of the
+// underlying rows so the card can expand into a per-item breakdown
+// when the user taps that bucket.
+interface LineItem {
+  date: string;            // YYYY-MM-DD
+  label: string;           // customer name (or fallback)
+  amount: number;          // ברוטו
+}
+
+function fmtShortDate(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${Number(d)}/${Number(m)}`;
+}
 
 const DEFAULT_MIN = 30000;
 const DEFAULT_TARGET = 52500;       // midpoint of the user's "50-55k" target band
@@ -78,6 +93,14 @@ export default function MonthlyGoalCard({ override }: Props) {
   const [debtsCount, setDebtsCount] = useState(override?.debtsCount ?? 0);
   const [scheduledAmount, setScheduledAmount] = useState(override?.scheduledAmount ?? 0);
   const [scheduledCount, setScheduledCount] = useState(override?.scheduledCount ?? 0);
+  // Per-bucket line items for the expand-on-click breakdown. Empty
+  // when override is used.
+  const [paidItems, setPaidItems] = useState<LineItem[]>([]);
+  const [debtItems, setDebtItems] = useState<LineItem[]>([]);
+  const [scheduledItems, setScheduledItems] = useState<LineItem[]>([]);
+  // Which bucket's breakdown is currently open. Only one at a time
+  // to keep the card compact on mobile.
+  const [openBucket, setOpenBucket] = useState<null | "paid" | "debts" | "scheduled">(null);
 
   useEffect(() => {
     if (override) return;
@@ -98,7 +121,7 @@ export default function MonthlyGoalCard({ override }: Props) {
       const [paidRes, openRes, jobsRes, profRes] = await Promise.all([
         supabase
           .from("transactions")
-          .select("amount")
+          .select("amount, transaction_date, customer_name, description")
           .eq("user_id", user.id)
           .eq("type", "income")
           .eq("status", "paid")
@@ -106,7 +129,7 @@ export default function MonthlyGoalCard({ override }: Props) {
           .lt("transaction_date", end),
         supabase
           .from("transactions")
-          .select("amount, status")
+          .select("amount, status, transaction_date, customer_name, description")
           .eq("user_id", user.id)
           .eq("type", "income")
           .in("status", ["pending", "overdue"])
@@ -119,7 +142,7 @@ export default function MonthlyGoalCard({ override }: Props) {
         // auto-planner produced before this fix.
         supabase
           .from("jobs")
-          .select("price, price_before_vat, status, job_date")
+          .select("price, price_before_vat, status, job_date, customer_name, type")
           .eq("user_id", user.id)
           .gte("job_date", start)
           .lt("job_date", end)
@@ -132,15 +155,31 @@ export default function MonthlyGoalCard({ override }: Props) {
       ]);
       if (cancelled) return;
 
-      const paidTotal = (paidRes.data ?? []).reduce(
-        (s, t) => s + (Number(t.amount) || 0),
-        0,
-      );
+      const paidRows = paidRes.data ?? [];
+      const paidTotal = paidRows.reduce((s, t) => s + (Number(t.amount) || 0), 0);
       setRevenue(paidTotal);
+      setPaidItems(
+        paidRows
+          .map((t) => ({
+            date: String(t.transaction_date ?? ""),
+            label: String(t.customer_name || t.description || "ללא שם"),
+            amount: Number(t.amount) || 0,
+          }))
+          .sort((a, b) => b.date.localeCompare(a.date)),
+      );
 
       const openRows = openRes.data ?? [];
       setDebtsAmount(openRows.reduce((s, t) => s + (Number(t.amount) || 0), 0));
       setDebtsCount(openRows.length);
+      setDebtItems(
+        openRows
+          .map((t) => ({
+            date: String(t.transaction_date ?? ""),
+            label: String(t.customer_name || t.description || "ללא שם"),
+            amount: Number(t.amount) || 0,
+          }))
+          .sort((a, b) => b.amount - a.amount),
+      );
 
       // Scheduled jobs — price_before_vat means the stored price excludes
       // VAT, so add 18% to compare apples-to-apples with paid revenue
@@ -152,6 +191,19 @@ export default function MonthlyGoalCard({ override }: Props) {
       }, 0);
       setScheduledAmount(jobsTotal);
       setScheduledCount(jobRows.length);
+      setScheduledItems(
+        jobRows
+          .map((j) => {
+            const raw = Number(j.price) || 0;
+            const gross = j.price_before_vat ? raw * 1.18 : raw;
+            return {
+              date: String(j.job_date ?? ""),
+              label: String(j.customer_name || j.type || "ללא שם"),
+              amount: gross,
+            };
+          })
+          .sort((a, b) => a.date.localeCompare(b.date)),
+      );
 
       const min = Number(profRes.data?.monthly_goal_min);
       const tgt = Number(profRes.data?.monthly_goal_target);
@@ -287,21 +339,30 @@ export default function MonthlyGoalCard({ override }: Props) {
                 <p className="text-xs font-bold text-emerald-800 tabular-nums">{forecastPct}%</p>
               </div>
               <ul className="mt-1.5 space-y-0.5 text-[11px] text-gray-600 leading-relaxed">
-                <li>
-                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle ml-1.5" />
-                  {fmtMoney(revenue)} בקופה כבר ({pct}%)
-                </li>
+                <BucketRow
+                  dotClass="bg-emerald-500"
+                  label={`${fmtMoney(revenue)} בקופה כבר (${pct}%)`}
+                  items={paidItems}
+                  open={openBucket === "paid"}
+                  onToggle={() => setOpenBucket(openBucket === "paid" ? null : "paid")}
+                />
                 {debtsAmount > 0 && (
-                  <li>
-                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle ml-1.5" />
-                    {fmtMoney(debtsAmount)} חובות פתוחים ({debtsCount} {debtsCount === 1 ? "לקוח" : "לקוחות"})
-                  </li>
+                  <BucketRow
+                    dotClass="bg-amber-400"
+                    label={`${fmtMoney(debtsAmount)} חובות פתוחים (${debtsCount} ${debtsCount === 1 ? "לקוח" : "לקוחות"})`}
+                    items={debtItems}
+                    open={openBucket === "debts"}
+                    onToggle={() => setOpenBucket(openBucket === "debts" ? null : "debts")}
+                  />
                 )}
                 {scheduledAmount > 0 && (
-                  <li>
-                    <span className="inline-block w-2 h-2 rounded-full bg-blue-400 align-middle ml-1.5" />
-                    {fmtMoney(scheduledAmount)} עבודות מתוזמנות החודש ({scheduledCount})
-                  </li>
+                  <BucketRow
+                    dotClass="bg-blue-400"
+                    label={`${fmtMoney(scheduledAmount)} עבודות מתוזמנות החודש (${scheduledCount})`}
+                    items={scheduledItems}
+                    open={openBucket === "scheduled"}
+                    onToggle={() => setOpenBucket(openBucket === "scheduled" ? null : "scheduled")}
+                  />
                 )}
               </ul>
             </div>
@@ -309,5 +370,49 @@ export default function MonthlyGoalCard({ override }: Props) {
         })()}
       </div>
     </div>
+  );
+}
+
+// ── BucketRow ───────────────────────────────────────────────────────────────
+// One line of the forecast breakdown. The label is wrapped in a button
+// so taps expand a detail list directly below. When the bucket has no
+// items (override mode in tests), the chevron is hidden and the row
+// behaves as plain text.
+
+function BucketRow(props: {
+  dotClass: string;
+  label: string;
+  items: LineItem[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const hasItems = props.items.length > 0;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={hasItems ? props.onToggle : undefined}
+        className={`w-full flex items-center gap-1.5 text-right -mx-1 px-1 py-0.5 rounded ${hasItems ? "hover:bg-emerald-100/40 cursor-pointer" : "cursor-default"}`}
+      >
+        <span className={`inline-block w-2 h-2 rounded-full ${props.dotClass} flex-shrink-0`} />
+        <span className="flex-1">{props.label}</span>
+        {hasItems && (
+          props.open
+            ? <ChevronUp size={11} className="text-gray-400 flex-shrink-0" />
+            : <ChevronDown size={11} className="text-gray-400 flex-shrink-0" />
+        )}
+      </button>
+      {props.open && hasItems && (
+        <ul className="mt-1 mb-1 mr-3.5 bg-white border border-gray-100 rounded-lg divide-y divide-gray-50 max-h-64 overflow-y-auto">
+          {props.items.map((it, idx) => (
+            <li key={idx} className="px-2.5 py-1.5 flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 tabular-nums w-10 flex-shrink-0">{fmtShortDate(it.date)}</span>
+              <span className="text-[11px] text-gray-700 flex-1 truncate">{it.label}</span>
+              <span className="text-[11px] font-semibold text-gray-900 tabular-nums">{fmtMoney(it.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
