@@ -13,6 +13,7 @@ import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 import { getDefaultVatMode } from "@/lib/vat-settings";
 import { SkeletonList } from "@/components/Skeleton";
 import { completeJobAndCreateTransactions, findOrphanCompletedJobs, backfillCompletedJobTransactions, type CompletedJobLite } from "@/lib/complete-job";
+import MonthlyGoalCard from "@/components/MonthlyGoalCard";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
 function holidayStyle(type: HolidayType) {
@@ -1752,6 +1753,13 @@ function SchedulePageInner() {
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
       <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28">
+
+        {/* Monthly revenue progress against min/target. Lives at the
+            top so the gardener sees "how am I doing this month" before
+            anything else when they open the schedule. */}
+        <div className="mb-4">
+          <MonthlyGoalCard />
+        </div>
 
         {/* Needs-scheduling banner — customers whose cadence says it's
             time for their next visit and have no future job booked.

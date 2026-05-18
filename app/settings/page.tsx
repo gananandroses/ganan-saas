@@ -941,6 +941,11 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Monthly revenue goals — feeds the progress card on /schedule.
+          Self-contained: loads + saves on its own so adding a new
+          column doesn't touch the big upper form. */}
+      {userId && <MonthlyGoalsCard userId={userId} />}
+
       {/* Install app — moved from dashboard. One-time action, doesn't
           deserve a permanent spot above the fold. Lives here so users
           who want it can find it; everyone else gets a quiet dashboard. */}
@@ -992,6 +997,115 @@ export default function SettingsPage() {
           )}
           {saving ? "שומר..." : saved ? "נשמר!" : "שמור הגדרות"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Monthly revenue goals card ──────────────────────────────────────────────
+// Stores user_profile.monthly_goal_min and monthly_goal_target. Feeds
+// the progress card on /schedule. Self-contained: own load/save effect
+// so it doesn't share state with the big business-info form above.
+
+function MonthlyGoalsCard({ userId }: { userId: string }) {
+  const [minGoal, setMinGoal] = useState("");
+  const [targetGoal, setTargetGoal] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedTick, setSavedTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("user_profile")
+        .select("monthly_goal_min, monthly_goal_target")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.monthly_goal_min != null) setMinGoal(String(data.monthly_goal_min));
+      if (data?.monthly_goal_target != null) setTargetGoal(String(data.monthly_goal_target));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  async function save() {
+    setSaving(true);
+    const min = parseFloat(minGoal);
+    const tgt = parseFloat(targetGoal);
+    const payload: Record<string, number | null | string> = { user_id: userId };
+    payload.monthly_goal_min = Number.isFinite(min) && min > 0 ? min : null;
+    payload.monthly_goal_target = Number.isFinite(tgt) && tgt > 0 ? tgt : null;
+    const { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
+    if (error) {
+      toast.error(`שגיאה: ${error.message}`);
+    } else {
+      toast.success("יעדים נשמרו");
+      setSavedTick(t => t + 1);
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+        <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+          <span className="text-base leading-none">🎯</span>
+        </div>
+        <h2 className="font-bold text-gray-900">יעדי הכנסה חודשיים</h2>
+      </div>
+      <div className="p-6 space-y-4">
+        <p className="text-xs text-gray-500 leading-relaxed">
+          מופיע ביומן בראש הדף. מציג כמה הכנסת החודש, מה האחוז ביחס ליעד, וכמה ביום עוד צריך כדי לסגור.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">מינימום חודשי (ברוטו)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={500}
+              value={minGoal}
+              onChange={e => setMinGoal(e.target.value)}
+              placeholder="30,000"
+              disabled={loading}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">מתחת לזה — אזעקה אדומה</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">יעד שאיפה (ברוטו)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={500}
+              value={targetGoal}
+              onChange={e => setTargetGoal(e.target.value)}
+              placeholder="52,500"
+              disabled={loading}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">המספר ש&quot;100%&quot; מתייחס אליו</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={save}
+            disabled={saving || loading}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-bold rounded-xl flex items-center gap-2 transition-colors"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? "שומר..." : "שמור יעדים"}
+          </button>
+          {savedTick > 0 && !saving && (
+            <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" /> נשמר
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
