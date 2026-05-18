@@ -89,15 +89,12 @@ export default function MonthlyGoalCard({ override }: Props) {
         return;
       }
       const { start, end } = monthBounds(new Date());
-      const todayISO = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
-      // Four parallel reads:
-      //  1) paid transactions in the current month → "money in the bank"
-      //  2) pending/overdue transactions in the current month → "owed"
-      //  3) ALL future scheduled/in-progress jobs (today onward, no
-      //     month cap) → "still to come". Previously this was capped
-      //     to the current calendar month, which meant a user who'd
-      //     just bulk-scheduled into next month saw a zero forecast.
-      //  4) user_profile → goals
+      // Strict-month accounting: each calendar month gets its own card.
+      // May counts ONLY May (paid + owed + scheduled inside May). When
+      // the user navigates into June the card will show June's numbers.
+      // Mixing future months in the May figure was confusing — it made
+      // the goal look reachable on revenue that won't actually land
+      // in May.
       const [paidRes, openRes, jobsRes, profRes] = await Promise.all([
         supabase
           .from("transactions")
@@ -119,7 +116,8 @@ export default function MonthlyGoalCard({ override }: Props) {
           .from("jobs")
           .select("price, price_before_vat, status, job_date")
           .eq("user_id", user.id)
-          .gte("job_date", todayISO)
+          .gte("job_date", start)
+          .lt("job_date", end)
           .in("status", ["scheduled", "in_progress"]),
         supabase
           .from("user_profile")
@@ -279,7 +277,7 @@ export default function MonthlyGoalCard({ override }: Props) {
             <div className="mt-3 pt-3 border-t border-gray-100 bg-emerald-50/40 -mx-4 sm:-mx-5 -mb-3 sm:-mb-4 px-4 sm:px-5 pb-3 sm:pb-4 rounded-b-2xl">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
-                  <Sparkles size={12} /> סך צפוי לגביה: {fmtMoney(forecastTotal)}
+                  <Sparkles size={12} /> צפוי החודש: {fmtMoney(forecastTotal)}
                 </p>
                 <p className="text-xs font-bold text-emerald-800 tabular-nums">{forecastPct}%</p>
               </div>
@@ -297,7 +295,7 @@ export default function MonthlyGoalCard({ override }: Props) {
                 {scheduledAmount > 0 && (
                   <li>
                     <span className="inline-block w-2 h-2 rounded-full bg-blue-400 align-middle ml-1.5" />
-                    {fmtMoney(scheduledAmount)} עבודות מתוזמנות ({scheduledCount}, כולל חודשים הבאים)
+                    {fmtMoney(scheduledAmount)} עבודות מתוזמנות החודש ({scheduledCount})
                   </li>
                 )}
               </ul>
