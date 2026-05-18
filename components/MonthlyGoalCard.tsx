@@ -362,20 +362,24 @@ export default function MonthlyGoalCard({ override }: Props) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-4 py-3 sm:px-5 sm:py-4">
-        {/* Top row — heading + percent + quick-edit gear */}
-        <div className="flex items-end justify-between gap-3 mb-1">
+        {/* Top row — heading + percent + quick-edit gear.
+            The gear lives in the top-LEFT corner of the card (RTL,
+            so visually on the left side of the percentage block).
+            It's the conventional place for "settings of this widget"
+            and it's big enough to actually see. */}
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <button
+            type="button"
+            onClick={openEditor}
+            aria-label="ערוך יעדים וימי עבודה"
+            title="ערוך יעדים וימי עבודה"
+            className="hit-44 w-9 h-9 -mt-1 -mr-1 flex items-center justify-center rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors flex-shrink-0 order-first"
+          >
+            <Settings size={16} />
+          </button>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold text-gray-400 leading-none mb-1.5 flex items-center gap-1.5">
               <TrendingUp size={11} /> הכנסה החודש
-              <button
-                type="button"
-                onClick={openEditor}
-                aria-label="ערוך יעדים וימי עבודה"
-                title="ערוך יעדים וימי עבודה"
-                className="hit-44 w-6 h-6 -mt-1 flex items-center justify-center rounded-md text-gray-300 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <Settings size={12} />
-              </button>
             </p>
             <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 tabular-nums leading-none">
               {fmtMoney(revenue)}
