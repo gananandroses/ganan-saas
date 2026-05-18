@@ -17,7 +17,7 @@
 // actually arrived in my account", not "what's forecast".
 
 import { useEffect, useState } from "react";
-import { TrendingUp, Loader2 } from "lucide-react";
+import { TrendingUp, Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 const DEFAULT_MIN = 30000;
@@ -54,7 +54,15 @@ function remainingWorkDays(now: Date): number {
 interface Props {
   /** Optional: skip the supabase fetch and use these values directly
    * (useful for tests / storybook). */
-  override?: { revenue: number; min: number; target: number };
+  override?: {
+    revenue: number;
+    min: number;
+    target: number;
+    debtsAmount?: number;
+    debtsCount?: number;
+    scheduledAmount?: number;
+    scheduledCount?: number;
+  };
 }
 
 export default function MonthlyGoalCard({ override }: Props) {
@@ -62,6 +70,14 @@ export default function MonthlyGoalCard({ override }: Props) {
   const [revenue, setRevenue] = useState(override?.revenue ?? 0);
   const [minGoal, setMinGoal] = useState(override?.min ?? DEFAULT_MIN);
   const [target, setTarget] = useState(override?.target ?? DEFAULT_TARGET);
+  // Forecast data — separated into "what's owed but not paid" (debts)
+  // and "what's coming up on the calendar but hasn't been billed yet"
+  // (scheduled). Together with `revenue`, the three are disjoint so
+  // we can safely add them without double-counting.
+  const [debtsAmount, setDebtsAmount] = useState(override?.debtsAmount ?? 0);
+  const [debtsCount, setDebtsCount] = useState(override?.debtsCount ?? 0);
+  const [scheduledAmount, setScheduledAmount] = useState(override?.scheduledAmount ?? 0);
+  const [scheduledCount, setScheduledCount] = useState(override?.scheduledCount ?? 0);
 
   useEffect(() => {
     if (override) return;
@@ -73,15 +89,35 @@ export default function MonthlyGoalCard({ override }: Props) {
         return;
       }
       const { start, end } = monthBounds(new Date());
-      const [txRes, profRes] = await Promise.all([
+      // Four parallel reads:
+      //  1) paid transactions → "money in the bank"
+      //  2) pending/overdue transactions → "what people owe me"
+      //  3) future scheduled/in-progress jobs in the month → "still to come"
+      //  4) user_profile → goals
+      const [paidRes, openRes, jobsRes, profRes] = await Promise.all([
         supabase
           .from("transactions")
-          .select("amount, status, transaction_date, type")
+          .select("amount")
           .eq("user_id", user.id)
           .eq("type", "income")
           .eq("status", "paid")
           .gte("transaction_date", start)
           .lt("transaction_date", end),
+        supabase
+          .from("transactions")
+          .select("amount, status")
+          .eq("user_id", user.id)
+          .eq("type", "income")
+          .in("status", ["pending", "overdue"])
+          .gte("transaction_date", start)
+          .lt("transaction_date", end),
+        supabase
+          .from("jobs")
+          .select("price, price_before_vat, status, job_date")
+          .eq("user_id", user.id)
+          .gte("job_date", start)
+          .lt("job_date", end)
+          .in("status", ["scheduled", "in_progress"]),
         supabase
           .from("user_profile")
           .select("monthly_goal_min, monthly_goal_target")
@@ -89,11 +125,28 @@ export default function MonthlyGoalCard({ override }: Props) {
           .maybeSingle(),
       ]);
       if (cancelled) return;
-      const total = (txRes.data ?? []).reduce(
+
+      const paidTotal = (paidRes.data ?? []).reduce(
         (s, t) => s + (Number(t.amount) || 0),
         0,
       );
-      setRevenue(total);
+      setRevenue(paidTotal);
+
+      const openRows = openRes.data ?? [];
+      setDebtsAmount(openRows.reduce((s, t) => s + (Number(t.amount) || 0), 0));
+      setDebtsCount(openRows.length);
+
+      // Scheduled jobs — price_before_vat means the stored price excludes
+      // VAT, so add 18% to compare apples-to-apples with paid revenue
+      // (which is always ברוטו).
+      const jobRows = jobsRes.data ?? [];
+      const jobsTotal = jobRows.reduce((s, j) => {
+        const raw = Number(j.price) || 0;
+        return s + (j.price_before_vat ? raw * 1.18 : raw);
+      }, 0);
+      setScheduledAmount(jobsTotal);
+      setScheduledCount(jobRows.length);
+
       const min = Number(profRes.data?.monthly_goal_min);
       const tgt = Number(profRes.data?.monthly_goal_target);
       setMinGoal(Number.isFinite(min) && min > 0 ? min : DEFAULT_MIN);
@@ -212,6 +265,42 @@ export default function MonthlyGoalCard({ override }: Props) {
             </p>
           )}
         </div>
+
+        {/* Forecast section — what's coming in if everything closes
+            as expected. Hidden when there's nothing forecast (no
+            debts and no upcoming jobs) to keep the card compact. */}
+        {(debtsAmount > 0 || scheduledAmount > 0) && (() => {
+          const forecastTotal = revenue + debtsAmount + scheduledAmount;
+          const forecastPct = target > 0 ? Math.min(100, Math.round((forecastTotal / target) * 100)) : 0;
+          return (
+            <div className="mt-3 pt-3 border-t border-gray-100 bg-emerald-50/40 -mx-4 sm:-mx-5 -mb-3 sm:-mb-4 px-4 sm:px-5 pb-3 sm:pb-4 rounded-b-2xl">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                  <Sparkles size={12} /> צפוי החודש: {fmtMoney(forecastTotal)}
+                </p>
+                <p className="text-xs font-bold text-emerald-800 tabular-nums">{forecastPct}%</p>
+              </div>
+              <ul className="mt-1.5 space-y-0.5 text-[11px] text-gray-600 leading-relaxed">
+                <li>
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle ml-1.5" />
+                  {fmtMoney(revenue)} בקופה כבר ({pct}%)
+                </li>
+                {debtsAmount > 0 && (
+                  <li>
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 align-middle ml-1.5" />
+                    {fmtMoney(debtsAmount)} חובות פתוחים ({debtsCount} {debtsCount === 1 ? "לקוח" : "לקוחות"})
+                  </li>
+                )}
+                {scheduledAmount > 0 && (
+                  <li>
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-400 align-middle ml-1.5" />
+                    {fmtMoney(scheduledAmount)} עבודות מתוזמנות ({scheduledCount})
+                  </li>
+                )}
+              </ul>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
