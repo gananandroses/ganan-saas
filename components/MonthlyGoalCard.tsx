@@ -101,6 +101,10 @@ export default function MonthlyGoalCard({ override }: Props) {
   // Which bucket's breakdown is currently open. Only one at a time
   // to keep the card compact on mobile.
   const [openBucket, setOpenBucket] = useState<null | "paid" | "debts" | "scheduled">(null);
+  // Refresh counter — bumped to trigger a re-fetch. Fires on window
+  // focus + visibility change so navigating back from the schedule
+  // (after editing/adding a job) brings the card up-to-date.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (override) return;
@@ -216,6 +220,22 @@ export default function MonthlyGoalCard({ override }: Props) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
+  }, [override, refreshTick]);
+
+  // Auto-refresh when the user comes back to the tab or refocuses the
+  // window — covers the "I just edited a job in another page and came
+  // back to /schedule" case. Cheap (one set of queries) and only fires
+  // on real user activity, not on every render.
+  useEffect(() => {
+    if (override) return;
+    function bump() { setRefreshTick(t => t + 1); }
+    function onVis() { if (document.visibilityState === "visible") bump(); }
+    window.addEventListener("focus", bump);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", bump);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [override]);
 
   if (loading) {
@@ -227,31 +247,44 @@ export default function MonthlyGoalCard({ override }: Props) {
     );
   }
 
-  // Tier flags
-  const hitMinimum = revenue >= minGoal;
-  const hitTarget = revenue >= target;
+  // Two flags layered on top of each other:
+  //   • cash flags (bar / big % / bar colour) — based on what's
+  //     actually in the bank. The 49% you see is real money.
+  //   • forecast flags (status line + "still need X/day") — based
+  //     on cash + debts + scheduled. The status sentence is what
+  //     the user wants to know: "AM I on track once the calendar
+  //     plays out?".
+  const forecastTotal = revenue + debtsAmount + scheduledAmount;
+  const cashHitMinimum = revenue >= minGoal;
+  const cashHitTarget = revenue >= target;
+  const hitMinimum = forecastTotal >= minGoal;     // forecast-aware
+  const hitTarget = forecastTotal >= target;       // forecast-aware
   const pct = target > 0 ? Math.min(100, Math.round((revenue / target) * 100)) : 0;
   const minMarkerPct = target > 0 ? Math.min(100, Math.round((minGoal / target) * 100)) : 0;
-  const remaining = Math.max(0, target - revenue);
+  const remaining = Math.max(0, target - forecastTotal);
   const workDaysLeft = remainingWorkDays(new Date());
   const perDayNeeded =
     workDaysLeft > 0 && !hitTarget
       ? Math.ceil(remaining / workDaysLeft / 50) * 50  // round to 50₪
       : 0;
 
-  // Color for the filled portion of the progress bar.
-  const fillClass = hitTarget
+  // Bar fill colour reflects ACTUAL cash position (what's in the bank),
+  // so the visual stays consistent with the big ₪25,662 / 49% number.
+  const fillClass = cashHitTarget
     ? "bg-emerald-500"
-    : hitMinimum
+    : cashHitMinimum
     ? "bg-amber-500"
     : "bg-red-500";
 
-  // Status line
+  // Status line reflects FORECAST — "are we on track once the
+  // calendar plays out". A user at 49% cash can already be on track
+  // for 105% if their pipeline is strong; a user at 95% cash with no
+  // pipeline left is at risk of stopping there.
   const statusLine = hitTarget
-    ? "🎯 הגעת ליעד! כל הכבוד"
+    ? "🎯 צפוי לעמוד ביעד"
     : hitMinimum
-    ? "✅ עברת את המינימום"
-    : "⚠️ עוד לא הגעת למינימום";
+    ? "✅ צפוי לעבור את המינימום"
+    : "⚠️ צפוי לא להגיע למינימום";
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -267,7 +300,10 @@ export default function MonthlyGoalCard({ override }: Props) {
             </p>
           </div>
           <div className="text-left flex-shrink-0">
-            <p className="text-2xl font-extrabold tabular-nums leading-none {fillClass}" style={{ color: hitTarget ? "#059669" : hitMinimum ? "#d97706" : "#dc2626" }}>
+            <p
+              className="text-2xl font-extrabold tabular-nums leading-none"
+              style={{ color: cashHitTarget ? "#059669" : cashHitMinimum ? "#d97706" : "#dc2626" }}
+            >
               {pct}%
             </p>
             <p className="text-[10px] text-gray-400 mt-1">מהיעד</p>
@@ -316,14 +352,14 @@ export default function MonthlyGoalCard({ override }: Props) {
           </p>
           {!hitTarget && (
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              עוד {fmtMoney(remaining)} ליעד · יומי דרוש{" "}
+              לפי הצפי, חסר עוד {fmtMoney(remaining)} ליעד · יומי דרוש{" "}
               <span className="font-semibold text-gray-700">{fmtMoney(perDayNeeded)}</span>{" "}
               ב-{workDaysLeft} ימי עבודה שנותרו
             </p>
           )}
           {hitTarget && (
             <p className="text-[11px] text-emerald-700 leading-relaxed">
-              עברת את היעד ב-{fmtMoney(revenue - target)}. מצוין 🌱
+              לפי הצפי תעבור את היעד ב-{fmtMoney(forecastTotal - target)}. מצוין 🌱
             </p>
           )}
         </div>
