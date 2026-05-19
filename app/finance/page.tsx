@@ -927,10 +927,19 @@ export default function FinancePage() {
       // Build default template + auto-append payment details from settings
       baseMessage = DEFAULT_WA_TEMPLATE + buildPaymentDetailsBlock();
     }
-    const message = baseMessage
+    const amountStr = tx.amount.toLocaleString();
+    let message = baseMessage
       .replace(/{name}/g, tx.customerName)
-      .replace(/{amount}/g, tx.amount.toLocaleString())
+      .replace(/{amount}/g, amountStr)
       .replace(/{description}/g, tx.description || "שירותי גינון");
+    // Safety net: if the resolved message doesn't already mention the
+    // amount (e.g. the user's saved custom template dropped {amount}),
+    // append it on its own line so the customer always sees what they
+    // owe. Looks for either the raw number or "₪<number>" so we don't
+    // duplicate when the template uses either form.
+    if (!message.includes(amountStr) && !message.includes(`₪${amountStr}`)) {
+      message += `\n\nסכום לתשלום: ₪${amountStr}`;
+    }
     setWaModal({ intl, message });
     setWaSaveDefault(false);
   }
