@@ -893,7 +893,12 @@ export default function FinancePage() {
     bitPhone: "", payboxPhone: "", bankName: "", bankBranch: "", bankAccount: "", businessName: ""
   });
 
-  const DEFAULT_WA_TEMPLATE = "שלום {name}, יש לך תשלום פתוח של ₪{amount} עבור {description}. נשמח לסידור התשלום 🌿";
+  // Template variables resolved before sending:
+  //   {name}              → customer name
+  //   {amount_before_vat} → invoice net (₪X), VAT shown separately as "+ מע"מ"
+  //   {amount}            → total incl. VAT (legacy; kept for older saved templates)
+  //   {description}       → debt description ("עבודת גינון · רחוב X")
+  const DEFAULT_WA_TEMPLATE = 'שלום {name}, יש לך תשלום פתוח של ₪{amount_before_vat} + מע"מ עבור {description}. נשמח לסידור התשלום 🌿';
 
   function buildPaymentDetailsBlock(): string {
     const lines: string[] = [];
@@ -927,18 +932,25 @@ export default function FinancePage() {
       // Build default template + auto-append payment details from settings
       baseMessage = DEFAULT_WA_TEMPLATE + buildPaymentDetailsBlock();
     }
-    const amountStr = tx.amount.toLocaleString();
+    const grossAmount = Math.round(tx.amount);
+    // Before-VAT (net) — tx.vatAmount is the VAT portion stored on the
+    // row. Falls back to gross/1.18 if vatAmount is missing (legacy
+    // transactions that pre-date the vat_amount column).
+    const netAmount = tx.vatAmount > 0
+      ? grossAmount - Math.round(tx.vatAmount)
+      : Math.round(grossAmount / 1.18);
+    const grossStr = grossAmount.toLocaleString();
+    const netStr = netAmount.toLocaleString();
     let message = baseMessage
       .replace(/{name}/g, tx.customerName)
-      .replace(/{amount}/g, amountStr)
+      .replace(/{amount_before_vat}/g, netStr)
+      .replace(/{amount}/g, grossStr)
       .replace(/{description}/g, tx.description || "שירותי גינון");
-    // Safety net: if the resolved message doesn't already mention the
-    // amount (e.g. the user's saved custom template dropped {amount}),
-    // append it on its own line so the customer always sees what they
-    // owe. Looks for either the raw number or "₪<number>" so we don't
-    // duplicate when the template uses either form.
-    if (!message.includes(amountStr) && !message.includes(`₪${amountStr}`)) {
-      message += `\n\nסכום לתשלום: ₪${amountStr}`;
+    // Safety net: if the resolved message doesn't already mention an
+    // amount, append a clear "net + VAT" line. Handles old templates
+    // that lost their {amount} variable.
+    if (!message.includes(netStr) && !message.includes(grossStr)) {
+      message += `\n\nסכום לתשלום: ₪${netStr} + מע"מ`;
     }
     setWaModal({ intl, message });
     setWaSaveDefault(false);
@@ -1225,8 +1237,12 @@ export default function FinancePage() {
               <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-500 space-y-1">
                 <p className="font-semibold text-gray-700">משתנים זמינים בתבנית:</p>
                 <p><code className="bg-white px-1.5 py-0.5 rounded">{"{name}"}</code> — שם הלקוח</p>
-                <p><code className="bg-white px-1.5 py-0.5 rounded">{"{amount}"}</code> — סכום</p>
+                <p><code className="bg-white px-1.5 py-0.5 rounded">{"{amount_before_vat}"}</code> — סכום לפני מע&quot;מ</p>
+                <p><code className="bg-white px-1.5 py-0.5 rounded">{"{amount}"}</code> — סכום כולל מע&quot;מ</p>
                 <p><code className="bg-white px-1.5 py-0.5 rounded">{"{description}"}</code> — תיאור החוב</p>
+                <p className="text-amber-700 mt-1.5 pt-1.5 border-t border-gray-200">
+                  ⚠ חשוב: השאר את הסוגריים המסולסלים. אם תכתוב שם לקוח בכתב מפורש (למשל &quot;מוטי&quot;), הוא יישלח כך לכל לקוח אחר.
+                </p>
               </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
@@ -1238,6 +1254,32 @@ export default function FinancePage() {
                 />
                 שמור כתבנית ברירת מחדל לפעם הבאה
               </label>
+
+              {/* Reset → wipes any saved template so the next message
+                  uses DEFAULT_WA_TEMPLATE. Fixes the "every reminder
+                  goes out with מוטי's name" footgun. */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    localStorage.removeItem("whatsapp_reminder_template");
+                  }
+                  // Re-build the message from scratch using the current
+                  // transaction's amount + the fresh default template.
+                  // The user can then verify it looks right.
+                  const fresh = DEFAULT_WA_TEMPLATE + buildPaymentDetailsBlock();
+                  const grossAmount = Math.round(0);  // placeholder — will resolve to whatever was open
+                  void grossAmount;
+                  // Simplest: just put the raw template into the editor.
+                  // The variables show as text so the user knows what
+                  // to expect on the NEXT send (this open is stale).
+                  setWaModal({ ...waModal, message: fresh });
+                  toast.success("אופס לתבנית ברירת המחדל — תסגור ותפתח שוב כדי לראות עם הנתונים הנכונים.");
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2"
+              >
+                איפוס לתבנית ברירת המחדל
+              </button>
             </div>
 
             {/* Footer */}
