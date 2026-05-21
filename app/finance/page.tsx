@@ -18,6 +18,7 @@ import {
   Plus,
   X,
   ChevronDown,
+  ChevronUp,
   Printer,
   Send,
   Loader2,
@@ -878,6 +879,9 @@ export default function FinancePage() {
   const [showNewTransaction, setShowNewTransaction] = useState(false);
   const [showQuickExpense, setShowQuickExpense] = useState(false);
   const [showDebtModal, setShowDebtModal] = useState(false);
+  // Which alert group's per-tx breakdown is currently expanded.
+  // Only one open at a time so the modal stays compact on mobile.
+  const [expandedDebtKey, setExpandedDebtKey] = useState<string | null>(null);
   const [detailModal, setDetailModal] = useState<null | "income" | "expense" | "profit">(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1404,31 +1408,83 @@ export default function FinancePage() {
                 const c = dbCustomers.find(x => x.id === g.customerId) || dbCustomers.find(x => x.name.trim() === g.customerName.trim());
                 const phone = c?.phone?.replace(/\D/g, "") || "";
                 const intl = phone.startsWith("0") ? "972" + phone.slice(1) : phone;
+                const isExpanded = expandedDebtKey === g.key;
+                const canExpand = g.txs.length > 1;
                 return (
-                  <div key={g.key} className="px-5 py-4 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm">{g.customerName}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{g.combinedDescription}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {g.oldestDate ? `מ-${g.oldestDate.slice(8, 10)}/${g.oldestDate.slice(5, 7)}` : ""}
-                        {g.txs.length > 1 && ` · ${g.txs.length} חיובים מאוחדים`}
-                      </p>
+                  <div key={g.key}>
+                    <div
+                      className={`px-5 py-4 flex items-center justify-between gap-3 ${canExpand ? "cursor-pointer hover:bg-gray-50" : ""}`}
+                      onClick={canExpand ? () => setExpandedDebtKey(isExpanded ? null : g.key) : undefined}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
+                          {g.customerName}
+                          {canExpand && (
+                            isExpanded
+                              ? <ChevronUp size={13} className="text-gray-400" />
+                              : <ChevronDown size={13} className="text-gray-400" />
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{g.combinedDescription}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {g.oldestDate ? `מ-${g.oldestDate.slice(8, 10)}/${g.oldestDate.slice(5, 7)}` : ""}
+                          {g.txs.length > 1 && ` · ${g.txs.length} חיובים מאוחדים — לחץ לפירוט`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`text-sm font-bold ${g.worstStatus === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
+                          ₪{g.totalAmount.toLocaleString()}
+                        </span>
+                        <button onClick={(e) => { e.stopPropagation(); openWhatsAppForGroup(g); }}
+                          className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300"}`}>
+                          <MessageSquare size={12} />
+                          {intl ? "שלח" : "אין טלפון"}
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); markGroupAsPaid(g); }}
+                          title={g.txs.length === 1 ? "סמן כשולם" : `סמן את כל ${g.txs.length} החיובים כשולמו`}
+                          className="flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
+                          <CheckCircle size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-sm font-bold ${g.worstStatus === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
-                        ₪{g.totalAmount.toLocaleString()}
-                      </span>
-                      <button onClick={() => openWhatsAppForGroup(g)}
-                        className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300"}`}>
-                        <MessageSquare size={12} />
-                        {intl ? "שלח" : "אין טלפון"}
-                      </button>
-                      <button onClick={() => markGroupAsPaid(g)}
-                        title={g.txs.length === 1 ? "סמן כשולם" : `סמן את כל ${g.txs.length} החיובים כשולמו`}
-                        className="flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
-                        <CheckCircle size={14} />
-                      </button>
-                    </div>
+
+                    {/* Per-transaction breakdown — shown when the row
+                        is expanded. Each line lists job date, the work
+                        description, and the gross amount. Individual
+                        "mark paid" buttons let the user clear one
+                        invoice without touching the others. */}
+                    {isExpanded && (
+                      <ul className="bg-gray-50 px-5 pb-3">
+                        {g.txs
+                          .slice()
+                          .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+                          .map((t) => (
+                            <li key={t.id} className="flex items-center gap-3 py-2 border-t border-gray-100 first:border-t-0">
+                              <div className="text-[11px] text-gray-400 tabular-nums w-12 flex-shrink-0">
+                                {t.date ? `${t.date.slice(8, 10)}/${t.date.slice(5, 7)}` : "—"}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-gray-700 truncate">{t.description || "—"}</p>
+                              </div>
+                              <span className={`text-xs font-bold tabular-nums ${t.status === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
+                                ₪{t.amount.toLocaleString()}
+                              </span>
+                              <button
+                                onClick={async () => {
+                                  if (await confirmDialog({
+                                    title: `לסמן את ₪${t.amount.toLocaleString()} (${t.description || "חיוב"}) כשולם?`,
+                                    confirmLabel: "סמן כשולם",
+                                  })) markAsPaid(t.id);
+                                }}
+                                title="סמן את החיוב הזה כשולם"
+                                className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 flex-shrink-0"
+                              >
+                                <CheckCircle size={12} />
+                              </button>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                   </div>
                 );
               })}
