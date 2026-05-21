@@ -13,6 +13,7 @@ import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 import { getDefaultVatMode } from "@/lib/vat-settings";
 import { SkeletonList } from "@/components/Skeleton";
 import { completeJobAndCreateTransactions, findOrphanCompletedJobs, backfillCompletedJobTransactions, type CompletedJobLite } from "@/lib/complete-job";
+import { openPaymentReminderForCompletedJob } from "@/lib/whatsapp-payment";
 import MonthlyGoalCard from "@/components/MonthlyGoalCard";
 
 // ── Holiday styling ─────────────────────────────────────────────────────────
@@ -308,6 +309,23 @@ function JobDetailModal({ job, onClose, onMarkCompleted, onDeleted, onEdited }: 
 
     setCompleting(false);
     if (result.ok) {
+      // Fire-and-forget the WhatsApp payment reminder. Errors are
+      // swallowed inside the helper — the job is already completed
+      // and we don't want to bother the user with a popup.
+      if (result.createdIncomeTransaction) {
+        openPaymentReminderForCompletedJob(supabase, {
+          userId: user.id,
+          customerId: job.customerId,
+          customerName: job.customerName,
+          price: job.price,
+          priceBeforeVat: job.priceBeforeVat,
+          jobDescription: [job.type, job.address].filter(Boolean).join(" · ") || "עבודת גינון",
+        }).then((r) => {
+          if (!r.opened && r.reason === "no_phone") {
+            toast.error(`לא נמצא טלפון ללקוח "${job.customerName}", לא נשלחה תזכורת תשלום.`);
+          }
+        });
+      }
       onMarkCompleted(job.id);
       onClose();
     }
@@ -973,6 +991,25 @@ function JobListCard({ job, onClick, onMarkCompleted, onNoteUpdated }: { job: Jo
       toast.success("העבודה הושלמה", "נוצרה תנועת תשלום ממתינה בפיננסים");
     } else {
       toast.success("העבודה סומנה כהושלמה");
+    }
+    // Auto-open WhatsApp with the bill so the gardener can send
+    // payment details without a second trip into finance. Only for
+    // standalone jobs where we created an income transaction —
+    // project rollups don't get an automatic reminder because the
+    // amount belongs to the project, not the individual job.
+    if (result.createdIncomeTransaction) {
+      openPaymentReminderForCompletedJob(supabase, {
+        userId: user.id,
+        customerId: job.customerId,
+        customerName: job.customerName,
+        price: job.price,
+        priceBeforeVat: job.priceBeforeVat,
+        jobDescription: [job.type, job.address].filter(Boolean).join(" · ") || "עבודת גינון",
+      }).then((r) => {
+        if (!r.opened && r.reason === "no_phone") {
+          toast.error(`לא נמצא טלפון ללקוח "${job.customerName}", לא נשלחה תזכורת תשלום.`);
+        }
+      });
     }
   }
 
