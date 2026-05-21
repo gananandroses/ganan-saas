@@ -237,14 +237,29 @@ export default function MonthlyGoalCard({ override }: Props) {
 
       const openRows = openRes.data ?? [];
       setDebtsAmount(openRows.reduce((s, t) => s + (Number(t.amount) || 0), 0));
-      setDebtsCount(openRows.length);
+      // Aggregate debts per customer for the breakdown — multiple
+      // unpaid invoices for one customer collapse to a single line
+      // with the combined total. debtsCount stays as the number of
+      // GROUPS (= customers who owe), not raw rows, so the card
+      // header reads "3 לקוחות" not "5 רשומות".
+      const debtBuckets = new Map<string, { label: string; amount: number; oldestDate: string }>();
+      for (const t of openRows) {
+        const label = String(t.customer_name || t.description || "ללא שם");
+        const key = label.trim().toLowerCase().replace(/\s+/g, " ");
+        const date = String(t.transaction_date ?? "");
+        const amt = Number(t.amount) || 0;
+        const existing = debtBuckets.get(key);
+        if (existing) {
+          existing.amount += amt;
+          if (date && (!existing.oldestDate || date < existing.oldestDate)) existing.oldestDate = date;
+        } else {
+          debtBuckets.set(key, { label, amount: amt, oldestDate: date });
+        }
+      }
+      setDebtsCount(debtBuckets.size);
       setDebtItems(
-        openRows
-          .map((t) => ({
-            date: String(t.transaction_date ?? ""),
-            label: String(t.customer_name || t.description || "ללא שם"),
-            amount: Number(t.amount) || 0,
-          }))
+        Array.from(debtBuckets.values())
+          .map(b => ({ date: b.oldestDate, label: b.label, amount: b.amount }))
           .sort((a, b) => b.amount - a.amount),
       );
 

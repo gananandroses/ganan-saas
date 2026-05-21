@@ -1138,6 +1138,90 @@ export default function FinancePage() {
     (t) => t.type === "income" && (t.status === "pending" || t.status === "overdue")
   );
 
+  // Aggregate by customer so multiple debts for the same person show
+  // as ONE row with a combined total. Without this, נועם with two
+  // outstanding ₪885 invoices appears twice in the alerts modal +
+  // the bell, and the user can't see at a glance what they really owe.
+  // Grouping key prefers customerId (immune to rename / whitespace
+  // drift); falls back to a normalised name for legacy rows without
+  // an FK.
+  interface AlertGroup {
+    key: string;
+    customerId: string;
+    customerName: string;
+    txs: Transaction[];
+    totalAmount: number;
+    totalVatAmount: number;
+    oldestDate: string;          // for "since X days ago" displays
+    worstStatus: PaymentStatus;  // overdue beats pending
+    combinedDescription: string;
+  }
+  const normName = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const alertGroups: AlertGroup[] = (() => {
+    const map = new Map<string, AlertGroup>();
+    for (const t of alerts) {
+      const key = t.customerId ? `id:${t.customerId}` : `name:${normName(t.customerName)}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.txs.push(t);
+        existing.totalAmount += Number(t.amount) || 0;
+        existing.totalVatAmount += Number(t.vatAmount) || 0;
+        if (t.date && (!existing.oldestDate || t.date < existing.oldestDate)) existing.oldestDate = t.date;
+        if (t.status === "overdue") existing.worstStatus = "overdue";
+      } else {
+        map.set(key, {
+          key,
+          customerId: t.customerId,
+          customerName: t.customerName,
+          txs: [t],
+          totalAmount: Number(t.amount) || 0,
+          totalVatAmount: Number(t.vatAmount) || 0,
+          oldestDate: t.date || "",
+          worstStatus: t.status,
+          combinedDescription: "",
+        });
+      }
+    }
+    for (const g of map.values()) {
+      g.combinedDescription = g.txs.length === 1
+        ? (g.txs[0].description || "—")
+        : `${g.txs.length} חיובים פתוחים`;
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  })();
+
+  function openWhatsAppForGroup(g: AlertGroup) {
+    // Reuse openWhatsAppReminder by passing a synthetic tx that
+    // carries the SUM (amount + vatAmount) and a multi-line
+    // description so the message reads naturally for a group.
+    const synthetic: Transaction = {
+      id: g.txs.map(t => t.id).join(","),
+      date: g.oldestDate,
+      customerId: g.customerId,
+      customerName: g.customerName,
+      type: "income",
+      amount: g.totalAmount,
+      vatAmount: g.totalVatAmount,
+      description: g.combinedDescription,
+      status: g.worstStatus,
+      method: "cash",
+    };
+    openWhatsAppReminder(synthetic);
+  }
+
+  async function markGroupAsPaid(g: AlertGroup) {
+    const ok = await confirmDialog({
+      title: g.txs.length === 1
+        ? `לסמן את ₪${g.totalAmount.toLocaleString()} של ${g.customerName} כשולם?`
+        : `לסמן את כל ${g.txs.length} החיובים של ${g.customerName} (סה״כ ₪${g.totalAmount.toLocaleString()}) כשולמו?`,
+      confirmLabel: "סמן כשולם",
+    });
+    if (!ok) return;
+    for (const t of g.txs) {
+      await markAsPaid(t.id);
+    }
+  }
+
   // Top 5 customers by revenue (in range, paid only)
   const customerRevenueMap: Record<string, { name: string; total: number }> = {};
   txInRange
@@ -1309,35 +1393,38 @@ export default function FinancePage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h2 className="font-bold text-gray-900">חובות פתוחים</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{alerts.length} לקוחות · ₪{openDebt.toLocaleString()} סה״כ</p>
+                <p className="text-xs text-gray-400 mt-0.5">{alertGroups.length} לקוחות · ₪{openDebt.toLocaleString()} סה״כ</p>
               </div>
               <button onClick={() => setShowDebtModal(false)} className="text-gray-400 hover:text-gray-600">
                 <X size={20} />
               </button>
             </div>
             <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
-              {alerts.map((tx) => {
-                const c = dbCustomers.find(x => x.id === tx.customerId) || dbCustomers.find(x => x.name.trim() === tx.customerName.trim());
+              {alertGroups.map((g) => {
+                const c = dbCustomers.find(x => x.id === g.customerId) || dbCustomers.find(x => x.name.trim() === g.customerName.trim());
                 const phone = c?.phone?.replace(/\D/g, "") || "";
                 const intl = phone.startsWith("0") ? "972" + phone.slice(1) : phone;
                 return (
-                  <div key={tx.id} className="px-5 py-4 flex items-center justify-between gap-3">
+                  <div key={g.key} className="px-5 py-4 flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 text-sm">{tx.customerName}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{tx.description || "—"}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{tx.date ? `${tx.date.slice(8, 10)}/${tx.date.slice(5, 7)}` : ""}</p>
+                      <p className="font-semibold text-gray-900 text-sm">{g.customerName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{g.combinedDescription}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {g.oldestDate ? `מ-${g.oldestDate.slice(8, 10)}/${g.oldestDate.slice(5, 7)}` : ""}
+                        {g.txs.length > 1 && ` · ${g.txs.length} חיובים מאוחדים`}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-sm font-bold ${tx.status === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
-                        ₪{tx.amount.toLocaleString()}
+                      <span className={`text-sm font-bold ${g.worstStatus === "overdue" ? "text-red-600" : "text-yellow-600"}`}>
+                        ₪{g.totalAmount.toLocaleString()}
                       </span>
-                      <button onClick={() => openWhatsAppReminder(tx)}
+                      <button onClick={() => openWhatsAppForGroup(g)}
                         className={`flex items-center gap-1 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg ${intl ? "bg-green-500 hover:bg-green-600" : "bg-gray-300"}`}>
                         <MessageSquare size={12} />
                         {intl ? "שלח" : "אין טלפון"}
                       </button>
-                      <button onClick={async () => { if (await confirmDialog({ title: `לסמן את ₪${tx.amount.toLocaleString()} של ${tx.customerName} כשולם?`, confirmLabel: "סמן כשולם" })) markAsPaid(tx.id); }}
-                        title="סמן כשולם"
+                      <button onClick={() => markGroupAsPaid(g)}
+                        title={g.txs.length === 1 ? "סמן כשולם" : `סמן את כל ${g.txs.length} החיובים כשולמו`}
                         className="flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
                         <CheckCircle size={14} />
                       </button>

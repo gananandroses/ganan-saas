@@ -26,9 +26,10 @@ interface Notif {
   category: NotifCategory;
   href?: string;
   // When set, clicking the notif opens an inline payment-confirm modal
-  // instead of navigating. Used for open-debt notifications so the user
-  // can mark "paid / not paid" in one tap without leaving the page.
-  payment?: { txId: string; customerName: string; amount: number };
+  // instead of navigating. txIds is an array because debts get
+  // aggregated per customer — confirming pays off ALL of that
+  // customer's outstanding balances at once.
+  payment?: { txIds: string[]; customerName: string; amount: number };
 }
 
 const CATEGORY_META: Record<NotifCategory, { label: string; emoji: string }> = {
@@ -55,13 +56,16 @@ export default function Header({ title, subtitle, action, showBack = false }: He
   const [notifTick, setNotifTick] = useState(0);
 
   // Pending payment-confirm modal — set when the user taps a debt
-  // notification; cleared on close or after marking as paid.
+  // notification; cleared on close or after marking as paid. Holds
+  // an ARRAY of tx ids because debts are aggregated per customer
+  // (3 unpaid invoices → 1 notif → marks all 3 paid in one go).
   const [paymentConfirm, setPaymentConfirm] = useState<
-    { txId: string; customerName: string; amount: number } | null
+    { txIds: string[]; customerName: string; amount: number } | null
   >(null);
   const [savingPayment, setSavingPayment] = useState(false);
 
-  async function markPaid(txId: string) {
+  async function markPaid(txIds: string[]) {
+    if (txIds.length === 0) return;
     setSavingPayment(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -69,9 +73,17 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       await supabase
         .from("transactions")
         .update({ status: "paid" })
-        .eq("id", txId)
+        .in("id", txIds)
         .eq("user_id", user.id);
-      setNotifs((prev) => prev.filter((n) => n.payment?.txId !== txId));
+      const idSet = new Set(txIds);
+      setNotifs((prev) =>
+        prev.filter((n) => {
+          const ids = n.payment?.txIds;
+          if (!ids) return true;
+          // Drop the notif if every one of its txIds was just paid.
+          return !ids.every((x) => idSet.has(x));
+        }),
+      );
       setPaymentConfirm(null);
     } finally {
       setSavingPayment(false);
@@ -178,27 +190,48 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         });
       });
 
-      // חובות פתוחים
+      // חובות פתוחים — aggregate per customer so two debts for the
+      // same person collapse into a single notif with the combined
+      // total. Without this, a customer with 3 unpaid invoices clogs
+      // the dropdown with 3 near-identical rows.
       const { data: pending } = await supabase
         .from("transactions")
-        .select("id, customer_name, amount")
+        .select("id, customer_id, customer_name, amount")
         .eq("user_id", user.id)
         .eq("type", "income")
         .in("status", ["pending", "overdue"]);
 
-      (pending || []).forEach((t) => {
+      const debtGroups = new Map<string, { ids: string[]; customerName: string; total: number }>();
+      for (const t of pending ?? []) {
+        const key = t.customer_id
+          ? `id:${t.customer_id}`
+          : `name:${(t.customer_name ?? "").trim().toLowerCase().replace(/\s+/g, " ")}`;
+        const existing = debtGroups.get(key);
+        if (existing) {
+          existing.ids.push(t.id);
+          existing.total += Number(t.amount) || 0;
+        } else {
+          debtGroups.set(key, {
+            ids: [t.id],
+            customerName: t.customer_name,
+            total: Number(t.amount) || 0,
+          });
+        }
+      }
+      for (const g of debtGroups.values()) {
+        const suffix = g.ids.length > 1 ? ` (${g.ids.length} חיובים)` : "";
         list.push({
-          id: `tx-${t.id}`,
-          text: `${t.customer_name} — ₪${Number(t.amount).toLocaleString()}`,
+          id: `tx-${g.ids.join(",")}`,
+          text: `${g.customerName} — ₪${g.total.toLocaleString()}${suffix}`,
           type: "red",
           category: "payment",
           payment: {
-            txId: t.id,
-            customerName: t.customer_name,
-            amount: Number(t.amount),
+            txIds: g.ids,
+            customerName: g.customerName,
+            amount: g.total,
           },
         });
-      });
+      }
 
       // לקוחות שצריך לשריין + לקוחות לא פעילים — both depend on the
       // customers table. Fetch once, run both calculators.
@@ -564,7 +597,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => markPaid(paymentConfirm.txId)}
+                onClick={() => markPaid(paymentConfirm.txIds)}
                 disabled={savingPayment}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
               >

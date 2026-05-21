@@ -518,6 +518,24 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
   });
   const status = statusConfig[customer.status];
 
+  // "הוסף הערה" panel state. Free-text textarea; on save we prepend a
+  // dated line to customer.notes and pipe through onUpdate so the same
+  // DB-write + cascade logic the edit form uses gets executed.
+  const [newNote, setNewNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+
+  async function handleAddNote() {
+    const note = newNote.trim();
+    if (!note) return;
+    setSavingNote(true);
+    const today = new Date().toLocaleDateString("he-IL");
+    const stamped = `${today}: ${note}`;
+    const combined = customer.notes ? `${stamped}\n${customer.notes}` : stamped;
+    await onUpdate(customer.id, { notes: combined });
+    setNewNote("");
+    setSavingNote(false);
+  }
+
   async function handleDelete() {
     setDeleting(true);
     await onDelete(customer.id);
@@ -1112,7 +1130,11 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                 </div>
               )}
 
-              {/* Add note placeholder */}
+              {/* Add note — appends a dated line to the top of
+                  customer.notes via the same onUpdate plumbing the
+                  edit form uses, so the cascade-rename + DB write
+                  paths stay shared. Previously this was a dead
+                  placeholder (textarea + button with no state). */}
               <div>
                 <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
                   הוסף הערה
@@ -1121,10 +1143,17 @@ function CustomerModal({ customer, onClose, onDelete, onUpdate }: CustomerModalP
                   rows={3}
                   autoComplete="off"
                   placeholder="כתוב הערה חדשה..."
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent"
                 />
-                <button className="mt-2 w-full py-2 rounded-xl bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors">
-                  שמור הערה
+                <button
+                  onClick={handleAddNote}
+                  disabled={savingNote || !newNote.trim()}
+                  className="mt-2 w-full py-2 rounded-xl bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  {savingNote ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {savingNote ? "שומר..." : "שמור הערה"}
                 </button>
               </div>
             </div>
