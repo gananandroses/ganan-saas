@@ -729,6 +729,13 @@ export default function QuotesListPage() {
                       </button>
                       {openMenuId === q.id && (
                         <div
+                          // Need BOTH handlers — the document-level
+                          // close-on-outside-click listener (above)
+                          // is bound on `mousedown`, so without
+                          // onMouseDown the menu was closing before
+                          // the inner button's onClick could fire,
+                          // and every item silently did nothing.
+                          onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
                           className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-10"
                         >
