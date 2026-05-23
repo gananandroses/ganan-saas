@@ -137,7 +137,25 @@ export default function QuotesListPage() {
     if (!await confirmDialog({ title: `למחוק את ההצעה "${title}"?`, confirmLabel: "מחק", destructive: true })) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("quotes").delete().eq("id", id).eq("user_id", user.id);
+    // The old version of this function discarded the Supabase error,
+    // optimistically removed the row from local state, and showed a
+    // success toast. End result: when the DB rejected the delete
+    // (FK constraint from related quote_items / quote_signatures,
+    // RLS, etc.) the user saw "ההצעה נמחקה" but the quote came
+    // back on the next refresh.
+    const { error } = await supabase.from("quotes").delete().eq("id", id).eq("user_id", user.id);
+    if (error) {
+      // Foreign-key violations are the most common cause here. Tell
+      // the user what's blocking the delete so they can clean it up.
+      const isFk = /foreign key|violates/i.test(error.message);
+      toast.error(
+        "לא הצלחנו למחוק את ההצעה",
+        isFk
+          ? "יש לרשומה נתונים מקושרים (חתימה / חשבונית / תשלום). מחק קודם אותם, או סמן את ההצעה כ\"בוטלה\" במקום."
+          : error.message,
+      );
+      return;
+    }
     setQuotes(prev => prev.filter(q => q.id !== id));
     toast.success("ההצעה נמחקה");
   }

@@ -207,7 +207,21 @@ export default function QuoteViewPage() {
   async function handleDelete() {
     if (!quote) return;
     if (!await confirmDialog({ title: `למחוק את ההצעה "${quote.title}"?`, confirmLabel: "מחק", destructive: true })) return;
-    await supabase.from("quotes").delete().eq("id", quote.id);
+    // Same fix as the list page: if Supabase rejected the delete
+    // (FK constraint from quote_items / signatures / etc.) we used
+    // to silently navigate to /quote and the user thought it
+    // worked. Now we surface the failure and stay on the page.
+    const { error } = await supabase.from("quotes").delete().eq("id", quote.id);
+    if (error) {
+      const isFk = /foreign key|violates/i.test(error.message);
+      toast.error(
+        "לא הצלחנו למחוק את ההצעה",
+        isFk
+          ? "יש לרשומה נתונים מקושרים (חתימה / חשבונית / תשלום). מחק קודם אותם, או סמן את ההצעה כ\"בוטלה\" במקום."
+          : error.message,
+      );
+      return;
+    }
     router.push("/quote");
   }
 
