@@ -110,10 +110,20 @@ export default function QuotesListPage() {
     fetchQuotes();
   }, []);
 
-  // Close menu on any click outside
+  // Close menu when user mousedowns outside it. Critically: we must
+  // check that the target ISN'T inside the menu (data-quote-menu)
+  // before closing — otherwise pressing an item triggers this
+  // listener via native bubbling, the menu unmounts, and the item's
+  // onClick never fires. React's stopPropagation on the menu
+  // container is not reliable here because the native event reaches
+  // document regardless of React's synthetic handlers.
   useEffect(() => {
     if (!openMenuId) return;
-    function onClick() { setOpenMenuId(null); }
+    function onClick(e: MouseEvent) {
+      const target = e.target as Element | null;
+      if (target && target.closest('[data-quote-menu]')) return;
+      setOpenMenuId(null);
+    }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [openMenuId]);
@@ -718,8 +728,14 @@ export default function QuotesListPage() {
                       </a>
                     )}
 
-                    {/* Overflow menu — duplicate / delete */}
-                    <div className="relative">
+                    {/* Overflow menu — duplicate / delete.
+                        Both the toggle button and the dropdown carry
+                        data-quote-menu so the outside-click handler
+                        (above) can `closest()`-skip them. Without
+                        this, pressing an item would race the
+                        document mousedown and unmount the menu
+                        before the onClick fired. */}
+                    <div className="relative" data-quote-menu>
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === q.id ? null : q.id); }}
                         title="עוד"
@@ -729,14 +745,6 @@ export default function QuotesListPage() {
                       </button>
                       {openMenuId === q.id && (
                         <div
-                          // Need BOTH handlers — the document-level
-                          // close-on-outside-click listener (above)
-                          // is bound on `mousedown`, so without
-                          // onMouseDown the menu was closing before
-                          // the inner button's onClick could fire,
-                          // and every item silently did nothing.
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => e.stopPropagation()}
                           className="absolute left-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-10"
                         >
                           {q.status !== "draft" && (
