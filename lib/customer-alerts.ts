@@ -180,10 +180,14 @@ export function getUnbookedCustomers(
     const expected = new Date(referenceISO + "T00:00:00");
     expected.setDate(expected.getDate() + Math.round(cadence));
     const daysOverdue = Math.floor((todayDate - expected.getTime()) / (1000 * 60 * 60 * 24));
-    const leadDays = cadence >= 30 ? 14 : 7;
-    if (daysOverdue >= -leadDays) {
-      out.push({ id: cid, name: c.name ?? "", daysOverdue, futureCount });
-    }
+    // No lead-time gate. The user explicitly asked for the bell to
+    // match the status page 1:1 — if /customers/status shows the row
+    // as yellow (needs booking but still has time), it should also
+    // surface in the bell. Previously a 7/14-day lead window hid
+    // distant customers, creating a "the two views disagree" bug
+    // where עצמון due in 8 days was yellow on the status page but
+    // absent from the bell.
+    out.push({ id: cid, name: c.name ?? "", daysOverdue, futureCount });
   }
 
   out.sort((a, b) => b.daysOverdue - a.daysOverdue);
