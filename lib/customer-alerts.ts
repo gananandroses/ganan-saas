@@ -20,6 +20,7 @@ export interface CustomerRow {
   id: string;
   name: string | null;
   city?: string | null;
+  phone?: string | null;
   last_visit: string | null;
   frequency: string | null;
   status: string | null;
@@ -30,6 +31,12 @@ export interface UnbookedCustomer {
   name: string;
   daysOverdue: number;
   futureCount: number;       // how many future visits ARE booked (may be 0)
+  // Enriched fields for the bell-dropdown sub-grouped renderer.
+  // All optional — older callers that don't need them ignore the fields.
+  city?: string | null;
+  phone?: string | null;
+  frequency?: string | null;
+  nextExpectedISO?: string | null;  // calculated; null when no last_visit
 }
 
 export interface InactiveCustomer {
@@ -165,7 +172,16 @@ export function getUnbookedCustomers(
     const effectiveLast = lastFromJobs ?? c.last_visit ?? null;
 
     if (!effectiveLast) {
-      out.push({ id: cid, name: c.name ?? "", daysOverdue: 9999, futureCount });
+      out.push({
+        id: cid,
+        name: c.name ?? "",
+        daysOverdue: 9999,
+        futureCount,
+        city: c.city ?? null,
+        phone: c.phone ?? null,
+        frequency: c.frequency,
+        nextExpectedISO: null,
+      });
       continue;
     }
 
@@ -179,6 +195,7 @@ export function getUnbookedCustomers(
     const referenceISO = futureDates.length > 0 ? futureDates[futureDates.length - 1] : effectiveLast;
     const expected = new Date(referenceISO + "T00:00:00");
     expected.setDate(expected.getDate() + Math.round(cadence));
+    const expectedISO = `${expected.getFullYear()}-${String(expected.getMonth() + 1).padStart(2, "0")}-${String(expected.getDate()).padStart(2, "0")}`;
     const daysOverdue = Math.floor((todayDate - expected.getTime()) / (1000 * 60 * 60 * 24));
     // No lead-time gate. The user explicitly asked for the bell to
     // match the status page 1:1 — if /customers/status shows the row
@@ -187,7 +204,16 @@ export function getUnbookedCustomers(
     // distant customers, creating a "the two views disagree" bug
     // where עצמון due in 8 days was yellow on the status page but
     // absent from the bell.
-    out.push({ id: cid, name: c.name ?? "", daysOverdue, futureCount });
+    out.push({
+      id: cid,
+      name: c.name ?? "",
+      daysOverdue,
+      futureCount,
+      city: c.city ?? null,
+      phone: c.phone ?? null,
+      frequency: c.frequency,
+      nextExpectedISO: expectedISO,
+    });
   }
 
   out.sort((a, b) => b.daysOverdue - a.daysOverdue);

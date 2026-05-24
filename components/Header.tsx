@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar, Users, FileText, Loader2 } from "lucide-react";
+import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar, Users, FileText, Loader2, MessageSquare } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
@@ -30,6 +30,18 @@ interface Notif {
   // aggregated per customer — confirming pays off ALL of that
   // customer's outstanding balances at once.
   payment?: { txIds: string[]; customerName: string; amount: number };
+  // Enriched metadata for scheduling-category notifs so the bell can
+  // render them with sub-grouping (דחוף / השבוע / רחוקים), a city,
+  // a cadence chip, and a WhatsApp shortcut.
+  scheduling?: {
+    customerId: string;
+    daysOverdue: number;     // 9999 means "no last_visit known"
+    futureCount: number;
+    city: string | null;
+    phone: string | null;
+    frequency: string | null;
+    nextExpectedISO: string | null;
+  };
 }
 
 const CATEGORY_META: Record<NotifCategory, { label: string; emoji: string }> = {
@@ -245,10 +257,12 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       }
 
       // לקוחות שצריך לשריין + לקוחות לא פעילים — both depend on the
-      // customers table. Fetch once, run both calculators.
+      // customers table. Fetch once, run both calculators. We include
+      // city + phone so the scheduling sub-grouped renderer can show
+      // them inline + drive the per-row WhatsApp shortcut.
       const { data: custs } = await supabase
         .from("customers")
-        .select("id, name, last_visit, frequency, status")
+        .select("id, name, city, phone, last_visit, frequency, status")
         .eq("user_id", user.id);
 
       const today = new Date().toISOString().slice(0, 10);
@@ -262,6 +276,8 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       const allCusts = (custs || []).map((c) => ({
         id: String(c.id),
         name: c.name,
+        city: c.city,
+        phone: c.phone,
         last_visit: c.last_visit,
         frequency: c.frequency,
         status: c.status,
@@ -270,14 +286,19 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       getUnbookedCustomers(allJobsTyped, allCusts, today).forEach((u) => {
         list.push({
           id: `unbooked-${u.id}`,
-          text: u.daysOverdue >= 9999
-            ? `${u.name} — אין ביקור קודם רשום`
-            : u.daysOverdue >= 0
-              ? `${u.name} — באיחור של ${u.daysOverdue} ימים`
-              : `${u.name} — בעוד ${Math.abs(u.daysOverdue)} ימים`,
+          text: u.name,                  // sub-grouped renderer reads from scheduling.* below
           type: "orange",
           category: "scheduling",
           href: "/schedule/plan",
+          scheduling: {
+            customerId: u.id,
+            daysOverdue: u.daysOverdue,
+            futureCount: u.futureCount,
+            city: u.city ?? null,
+            phone: u.phone ?? null,
+            frequency: u.frequency ?? null,
+            nextExpectedISO: u.nextExpectedISO ?? null,
+          },
         });
       });
 
@@ -524,6 +545,21 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                   const countLabel = cat === "payment" && paymentTotal > 0
                     ? `${items.length} · ₪${Math.round(paymentTotal).toLocaleString()}`
                     : String(items.length);
+                  // Scheduling category gets its own renderer — sub-grouped
+                  // by urgency tier, with city/cadence/date inline and a
+                  // WhatsApp shortcut per row. Other categories use the
+                  // simple list below.
+                  if (cat === "scheduling") {
+                    return (
+                      <SchedulingSection
+                        key={cat}
+                        items={items}
+                        countLabel={countLabel}
+                        onItemClick={(href) => { setShowNotif(false); router.push(href); }}
+                        onDismiss={dismiss}
+                      />
+                    );
+                  }
                   return (
                     <div key={cat} className="mt-3 first:mt-1">
                       <div className="flex items-center justify-between px-1 pb-1.5">
@@ -627,5 +663,201 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         </div>
       )}
     </header>
+  );
+}
+
+// ── SchedulingSection ───────────────────────────────────────────────────────
+// Bell-dropdown sub-grouped renderer for the "לקוחות לשריין" category.
+// Splits the rows into three urgency tiers (red / amber / gray) with
+// section sub-headers, sorts each tier by days-to-next-visit, and
+// auto-collapses the "רחוקים" tier if it has more than 2 rows.
+// Each row shows: cadence chip, city, the actual expected date, and
+// a WhatsApp quick-action that opens chat pre-filled with a "let's
+// schedule next visit" message.
+
+interface UnbookedRowMeta {
+  customerId: string;
+  daysOverdue: number;
+  futureCount: number;
+  city: string | null;
+  phone: string | null;
+  frequency: string | null;
+  nextExpectedISO: string | null;
+}
+
+type SchedulingTier = "urgent" | "thisWeek" | "distant";
+
+function classifyScheduling(s: UnbookedRowMeta): SchedulingTier {
+  // daysOverdue: positive = already overdue, negative = future visit.
+  // Urgent = overdue OR no last_visit at all (9999) OR due within 3 days.
+  if (s.daysOverdue >= -3 || s.daysOverdue === 9999) return "urgent";
+  // This-week = 4..14 days out.
+  if (s.daysOverdue >= -14) return "thisWeek";
+  return "distant";
+}
+
+const TIER_META: Record<SchedulingTier, { label: string; emoji: string; bg: string; text: string; border: string }> = {
+  urgent:   { label: "דחוף",            emoji: "🔴", bg: "bg-red-50",     text: "text-red-700",     border: "border-red-100" },
+  thisWeek: { label: "השבוע (4–14 ימים)", emoji: "⚠️", bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-100" },
+  distant:  { label: "רחוקים (15+ ימים)", emoji: "📆", bg: "bg-gray-50",    text: "text-gray-600",    border: "border-gray-100" },
+};
+
+function fmtDayMonth(iso: string | null): string {
+  if (!iso) return "";
+  const [, m, d] = iso.split("-");
+  return `${Number(d)}/${Number(m)}`;
+}
+
+function normalisePhoneIL(raw: string | null | undefined): string {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("972")) return digits;
+  if (digits.startsWith("0")) return "972" + digits.slice(1);
+  if (digits.length === 9) return "972" + digits;
+  return digits;
+}
+
+function SchedulingSection(props: {
+  items: Notif[];
+  countLabel: string;
+  onItemClick: (href: string) => void;
+  onDismiss: (id: string) => void;
+}) {
+  const [distantExpanded, setDistantExpanded] = useState(false);
+
+  // Bucket by tier. Tiers iterate in fixed urgency order.
+  const buckets: Record<SchedulingTier, Notif[]> = { urgent: [], thisWeek: [], distant: [] };
+  for (const n of props.items) {
+    if (!n.scheduling) continue;
+    const tier = classifyScheduling(n.scheduling);
+    buckets[tier].push(n);
+  }
+  // Within each tier sort by daysOverdue descending (most urgent first).
+  for (const tier of Object.keys(buckets) as SchedulingTier[]) {
+    buckets[tier].sort((a, b) => (b.scheduling?.daysOverdue ?? 0) - (a.scheduling?.daysOverdue ?? 0));
+  }
+
+  return (
+    <div className="mt-3 first:mt-1">
+      <div className="flex items-center justify-between px-1 pb-1.5">
+        <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+          <span className="text-sm leading-none">📅</span>
+          לקוחות לשריין
+        </p>
+        <span className="text-[11px] font-semibold text-gray-400 tabular-nums">{props.countLabel}</span>
+      </div>
+
+      {(["urgent", "thisWeek", "distant"] as SchedulingTier[]).map((tier) => {
+        const tierItems = buckets[tier];
+        if (tierItems.length === 0) return null;
+        const meta = TIER_META[tier];
+        const visible = tier === "distant" && !distantExpanded ? tierItems.slice(0, 2) : tierItems;
+        const hiddenCount = tier === "distant" && !distantExpanded ? Math.max(0, tierItems.length - 2) : 0;
+        return (
+          <div key={tier} className="mb-2 last:mb-0">
+            <div className={`flex items-center justify-between px-2 py-1 rounded-md ${meta.bg} ${meta.text} mb-1`}>
+              <p className="text-[10px] font-bold flex items-center gap-1">
+                <span>{meta.emoji}</span>
+                {meta.label}
+              </p>
+              <span className="text-[10px] font-bold tabular-nums opacity-80">{tierItems.length}</span>
+            </div>
+            <div className="space-y-1">
+              {visible.map((n) => (
+                <SchedulingRow
+                  key={n.id}
+                  notif={n}
+                  onClick={() => n.href && props.onItemClick(n.href)}
+                  onDismiss={() => props.onDismiss(n.id)}
+                />
+              ))}
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => setDistantExpanded(true)}
+                  className="w-full text-[11px] text-gray-500 hover:text-gray-700 py-1 rounded hover:bg-gray-50 transition-colors"
+                >
+                  הצג עוד {hiddenCount}
+                </button>
+              )}
+              {tier === "distant" && distantExpanded && tierItems.length > 2 && (
+                <button
+                  onClick={() => setDistantExpanded(false)}
+                  className="w-full text-[11px] text-gray-400 hover:text-gray-600 py-1 rounded hover:bg-gray-50 transition-colors"
+                >
+                  כווץ
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SchedulingRow(props: {
+  notif: Notif;
+  onClick: () => void;
+  onDismiss: () => void;
+}) {
+  const s = props.notif.scheduling;
+  if (!s) return null;
+
+  // Compose the date/days line.
+  const dateStr = fmtDayMonth(s.nextExpectedISO);
+  const daysOverdue = s.daysOverdue;
+  let dateLine: string;
+  if (daysOverdue >= 9999) {
+    dateLine = "אין ביקור קודם רשום";
+  } else if (daysOverdue > 0) {
+    dateLine = `${dateStr} · באיחור ${daysOverdue} ימים`;
+  } else if (daysOverdue === 0) {
+    dateLine = `${dateStr} · היום`;
+  } else {
+    dateLine = `${dateStr} · בעוד ${Math.abs(daysOverdue)} ימים`;
+  }
+
+  const intl = normalisePhoneIL(s.phone);
+  const waMessage = `שלום ${props.notif.text}, אשמח לתאם איתך את הביקור הבא בגינה 🌿`;
+  const waHref = intl ? `https://api.whatsapp.com/send?phone=${intl}&text=${encodeURIComponent(waMessage)}` : null;
+
+  return (
+    <div
+      onClick={props.onClick}
+      className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors"
+    >
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-xs font-semibold text-gray-900 truncate">{props.notif.text}</p>
+            {s.frequency && (
+              <span className="text-[9px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{s.frequency}</span>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-0.5">
+            {dateLine}{s.city ? ` · ${s.city}` : ""}
+          </p>
+        </div>
+        {waHref && (
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title="שלח WhatsApp לתיאום"
+            className="hit-44 w-7 h-7 flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-600 flex-shrink-0"
+          >
+            <MessageSquare size={12} />
+          </a>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); props.onDismiss(); }}
+          aria-label="סגור התראה"
+          className="hit-44 w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-500 flex-shrink-0"
+        >
+          <X size={11} />
+        </button>
+      </div>
+    </div>
   );
 }
