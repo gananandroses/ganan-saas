@@ -70,11 +70,22 @@ export default function Header({ title, subtitle, action, showBack = false }: He
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase
+      // Same bug-class as finance's markAsPaid — without the error
+      // check, a rejected update silently emptied the bell of debt
+      // notifs while the rows stayed pending in the DB. The user
+      // then refreshed and watched the same debts come back, with
+      // no idea what had failed.
+      const { error } = await supabase
         .from("transactions")
         .update({ status: "paid" })
         .in("id", txIds)
         .eq("user_id", user.id);
+      if (error) {
+        // Bell has no toast here, so the closest we can do is leave
+        // the notif in place + the modal open. The user will see
+        // their click had no effect and try again.
+        return;
+      }
       const idSet = new Set(txIds);
       setNotifs((prev) =>
         prev.filter((n) => {

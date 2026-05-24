@@ -973,7 +973,19 @@ export default function FinancePage() {
   async function markAsPaid(txId: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("transactions").update({ status: "paid" }).eq("id", txId).eq("user_id", user.id);
+    // Capture the error — older versions of this function discarded it,
+    // optimistically updated local state, and lied to the user. End
+    // result: a debt looked "paid" until the next page refresh
+    // restored the real DB state.
+    const { error } = await supabase
+      .from("transactions")
+      .update({ status: "paid" })
+      .eq("id", txId)
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("לא הצלחנו לסמן כשולם", error.message);
+      return;
+    }
     setTransactions(prev => prev.map(t => t.id === txId ? { ...t, status: "paid" as PaymentStatus } : t));
   }
 
@@ -1399,9 +1411,25 @@ export default function FinancePage() {
                 <h2 className="font-bold text-gray-900">חובות פתוחים</h2>
                 <p className="text-xs text-gray-400 mt-0.5">{alertGroups.length} לקוחות · ₪{openDebt.toLocaleString()} סה״כ</p>
               </div>
-              <button onClick={() => setShowDebtModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                {/* Manual re-sync. Pulls a fresh snapshot from
+                    Supabase — useful when the user thinks the list
+                    is stale (e.g. they paid a debt elsewhere, or
+                    suspect a "mark as paid" silently failed). */}
+                <button
+                  onClick={async () => {
+                    await fetchTransactions();
+                    toast.success("הרשימה סונכרנה");
+                  }}
+                  title="רענן רשימה מהשרת"
+                  className="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  🔄 סנכרן
+                </button>
+                <button onClick={() => setShowDebtModal(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             <div className="divide-y divide-gray-50 max-h-[60vh] overflow-y-auto">
               {alertGroups.map((g) => {
