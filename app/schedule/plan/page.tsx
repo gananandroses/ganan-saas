@@ -467,6 +467,27 @@ export default function PlanPage() {
           <ChevronRight size={18} className="opacity-80 flex-shrink-0" />
         </button>
 
+        {/* Status overview — comprehensive view of every active/VIP
+            customer's cadence state. Complement to the alert-driven
+            list below (which only shows problems). */}
+        <button
+          onClick={() => router.push("/customers/status")}
+          className="w-full bg-white border border-gray-200 hover:border-gray-300 rounded-2xl p-3.5 flex items-center gap-3 transition-colors text-right"
+        >
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-gray-900 leading-tight">מצב כל הלקוחות הקבועים</p>
+            <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
+              ראה מי משוריין · מי בקיו · מי באיחור — בלי לחפש בהתראות
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+        </button>
+
         {/* Group-mode toggle + search */}
         {groups.length > 0 && (
           <div className="bg-white border border-gray-100 rounded-2xl p-3 space-y-2.5">
