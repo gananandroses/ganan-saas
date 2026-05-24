@@ -998,12 +998,24 @@ export default function FinancePage() {
     }
   }
 
-  const deleteTransaction = async (id: string) => {
-    if (!await confirmDialog({ title: "למחוק עסקה זו?", confirmLabel: "מחק", destructive: true })) return;
+  const deleteTransaction = async (id: string, opts?: { skipConfirm?: boolean; title?: string }) => {
+    if (!opts?.skipConfirm) {
+      const ok = await confirmDialog({
+        title: opts?.title || "למחוק עסקה זו?",
+        confirmLabel: "מחק",
+        destructive: true,
+      });
+      if (!ok) return false;
+    }
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
+    if (!user) return false;
+    const { error } = await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
+    if (error) {
+      toast.error("לא הצלחנו למחוק את העסקה", error.message);
+      return false;
+    }
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    return true;
   };
 
   const fetchTransactions = async () => {
@@ -1473,6 +1485,28 @@ export default function FinancePage() {
                           className="flex items-center justify-center w-8 h-8 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
                           <CheckCircle size={14} />
                         </button>
+                        {/* Delete = "this is a duplicate / wrong
+                            record — remove it entirely". Different
+                            semantics from "סמן כשולם" which records
+                            cash actually received. Single-tx rows
+                            get a quick delete here; multi-tx groups
+                            need to expand and delete one-by-one
+                            (we don't want to nuke 3 records in one
+                            tap when one of them might be legit). */}
+                        {g.txs.length === 1 && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await deleteTransaction(g.txs[0].id, {
+                                title: `למחוק את חיוב ה-₪${g.totalAmount.toLocaleString()} של ${g.customerName}? (לכפילות / רשומה שגויה)`,
+                              });
+                            }}
+                            title="מחק (כפילות / רשומה שגויה)"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-100 text-red-500 hover:bg-red-50"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -1508,6 +1542,15 @@ export default function FinancePage() {
                                 className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 flex-shrink-0"
                               >
                                 <CheckCircle size={12} />
+                              </button>
+                              <button
+                                onClick={() => deleteTransaction(t.id, {
+                                  title: `למחוק את חיוב ה-₪${t.amount.toLocaleString()} מ-${t.date ? t.date.slice(8,10)+"/"+t.date.slice(5,7) : ""}? (לכפילות / רשומה שגויה)`,
+                                })}
+                                title="מחק (כפילות / רשומה שגויה — לא משפיע על התזרים)"
+                                className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg border border-red-100 text-red-500 hover:bg-red-50 flex-shrink-0"
+                              >
+                                <Trash2 size={12} />
                               </button>
                             </li>
                           ))}
