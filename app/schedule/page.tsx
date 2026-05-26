@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, Suspense } from "react";
 import {
-  ChevronLeft, ChevronRight, Plus, Clock, MapPin, User, X,
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Plus, Clock, MapPin, User, X,
   Calendar, AlertCircle, Loader2, CheckCircle, Circle, Phone, RefreshCw, ArrowRight,
   MessageCircle, StickyNote, Sparkles,
 } from "lucide-react";
@@ -1277,6 +1277,28 @@ function SchedulePageInner() {
   }, []);
   const todayISO = formatDateISO(today);
 
+  // "Unclosed jobs" — pending/in_progress jobs whose date already
+  // passed (yesterday or earlier this month). These are the
+  // "I worked there but forgot to mark סיום" cases. Surfaced as a
+  // persistent banner at the top of the schedule so the gardener
+  // can clear them in one tap each and get the WhatsApp bill flow
+  // for whatever they actually finished.
+  const startOfMonthISO = useMemo(() => {
+    const d = new Date(today.getFullYear(), today.getMonth(), 1);
+    return formatDateISO(d);
+  }, [today]);
+  const unclosedJobs = useMemo(() => {
+    return jobs
+      .filter((j) =>
+        (j.status === "pending" || j.status === "in_progress") &&
+        j.date >= startOfMonthISO &&
+        j.date < todayISO,
+      )
+      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  }, [jobs, startOfMonthISO, todayISO]);
+  const [unclosedExpanded, setUnclosedExpanded] = useState(true);
+  const [closingJobId, setClosingJobId] = useState<string | null>(null);
+
   // Current displayed month
   const displayMonth = useMemo(() => {
     const d = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
@@ -1630,6 +1652,58 @@ function SchedulePageInner() {
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status: "completed" as TaskStatus } : j));
   }
 
+  // Quick-action handlers for the "unclosed jobs" banner rows.
+  // closeAsCompleted goes through the shared completeJob helper so the
+  // pending-income transaction + WhatsApp payment reminder both fire,
+  // exactly like the regular "סיום עבודה" button.
+  async function closeAsCompleted(job: Job) {
+    if (closingJobId) return;
+    setClosingJobId(job.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) { setClosingJobId(null); toast.error("שגיאה בעדכון הסטטוס"); return; }
+    const result = await completeJobAndCreateTransactions(supabase, {
+      id: job.id,
+      customerId: job.customerId,
+      customerName: job.customerName,
+      type: job.type,
+      address: job.address,
+      date: job.date,
+      price: job.price,
+      priceBeforeVat: job.priceBeforeVat,
+      expenses: job.expenses,
+      notes: job.notes,
+    }, user.id);
+    setClosingJobId(null);
+    if (!result.ok) { toast.error("שגיאה בעדכון הסטטוס"); return; }
+    handleMarkCompleted(job.id);
+    toast.success("העבודה הושלמה");
+    if (result.createdIncomeTransaction) {
+      openPaymentReminderForCompletedJob(supabase, {
+        userId: user.id,
+        customerId: job.customerId,
+        customerName: job.customerName,
+        price: job.price,
+        priceBeforeVat: job.priceBeforeVat,
+        jobDescription: [job.type, job.address].filter(Boolean).join(" · ") || "עבודת גינון",
+      });
+    }
+  }
+  async function closeAsCancelled(job: Job) {
+    if (closingJobId) return;
+    setClosingJobId(job.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) { setClosingJobId(null); return; }
+    const { error } = await supabase
+      .from("jobs")
+      .update({ status: "cancelled", cancellation_reason: "no_show" })
+      .eq("id", job.id)
+      .eq("user_id", user.id);
+    setClosingJobId(null);
+    if (error) { toast.error("שגיאה בעדכון הסטטוס", error.message); return; }
+    setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: "cancelled" as TaskStatus, cancellationReason: "no_show" } : j));
+    toast.success("סומן כלא בוצע");
+  }
+
   function handleJobDeleted(id: string) {
     setJobs(prev => prev.filter(j => j.id !== id));
   }
@@ -1797,6 +1871,78 @@ function SchedulePageInner() {
         <div className="mb-4">
           <MonthlyGoalCard />
         </div>
+
+        {/* Unclosed-jobs banner — past pending/in_progress jobs in
+            the current month. Persistent (always visible while at
+            least one exists) so the gardener can't end the month
+            with stale rows that never got a "סיום עבודה" tap. Each
+            row offers ✓ סיימתי (creates the bill + WhatsApp reminder)
+            and 🚫 לא הגעתי (marks cancelled). */}
+        {!loading && unclosedJobs.length > 0 && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl overflow-hidden">
+            <button
+              onClick={() => setUnclosedExpanded(v => !v)}
+              className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-red-100/50 transition-colors text-right"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0 border border-red-100">
+                  <AlertCircle size={16} className="text-red-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-red-900 leading-tight">
+                    {unclosedJobs.length} {unclosedJobs.length === 1 ? "עבודה לא נסגרה" : "עבודות לא נסגרו"}
+                  </p>
+                  <p className="text-[11px] text-red-700 mt-0.5 leading-tight">
+                    האם סיימת? סמן כדי לקבל את החיוב + תזכורת תשלום
+                  </p>
+                </div>
+              </div>
+              {unclosedExpanded
+                ? <ChevronUp size={14} className="text-red-400 flex-shrink-0" />
+                : <ChevronDown size={14} className="text-red-400 flex-shrink-0" />}
+            </button>
+            {unclosedExpanded && (
+              <ul className="bg-white/50 border-t border-red-100 divide-y divide-red-50">
+                {unclosedJobs.map((j) => {
+                  const isBusy = closingJobId === j.id;
+                  const dParts = j.date.split("-");
+                  const dateLabel = `${Number(dParts[2])}/${Number(dParts[1])}`;
+                  return (
+                    <li key={j.id} className="px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{j.customerName}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            {dateLabel} · {j.time}
+                            {j.type ? ` · ${j.type}` : ""}
+                            {j.address ? ` · ${j.address}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => closeAsCompleted(j)}
+                            disabled={isBusy}
+                            className="flex items-center gap-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            {isBusy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                            סיימתי
+                          </button>
+                          <button
+                            onClick={() => closeAsCancelled(j)}
+                            disabled={isBusy}
+                            className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-60 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            🚫 לא הגעתי
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Needs-scheduling banner — customers whose cadence says it's
             time for their next visit and have no future job booked.
