@@ -38,7 +38,7 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
     items: [
       { href: "/employees", label: "עובדים", icon: UserCheck },
       { href: "/portfolio", label: "תיק עבודות", icon: Camera },
-      { href: "/plants",    label: "צמחים", icon: Leaf },
+      // "צמחים" הוסתר — לא בשימוש.
       { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
       { href: "/settings",  label: "הגדרות", icon: Settings },

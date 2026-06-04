@@ -40,7 +40,7 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
     items: [
       { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
       { href: "/portfolio", label: "תיק עבודות", icon: Camera },
-      { href: "/plants",    label: "עולם הצמחים", icon: Leaf },
+      // "עולם הצמחים" הוסתר — לא בשימוש, הרגיש מיותר.
       { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
     ],
