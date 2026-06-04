@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   FileText, Plus, Loader2, Search, Trash2, Calendar, User as UserIcon,
   MessageSquare, Eye, Edit3, Copy, MoreHorizontal, Flame, Clock, AlertTriangle,
-  Phone, Target, ChevronRight,
+  Phone, Target, ChevronRight, XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -41,7 +41,11 @@ const STATUS_CONFIG: Record<Quote["status"], { label: string; chip: string; dot:
 };
 
 // Thresholds — single source of truth so we can tune later
-const STALE_SENT_DAYS = 7;     // sent quote with no follow-up
+const STALE_SENT_DAYS = 7;     // sent quote — start of the gentle reminder window
+const STALE_SENT_CAP_DAYS = 21; // …and the END. After this we STOP nagging — an
+                                // unanswered quote past 3 weeks is effectively
+                                // dead, and the user explicitly didn't want it
+                                // to keep alerting / forcing manual cleanup.
 const EXPIRING_SOON_DAYS = 3;  // quote about to expire
 const OLD_DRAFT_DAYS = 5;      // draft sitting too long
 
@@ -170,6 +174,28 @@ export default function QuotesListPage() {
     toast.success("ההצעה נמחקה");
   }
 
+  // "לא יצא לפועל" — the graceful exit for a quote the customer didn't
+  // approve (or never answered). Sets status to "rejected" which
+  // immediately drops it out of every nag path (isStaleSent /
+  // isExpiringSoon / isOldDraft all gate on sent/draft). One tap, no
+  // confirmation dialog, no deletion — the quote stays for the
+  // conversion-rate stats but stops bothering the user.
+  async function markNotMaterialized(id: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase
+      .from("quotes")
+      .update({ status: "rejected" })
+      .eq("id", id)
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("לא הצלחנו לעדכן", error.message);
+      return;
+    }
+    setQuotes(prev => prev.map(q => q.id === id ? { ...q, status: "rejected" } : q));
+    toast.success("סומן כלא יצא לפועל");
+  }
+
   async function handleDuplicate(q: Quote) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -242,7 +268,13 @@ export default function QuotesListPage() {
   // ── Hot signals — derived per quote so we don't recompute in render
   function isStaleSent(q: Quote): boolean {
     if (q.status !== "sent") return false;
-    return daysFromNow(q.sent_at || q.created_at) >= STALE_SENT_DAYS;
+    // Only nag inside a WINDOW: from STALE_SENT_DAYS up to the cap.
+    // Past the cap we go quiet — no more orange banner, no more
+    // "send reminder" badge. The quote stays in the list under "נשלח"
+    // but stops demanding attention. The user can mark it "לא יצא
+    // לפועל" whenever they want (or just leave it).
+    const days = daysFromNow(q.sent_at || q.created_at);
+    return days >= STALE_SENT_DAYS && days <= STALE_SENT_CAP_DAYS;
   }
   function isExpiringSoon(q: Quote): boolean {
     if (q.status !== "sent" && q.status !== "draft") return false;
@@ -761,6 +793,18 @@ export default function QuotesListPage() {
                           >
                             <Copy size={13} /> שכפל
                           </button>
+                          {/* "לא יצא לפועל" — graceful archive for an
+                              unanswered/declined quote. Only shown while
+                              it's still draft/sent (no point on already
+                              accepted/rejected). */}
+                          {(q.status === "draft" || q.status === "sent") && (
+                            <button
+                              onClick={() => { setOpenMenuId(null); markNotMaterialized(q.id); }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-right"
+                            >
+                              <XCircle size={13} /> לא יצא לפועל
+                            </button>
+                          )}
                           <div className="border-t border-gray-100 my-1" />
                           <button
                             onClick={() => { setOpenMenuId(null); handleDelete(q.id, q.title); }}
