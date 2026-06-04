@@ -32,21 +32,21 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
     ],
   },
   {
-    title: "כלי עבודה",
+    // Mirror of Sidebar.tsx — see the reasoning there. People/gear/
+    // portfolio = "my resources"; analytics/knowledge + settings live
+    // in the final group.
+    title: "המשאבים שלי",
     items: [
-      { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
-      // "אוטומציות" הוסתר — פעולותיו פרוסות בפעמון, בזרימת סיום-עבודה
-      // ובכפתור WhatsApp ביומן. כלי AI הוסתר — היה הדגמה בלבד.
+      { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
+      { href: "/inventory", label: "ציוד ומלאי", icon: Package },
+      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
     ],
   },
   {
-    title: "ידע ועוד",
+    title: "תובנות וידע",
     items: [
-      { href: "/employees", label: "עובדים", icon: UserCheck },
-      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
-      // "צמחים" הוסתר — לא בשימוש.
-      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
+      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/settings",  label: "הגדרות", icon: Settings },
     ],
   },

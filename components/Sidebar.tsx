@@ -36,24 +36,24 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
     ],
   },
   {
-    title: "כלי עבודה",
+    // The user's assets — people, gear, and the work they've shown off.
+    // Replaces the old single-item "כלי עבודה" + the grab-bag "ידע ועוד":
+    // inventory moved in here, and articles/analytics split out below.
+    // (automations + AI + plants were retired earlier in the session.)
+    title: "המשאבים שלי",
     items: [
-      { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
-      // "אוטומציות" הוסתר — 4 מתוך 5 הפעולות שלו (חוב/לא-פעיל/תיאום-
-      // מחדש/הושלם-היום) כבר חיות בפעמון ובזרימת סיום-עבודה, וה"תזכורת
-      // ביקור מחר" עברה לכפתור WhatsApp ביומן. עמוד /automations נשאר
-      // בקוד אך לא נגיש.
-      // כלי AI הוסתר — היה הדגמה בלבד, לא AI אמיתי.
+      { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
+      { href: "/inventory", label: "ציוד ומלאי", icon: Package },
+      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
     ],
   },
   {
-    title: "ידע ועוד",
+    // Understanding the numbers + learning. Kept apart from the
+    // operational "resources" group so analytics doesn't get buried.
+    title: "תובנות וידע",
     items: [
-      { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
-      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
-      // "עולם הצמחים" הוסתר — לא בשימוש, הרגיש מיותר.
-      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
+      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
     ],
   },
 ];
