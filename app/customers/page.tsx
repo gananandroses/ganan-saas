@@ -1227,16 +1227,39 @@ function CustomersPageInner() {
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
     const [{ data, error }, { data: jobsData }, { data: txData }] = await Promise.all([
       supabase.from("customers").select("*").eq("user_id", user?.id).order("created_at", { ascending: false }),
-      supabase.from("jobs").select("customer_name, job_date").eq("user_id", user?.id).gte("job_date", todayStr).order("job_date"),
+      // ALL jobs (with status) — not just future ones. We derive both the
+      // last visit (latest completed past job) and the next visit (earliest
+      // upcoming non-cancelled job) from this. The customers.last_visit
+      // column was never reliably written, so reading it left every card
+      // showing "—"; the jobs table is the real source of truth.
+      supabase.from("jobs").select("customer_name, job_date, status").eq("user_id", user?.id).order("job_date"),
       supabase.from("transactions").select("customer_name, amount, status, type").eq("user_id", user?.id).eq("type", "income"),
     ]);
 
-    // Build a map: normalized customer_name → earliest upcoming job date
+    // Build two maps off the (ascending-ordered) jobs list:
+    //   nextJobMap — earliest upcoming non-cancelled job (first match wins)
+    //   lastJobMap — latest completed past job (last match wins, since
+    //                ascending order means later rows overwrite earlier)
     const normalize = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
     const nextJobMap: Record<string, string> = {};
+    const lastJobMap: Record<string, string> = {};
     (jobsData ?? []).forEach((j: Record<string, unknown>) => {
       const name = normalize(j.customer_name as string);
-      if (name && !nextJobMap[name]) nextJobMap[name] = j.job_date as string;
+      if (!name) return;
+      const date = j.job_date as string;
+      const status = (j.status as string) || "";
+      if (!date) return;
+      if (date >= todayStr) {
+        // Upcoming — ignore cancelled so a dropped visit doesn't pose as
+        // the next one. Keep the earliest.
+        if (status !== "cancelled" && !nextJobMap[name]) nextJobMap[name] = date;
+      } else {
+        // Past — count it as a visit unless it was cancelled (a no-show
+        // isn't a visit). We deliberately accept "pending" past jobs too:
+        // a gardener who went but forgot to tap "סיימתי" still visited,
+        // and the date is correct. Ascending order → latest wins.
+        if (status !== "cancelled") lastJobMap[name] = date;
+      }
     });
 
     // Aggregate transactions by normalized customer name:
@@ -1274,7 +1297,9 @@ function CustomersPageInner() {
           frequency: c.frequency as string || "",
           status: c.status as CustomerStatus || "active",
           joinDate: c.join_date as string || "",
-          lastVisit: c.last_visit as string || "",
+          // Prefer the real completed-job date; fall back to the legacy
+          // column only if no job history exists.
+          lastVisit: lastJobMap[key] || (c.last_visit as string) || "",
           nextVisit: nextJobMap[key] || (c.next_visit as string) || "",
           notes: c.notes as string || "",
           tags: c.tags as string[] || [],
