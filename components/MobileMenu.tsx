@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, BarChart3, Zap, FolderKanban,
+  Package, BarChart3, FolderKanban,
   Settings, LogOut, X, Leaf, Camera, Tag, FileText, BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -35,8 +35,8 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
     title: "כלי עבודה",
     items: [
       { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
-      { href: "/automations", label: "אוטומציות", icon: Zap },
-      // כלי AI הוסתר — היה הדגמה בלבד, לא AI אמיתי.
+      // "אוטומציות" הוסתר — פעולותיו פרוסות בפעמון, בזרימת סיום-עבודה
+      // ובכפתור WhatsApp ביומן. כלי AI הוסתר — היה הדגמה בלבד.
     ],
   },
   {

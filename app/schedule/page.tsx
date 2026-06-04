@@ -1041,7 +1041,25 @@ function JobListCard({ job, onClick, onMarkCompleted, onNoteUpdated }: { job: Jo
     const intl = cleaned.startsWith("0") ? "972" + cleaned.slice(1)
                : cleaned.startsWith("972") ? cleaned
                : cleaned;
-    window.open(`https://api.whatsapp.com/send?phone=${intl}`, "_blank");
+    // Context-aware reminder. If the visit is today or tomorrow, pre-fill
+    // a friendly "I'm coming" message — this replaces the old
+    // automations-page "תזכורת ביקור מחר" in the spot where it actually
+    // belongs (next to the visit). Other dates open a blank chat.
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(t); tomorrow.setDate(tomorrow.getDate() + 1);
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const firstName = (job.customerName || "").split(" ")[0];
+    const timePart = job.time ? ` בשעה ${job.time}` : "";
+    let text = "";
+    if (job.date === iso(t)) {
+      text = `שלום ${firstName}, מזכיר שהיום${timePart} אני מגיע אליך לגינה 🌿`;
+    } else if (job.date === iso(tomorrow)) {
+      text = `שלום ${firstName}, מזכיר שמחר${timePart} אני מגיע אליך לגינה 🌿`;
+    }
+    const url = text
+      ? `https://api.whatsapp.com/send?phone=${intl}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?phone=${intl}`;
+    window.open(url, "_blank");
   }
 
   return (

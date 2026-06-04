@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, BarChart3, Zap, FolderKanban,
+  Package, BarChart3, FolderKanban,
   Settings, Leaf, LogOut, Camera, ClipboardList, FileText, BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -39,9 +39,11 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
     title: "כלי עבודה",
     items: [
       { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
-      { href: "/automations", label: "אוטומציות", icon: Zap },
-      // כלי AI הוסתר — הכלים היו הדגמה בלבד (לא AI אמיתי). הוחלט לא
-      // לבנות AI אמיתי כי גננים ממילא משתמשים ב-ChatGPT/Gemini ישירות.
+      // "אוטומציות" הוסתר — 4 מתוך 5 הפעולות שלו (חוב/לא-פעיל/תיאום-
+      // מחדש/הושלם-היום) כבר חיות בפעמון ובזרימת סיום-עבודה, וה"תזכורת
+      // ביקור מחר" עברה לכפתור WhatsApp ביומן. עמוד /automations נשאר
+      // בקוד אך לא נגיש.
+      // כלי AI הוסתר — היה הדגמה בלבד, לא AI אמיתי.
     ],
   },
   {
