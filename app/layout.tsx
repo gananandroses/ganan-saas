@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
 import Toaster from "@/components/Toaster";
@@ -63,6 +64,10 @@ export default function RootLayout({
       <body className="min-h-full bg-slate-50">
         <AuthGuard>{children}</AuthGuard>
         <Toaster />
+        {/* Vercel Web Analytics — page views + visitors, privacy-friendly
+            (no cookies, no personal data). View in the Vercel dashboard
+            under the project's "Analytics" tab. */}
+        <Analytics />
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { track } from "@vercel/analytics";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Leaf, Mail, Lock, User, Phone, Loader2, CheckCircle } from "lucide-react";
@@ -43,6 +44,10 @@ export default function RegisterPage() {
       setError(error.message === "User already registered" ? "אימייל זה כבר רשום במערכת" : error.message);
       setLoading(false);
     } else {
+      // Conversion event — a new trial account was created. Shows up
+      // in Vercel Analytics under Events so the funnel "visits →
+      // trials → paid" can be measured.
+      track("trial_started");
       setStep("verify");
     }
   }

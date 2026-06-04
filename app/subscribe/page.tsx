@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { track } from "@vercel/analytics";
 import { supabase } from "@/lib/supabase/client";
 import BackButton from "@/components/BackButton";
 import { toast, confirmDialog } from "@/components/Toaster";
@@ -37,6 +38,10 @@ export default function SubscribePage() {
 
   async function handleSubscribe() {
     setLoading(true);
+    // Conversion event — the user clicked "subscribe" and we're about
+    // to send them to Meshulam. Pairs with "trial_started" to give the
+    // visits → trial → checkout funnel in Vercel Analytics.
+    track("subscribe_clicked");
     try {
       const res = await fetch("/api/create-payment", { method: "POST" });
       const { url, error } = await res.json();
