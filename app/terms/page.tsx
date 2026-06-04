@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 // before launch. These terms are a solid baseline but are NOT a
 // substitute for a lawyer's review.
 const BUSINESS_NAME = "גנן Pro";
-const LEGAL_ENTITY = "[שם בעל העסק / חברה רשומה]";
-const BUSINESS_ID = "[ח.פ / ע.מ]";
+const LEGAL_ENTITY = "גנן אנד רוזס (עוסק מורשה)";
+const BUSINESS_ID = "322644113";
 const CONTACT_EMAIL = "support@mygananpro.com";
 const LAST_UPDATED = "מאי 2026";
 

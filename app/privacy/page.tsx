@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 // service stores personal data about the gardener's OWN customers,
 // this policy also clarifies the gardener's role as data controller.
 const BUSINESS_NAME = "גנן Pro";
-const LEGAL_ENTITY = "[שם בעל העסק / חברה רשומה]";
+const LEGAL_ENTITY = "גנן אנד רוזס (עוסק מורשה), ח.פ 322644113";
 const CONTACT_EMAIL = "support@mygananpro.com";
 const LAST_UPDATED = "מאי 2026";
 
