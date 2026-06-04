@@ -106,6 +106,11 @@ export default function QuoteViewPage() {
   const [updating, setUpdating] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Set to the freshly-created project's id right after a quote is
+  // accepted. Drives the "ההצעה הפכה לפרויקט — לשריין תאריכים?" modal
+  // so the yes-path is explicit instead of a silent toast the user
+  // had to notice and then navigate away from on their own.
+  const [acceptedProjectId, setAcceptedProjectId] = useState<string | null>(null);
 
   // Close overflow menu on any outside click
   useEffect(() => {
@@ -193,7 +198,7 @@ export default function QuoteViewPage() {
           }).eq("id", quote.id);
           setQuote({ ...quote, status, project_id: project.id });
           setUpdating(false);
-          toast.success("ההצעה אושרה!", `נוצר אוטומטית פרויקט חדש: "${quote.title}"`);
+          setAcceptedProjectId(project.id);   // triggers the schedule-now modal
           return;
         }
       }
@@ -349,6 +354,7 @@ export default function QuoteViewPage() {
       }).select().single();
       if (project) {
         await supabase.from("quotes").update({ project_id: project.id }).eq("id", quote.id);
+        setAcceptedProjectId(project.id);   // triggers the schedule-now modal
       }
     }
 
@@ -358,7 +364,6 @@ export default function QuoteViewPage() {
       payment_verified_at: new Date().toISOString(),
       status: "accepted",
     });
-    showToast("✅ התשלום אומת! ההצעה אושרה ופרויקט נוצר");
   }
 
   async function copyBothLinkAndPin() {
@@ -915,6 +920,44 @@ export default function QuoteViewPage() {
           </div>
         </div>
       </main>
+
+      {/* Accepted → schedule modal. Replaces the silent success toast.
+          Makes the quote→project→schedule handoff explicit: the deal
+          closed, a project was born, now nudge straight to setting
+          dates so the work actually lands on the calendar. */}
+      {acceptedProjectId && (
+        <div
+          className="no-print fixed inset-0 z-[90] bg-black/60 flex items-end sm:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.target === e.currentTarget && setAcceptedProjectId(null)}
+        >
+          <div className="bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 text-center" dir="rtl">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-4 text-3xl">
+              🎉
+            </div>
+            <h2 className="text-xl font-extrabold text-gray-900 mb-1.5">ההצעה אושרה!</h2>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              נוצר פרויקט חדש: <span className="font-semibold text-gray-700">&quot;{quote.title}&quot;</span>.<br />
+              רוצה לשריין תאריכים עכשיו כדי שזה ייכנס ליומן?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => router.push("/projects")}
+                className="w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors"
+              >
+                פתח את הפרויקט לשריון תאריכים
+              </button>
+              <button
+                onClick={() => setAcceptedProjectId(null)}
+                className="w-full py-3 rounded-2xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 transition-colors"
+              >
+                אחר כך
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Share Modal */}
       {showShareModal && quote.public_token && (
