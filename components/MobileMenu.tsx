@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, Sparkles, BarChart3, Zap, FolderKanban,
+  Package, BarChart3, Zap, FolderKanban,
   Settings, LogOut, X, Leaf, Camera, Tag, FileText, BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -30,7 +30,7 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
       { href: "/pricer",      label: "מחירון", icon: Tag },
       { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
       { href: "/automations", label: "אוטומציות", icon: Zap },
-      { href: "/ai-tools",    label: "כלי AI", icon: Sparkles },
+      // כלי AI הוסתר — היה הדגמה בלבד, לא AI אמיתי.
     ],
   },
   {

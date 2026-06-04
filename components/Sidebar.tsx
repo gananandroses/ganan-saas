@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
-  Package, Sparkles, BarChart3, Zap, FolderKanban,
+  Package, BarChart3, Zap, FolderKanban,
   Settings, Leaf, LogOut, Camera, ClipboardList, FileText, BookOpen,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
@@ -31,7 +31,8 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
       { href: "/pricer",      label: "מחירון", icon: ClipboardList },
       { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
       { href: "/automations", label: "אוטומציות", icon: Zap },
-      { href: "/ai-tools",    label: "כלי AI", icon: Sparkles },
+      // כלי AI הוסתר — הכלים היו הדגמה בלבד (לא AI אמיתי). הוחלט לא
+      // לבנות AI אמיתי כי גננים ממילא משתמשים ב-ChatGPT/Gemini ישירות.
     ],
   },
   {

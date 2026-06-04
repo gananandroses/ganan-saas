@@ -7,7 +7,6 @@ import {
   Calendar,
   MessageCircle,
   DollarSign,
-  Bot,
   MapPin,
   ChevronDown,
   ChevronUp,
@@ -69,16 +68,9 @@ const features: Feature[] = [
     bg: "bg-amber-50",
   },
   {
-    icon: <Bot size={28} />,
-    title: "AI לגינון",
-    desc: "זיהוי צמחים, תמחור חכם והצעות Upsell מותאמות לכל לקוח",
-    color: "text-purple-600",
-    bg: "bg-purple-50",
-  },
-  {
     icon: <MapPin size={28} />,
-    title: "GPS עובדים",
-    desc: "מעקב שטח בזמן אמת ואופטימיזציית מסלולים לחסכון בדלק",
+    title: "תכנון מסלולים",
+    desc: "סידור הביקורים לפי עיר ומיקום — חוסך לך נסיעות ודלק",
     color: "text-red-600",
     bg: "bg-red-50",
   },
@@ -529,7 +521,6 @@ export default function LandingPage() {
                 "ניהול פיננסי, חשבוניות ודוחות רווח",
                 "הצעות מחיר ושליחה ב-WhatsApp",
                 "תזכורות תשלום וסגירת יום",
-                "כלי AI לגינון",
                 "עובד על כל מכשיר — נייד, טאבלט, מחשב",
               ].map((feat) => (
                 <li key={feat} className="flex items-center gap-2.5 text-sm">
