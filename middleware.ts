@@ -44,25 +44,64 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 🚧 PILOT MODE — subscription check disabled
-  // כשמוכן לגבות תשלום, הסר את השורה הבאה
-  return response
+  // ── Subscription enforcement ───────────────────────────────────────────────
+  // Master switch. Defaults OFF so a deploy never silently locks anyone out —
+  // flip NEXT_PUBLIC_ENFORCE_SUBSCRIPTION=true in Vercel only once the owner
+  // exemption + the subscriptions table are verified. While off, the app
+  // behaves exactly like the old pilot mode.
+  if (process.env.NEXT_PUBLIC_ENFORCE_SUBSCRIPTION !== 'true') {
+    return response
+  }
 
-  // Check subscription status
-  // const { data: sub } = await supabase
-  //   .from('subscriptions')
-  //   .select('status, trial_ends_at, current_period_end, is_exempt')
-  //   .eq('user_id', user.id)
-  //   .single()
-  //
-  // const now = new Date()
-  // const hasAccess = sub && (
-  //   sub.is_exempt === true ||
-  //   (sub.status === 'trial' && new Date(sub.trial_ends_at) > now) ||
-  //   (sub.status === 'active' && sub.current_period_end && new Date(sub.current_period_end) > now)
-  // )
-  // if (!hasAccess) return NextResponse.redirect(new URL('/subscribe', request.url))
-  // return response
+  // Safety net #1 — owner emails are NEVER gated, so the business owner can't
+  // accidentally lock himself out of his own product. Comma-separated list in
+  // NEXT_PUBLIC_OWNER_EMAILS.
+  const exemptEmails = (process.env.NEXT_PUBLIC_OWNER_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  if (user.email && exemptEmails.includes(user.email.toLowerCase())) {
+    return response
+  }
+
+  const now = Date.now()
+
+  // Trial is derived from the account creation date — not from any DB row.
+  // This is deliberate: a fresh user always has a reliable created_at, so
+  // there's no "missing subscriptions row → wrongly blocked on day one" bug
+  // (which is exactly what the old commented code would have caused).
+  const TRIAL_DAYS = 7
+  const createdAtMs = user.created_at ? new Date(user.created_at).getTime() : null
+  const inTrial = createdAtMs !== null && now - createdAtMs < TRIAL_DAYS * 86400000
+
+  // Paid access comes from the subscriptions table (written by the Meshulam
+  // webhook on a successful charge). Safety net #2 — we FAIL OPEN on any query
+  // error: a transient DB hiccup or a missing table must never lock out a
+  // paying customer. Worst case while misconfigured = enforcement is simply
+  // inert, never wrongful denial.
+  let paidOrExempt = false
+  try {
+    const { data: sub, error } = await supabase
+      .from('subscriptions')
+      .select('status, current_period_end, is_exempt')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (error) return response
+    if (sub) {
+      paidOrExempt =
+        sub.is_exempt === true ||
+        (sub.status === 'active' &&
+          !!sub.current_period_end &&
+          new Date(sub.current_period_end).getTime() > now)
+    }
+  } catch {
+    return response
+  }
+
+  if (paidOrExempt || inTrial) return response
+
+  // Trial over and no active subscription → send to the paywall.
+  return NextResponse.redirect(new URL('/subscribe', request.url))
 }
 
 export const config = {

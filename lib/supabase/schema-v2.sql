@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
 
   -- מנוי
   plan TEXT DEFAULT 'trial' CHECK (plan IN ('trial', 'basic', 'pro', 'business')),
-  trial_ends_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '14 days'),
+  trial_ends_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT
 );

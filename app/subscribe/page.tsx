@@ -15,10 +15,16 @@ interface Subscription {
   current_period_end: string | null;
 }
 
+const TRIAL_DAYS = 7;
+
 export default function SubscribePage() {
   const [loading, setLoading] = useState(false);
   const [sub, setSub] = useState<Subscription | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  // Trial is derived from the account creation date (same rule as the
+  // middleware), so it stays correct even before any subscriptions row
+  // exists. null until loaded.
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -26,11 +32,16 @@ export default function SubscribePage() {
       if (!user) return;
       setUserEmail(user.email || "");
 
+      if (user.created_at) {
+        const endMs = new Date(user.created_at).getTime() + TRIAL_DAYS * 86400000;
+        setTrialDaysLeft(Math.max(0, Math.ceil((endMs - Date.now()) / 86400000)));
+      }
+
       const { data } = await supabase
         .from("subscriptions")
         .select("status, trial_ends_at, current_period_end")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       setSub(data);
     }
     load();
@@ -58,11 +69,14 @@ export default function SubscribePage() {
     window.location.href = "/login";
   }
 
-  const trialDaysLeft = sub?.trial_ends_at
-    ? Math.max(0, Math.ceil((new Date(sub.trial_ends_at).getTime() - Date.now()) / 86400000))
-    : 0;
+  // Active paid subscription? (written by the Meshulam webhook)
+  const hasActivePaid =
+    sub?.status === "active" &&
+    !!sub.current_period_end &&
+    new Date(sub.current_period_end).getTime() > Date.now();
 
-  const isTrialExpired = sub?.status === "trial" && trialDaysLeft === 0;
+  // Trial ran out and there's no active subscription → show the "ended" banner.
+  const isTrialExpired = trialDaysLeft === 0 && !hasActivePaid;
   const isExpiredOrCancelled = sub?.status === "expired" || sub?.status === "cancelled";
   const showExpiredBanner = isTrialExpired || isExpiredOrCancelled;
 
@@ -120,7 +134,7 @@ export default function SubscribePage() {
               <span className="text-5xl font-black">₪99</span>
               <span className="text-green-200 text-sm mb-2">לחודש</span>
             </div>
-            <p className="text-green-200 text-xs mt-2">+ 14 יום ניסיון חינם לחשבונות חדשים</p>
+            <p className="text-green-200 text-xs mt-2">+ 7 ימי ניסיון חינם לחשבונות חדשים</p>
           </div>
 
           {/* Features */}

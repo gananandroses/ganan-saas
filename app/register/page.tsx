@@ -80,7 +80,7 @@ export default function RegisterPage() {
             <Leaf size={28} className="text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">גנן Pro</h1>
-          <p className="text-gray-500 mt-1">14 יום ניסיון חינם · ללא כרטיס אשראי</p>
+          <p className="text-gray-500 mt-1">7 ימי ניסיון חינם · ללא כרטיס אשראי</p>
         </div>
 
         <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">

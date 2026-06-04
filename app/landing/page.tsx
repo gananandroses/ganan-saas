@@ -79,7 +79,7 @@ const features: Feature[] = [
 const faqs: FAQItem[] = [
   {
     q: "מה כלול בתקופת הניסיון?",
-    a: "14 יום של גישה מלאה לכל הפיצ'רים, ללא צורך בכרטיס אשראי. תנסה הכל ותחליט אם זה מתאים לך — בלי התחייבות.",
+    a: "7 ימים של גישה מלאה לכל הפיצ'רים, ללא צורך בכרטיס אשראי. תנסה הכל ותחליט אם זה מתאים לך — בלי התחייבות.",
   },
   {
     q: "האם זה עובד על הנייד?",
@@ -365,7 +365,7 @@ export default function LandingPage() {
                   className="inline-flex items-center gap-2 border-2 border-gray-200 hover:border-green-300 text-gray-700 px-6 py-3.5 rounded-xl font-semibold text-base transition-all hover:bg-green-50"
                 >
                   <Play size={16} className="text-green-600" />
-                  התחל ניסיון 14 יום
+                  התחל ניסיון 7 ימים
                 </Link>
               </div>
 
@@ -503,7 +503,7 @@ export default function LandingPage() {
 
           <div className="relative rounded-3xl p-8 bg-green-600 text-white shadow-2xl shadow-green-200">
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md whitespace-nowrap">
-              ⭐ 14 יום ניסיון חינם
+              ⭐ 7 ימי ניסיון חינם
             </div>
 
             <div className="text-center mb-6 pt-2">
@@ -536,7 +536,7 @@ export default function LandingPage() {
               href="/register"
               className="block text-center py-3.5 rounded-xl font-bold text-base bg-white text-green-700 hover:bg-green-50 transition-all"
             >
-              התחל 14 יום ניסיון חינם
+              התחל 7 ימי ניסיון חינם
             </Link>
           </div>
         </div>
@@ -589,7 +589,7 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="flex justify-center flex-wrap gap-5 mt-6 text-green-100 text-sm">
-            {["14 יום ניסיון חינם", "ללא כרטיס אשראי", "הגדרה ב-5 דקות"].map((t) => (
+            {["7 ימי ניסיון חינם", "ללא כרטיס אשראי", "הגדרה ב-5 דקות"].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <Check size={14} />
                 {t}

@@ -224,7 +224,7 @@ export default function TourPage() {
       <section className="bg-gradient-to-br from-green-600 to-emerald-700 text-white py-12 px-4 mt-8">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">אהבת מה שראית?</h2>
-          <p className="text-green-100 mb-6">14 יום ניסיון חינם · ללא כרטיס אשראי · הגדרה ב-5 דקות</p>
+          <p className="text-green-100 mb-6">7 ימי ניסיון חינם · ללא כרטיס אשראי · הגדרה ב-5 דקות</p>
           <Link href="/register" className="inline-flex items-center gap-2 bg-white text-green-700 hover:bg-green-50 px-6 py-3 rounded-xl font-bold shadow-xl">
             התחל את שלי
             <ArrowLeft size={16} />

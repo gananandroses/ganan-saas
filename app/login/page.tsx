@@ -105,7 +105,7 @@ export default function LoginPage() {
 
         {/* Trial badge */}
         <div className="text-center mt-4">
-          <span className="text-xs text-gray-400">ניסיון חינם 14 יום · אין צורך בכרטיס אשראי</span>
+          <span className="text-xs text-gray-400">ניסיון חינם 7 ימים · אין צורך בכרטיס אשראי</span>
         </div>
       </div>
     </div>
