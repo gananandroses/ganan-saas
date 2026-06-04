@@ -9,7 +9,6 @@ import {
   DollarSign,
   Bot,
   MapPin,
-  Star,
   ChevronDown,
   ChevronUp,
   Check,
@@ -38,22 +37,6 @@ interface Feature {
   bg: string;
 }
 
-interface Testimonial {
-  name: string;
-  city: string;
-  quote: string;
-  stars: number;
-  initials: string;
-  color: string;
-}
-
-interface PricingPlan {
-  name: string;
-  price: number;
-  popular: boolean;
-  features: string[];
-}
-
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const features: Feature[] = [
@@ -73,8 +56,8 @@ const features: Feature[] = [
   },
   {
     icon: <MessageCircle size={28} />,
-    title: "WhatsApp אוטומטי",
-    desc: "מענה אוטומטי, תזכורות תשלום ועדכוני עבודה בזמן אמת",
+    title: "תזכורות ב-WhatsApp",
+    desc: "הודעות מוכנות לתשלום ולתיאום — סכום ואמצעי תשלום מוכנים, אתה רק לוחץ שלח",
     color: "text-emerald-600",
     bg: "bg-emerald-50",
   },
@@ -101,98 +84,26 @@ const features: Feature[] = [
   },
 ];
 
-const testimonials: Testimonial[] = [
-  {
-    name: "דוד כהן",
-    city: "תל אביב",
-    quote:
-      "גנן Pro שינה את העסק שלי לחלוטין. חסכתי 8 שעות עבודה בשבוע ורווחיתי 40% יותר תוך 3 חודשים.",
-    stars: 5,
-    initials: "דכ",
-    color: "bg-green-500",
-  },
-  {
-    name: "משה לוי",
-    city: "חיפה",
-    quote:
-      "האוטומציה של WhatsApp לבדה שווה את כל המחיר. הלקוחות שלי מקבלים תזכורות ואני לא מפספס אף תשלום.",
-    stars: 5,
-    initials: "מל",
-    color: "bg-blue-500",
-  },
-  {
-    name: "יוסי אברהם",
-    city: "ירושלים",
-    quote:
-      "סוף סוף יש לי שליטה מלאה על הכספים. יודע בדיוק כמה כל לקוח שווה לי ואיפה להשקיע.",
-    stars: 5,
-    initials: "יא",
-    color: "bg-purple-500",
-  },
-];
-
-const plans: PricingPlan[] = [
-  {
-    name: "Basic",
-    price: 79,
-    popular: false,
-    features: [
-      "עד 30 לקוחות",
-      "יומן עבודה",
-      "ניהול לקוחות",
-      "ניהול פיננסי",
-      "תמיכה בצ'אט",
-    ],
-  },
-  {
-    name: "Pro",
-    price: 149,
-    popular: true,
-    features: [
-      "עד 100 לקוחות",
-      "הכל ב-Basic",
-      "WhatsApp אוטומטי",
-      "AI לגינון",
-      "GPS עובדים",
-      "דוחות מתקדמים",
-      "תמיכה עדיפות",
-    ],
-  },
-  {
-    name: "Business",
-    price: 299,
-    popular: false,
-    features: [
-      "לקוחות ללא הגבלה",
-      "הכל ב-Pro",
-      "גישת API",
-      "White-label",
-      "מנהל חשבון אישי",
-      "תמיכת VIP 24/7",
-    ],
-  },
-];
-
 const faqs: FAQItem[] = [
   {
     q: "מה כלול בתקופת הניסיון?",
-    a: "תקופת הניסיון כוללת גישה מלאה לכל הפיצ'רים של פלאן Pro למשך 14 יום, ללא צורך בכרטיס אשראי. תוכל לנסות את כל הפיצ'רים ולהחליט אם זה מתאים לך.",
+    a: "14 יום של גישה מלאה לכל הפיצ'רים, ללא צורך בכרטיס אשראי. תנסה הכל ותחליט אם זה מתאים לך — בלי התחייבות.",
   },
   {
-    q: "האם יש אפליקציה לנייד?",
-    a: "כן! גנן Pro פועלת מצוין על כל מכשיר — מובייל, טאבלט ומחשב. האפליקציה מותאמת מלא לשימוש בשטח, כולל מצב offline.",
+    q: "האם זה עובד על הנייד?",
+    a: "כן. גנן Pro עובד מצוין על כל מכשיר — נייד, טאבלט ומחשב. האפליקציה מותאמת לשימוש בשטח, ואפשר להוסיף אותה למסך הבית כמו אפליקציה רגילה.",
   },
   {
-    q: "איך עובד ה-WhatsApp האוטומטי?",
-    a: "אנחנו מתחברים לחשבון ה-WhatsApp Business שלך ומאפשרים שליחת הודעות אוטומטיות — תזכורות פגישות, אישורי עבודה, תזכורות תשלום ועוד. הגדרה מלאה ב-5 דקות.",
+    q: "איך עובדות ההודעות ב-WhatsApp?",
+    a: "כשאתה מסיים עבודה או רוצה לשלוח תזכורת תשלום, גנן Pro מכין לך הודעה מוכנה עם כל הפרטים (סכום, אמצעי תשלום) ופותח את WhatsApp שלך — אתה רק לוחץ 'שלח'. ההודעה יוצאת מהמספר האישי שלך, כך שהלקוח מזהה אותך.",
   },
   {
     q: "האם הנתונים שלי מאובטחים?",
-    a: "בהחלט. כל הנתונים מוצפנים ב-AES-256, מאוחסנים בשרתים מאובטחים בישראל, ועומדים בתקן GDPR. אנחנו מבצעים גיבויים יומיים ומספקים SLA של 99.9% זמינות.",
+    a: "כן. הנתונים מאוחסנים בשרתים מאובטחים עם הצפנה בתעבורה (HTTPS) ובקרת גישה ברמת המשתמש, כך שרק אתה רואה את הנתונים שלך. אנחנו מבצעים גיבויים שוטפים, ותמיד אפשר לייצא עותק של הנתונים שלך.",
   },
   {
     q: "איך מבטלים?",
-    a: "ביטול פשוט בלחיצה אחת מהגדרות החשבון, ללא עמלות ביטול. הנתונים שלך יישמרו לאורך 30 יום לאחר הביטול לצורך ייצוא.",
+    a: "ביטול פשוט מהגדרות החשבון, בלי עמלות ובלי שיחות מביכות. הנתונים שלך נשמרים 30 יום לאחר הביטול כדי שתוכל לייצא אותם.",
   },
 ];
 
@@ -538,115 +449,104 @@ export default function LandingPage() {
       </section>
 
       {/* ── TESTIMONIALS ────────────────────────────────────────────────────── */}
+      {/* ── FOUNDER STORY ───────────────────────────────────────────────────
+          Replaced the fabricated 3-testimonial grid (legal + trust risk)
+          with an authentic founder note. For a tool "built by a gardener
+          for gardeners", the founder's own story converts harder than
+          invented quotes — and it's true. Swap to real testimonials once
+          the first paying customers exist. */}
       <section className="py-24 px-4 sm:px-6 bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">
-              גננים שכבר{" "}
-              <span className="text-green-600">מרוויחים יותר</span>
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-3xl p-8 sm:p-10 shadow-md border border-gray-100">
+            <div className="inline-flex items-center gap-2 bg-green-100 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
+              <Leaf size={12} />
+              <span>למה בניתי את זה</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-5 leading-tight">
+              אני גנן. נמאס לי לנהל את העסק בראש ובוואטסאפ.
             </h2>
-            <p className="text-gray-500 text-lg">מה הם אומרים על גנן Pro</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <div
-                key={t.name}
-                className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-xl transition-shadow"
-              >
-                {/* Stars */}
-                <div className="flex gap-1 mb-4">
-                  {Array.from({ length: t.stars }).map((_, i) => (
-                    <Star key={i} size={16} className="text-amber-400 fill-amber-400" />
-                  ))}
-                </div>
-
-                <p className="text-gray-700 text-sm leading-relaxed mb-5 italic">
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${t.color} rounded-full flex items-center justify-center text-white text-sm font-bold`}>
-                    {t.initials}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">{t.name}</div>
-                    <div className="text-gray-400 text-xs">{t.city}</div>
-                  </div>
-                </div>
+            <div className="space-y-4 text-gray-600 leading-relaxed text-base">
+              <p>
+                כל בוקר התחיל באותו בלגן — מי הלקוח של היום, כמה הוא חייב לי,
+                מתי הייתי שם בפעם האחרונה. הכל פזור בין פתקים, וואטסאפים
+                והזיכרון שלי. פספסתי תשלומים. שכחתי לחזור ללקוחות. עבדתי קשה
+                אבל לא ידעתי כמה אני באמת מרוויח.
+              </p>
+              <p>
+                חיפשתי כלי שמתאים לגנן — לא תוכנת CRM מסובכת לחברות הייטק. לא
+                מצאתי. אז בניתי אחד בעצמי: יומן, לקוחות, פיננסים, הצעות מחיר
+                ותזכורות — הכל בעברית, הכל מהטלפון, הכל פשוט מספיק שגם בשטח עם
+                ידיים מלוכלכות זה עובד.
+              </p>
+              <p className="font-semibold text-gray-800">
+                גנן Pro זה הכלי שהייתי צריך. עכשיו הוא זמין גם לך.
+              </p>
+            </div>
+            <div className="mt-7 pt-6 border-t border-gray-100 flex items-center gap-3">
+              <div className="w-11 h-11 bg-green-600 rounded-full flex items-center justify-center text-white font-bold">
+                א
               </div>
-            ))}
+              <div>
+                <div className="font-bold text-gray-900 text-sm">אריאל חסין</div>
+                <div className="text-gray-400 text-xs">גנן ומייסד גנן Pro</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── PRICING ─────────────────────────────────────────────────────────── */}
+      {/* ── PRICING ───────────────────────────────────────────────────────────
+          Single plan ₪99/mo to match the actual /subscribe + Meshulam
+          charge. The old 3-tier 79/149/299 grid didn't match anything
+          the user could actually pay, so a visitor expecting ₪79 would
+          hit a ₪99 wall at checkout — trust killer. One honest price. */}
       <section id="pricing" className="py-24 px-4 sm:px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-4">
+        <div className="max-w-md mx-auto">
+          <div className="text-center mb-10">
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-3">
-              מחירים פשוטים וברורים
+              מחיר אחד. הכל כלול.
             </h2>
-            <p className="text-gray-500 text-lg mb-3">ללא הפתעות. ביטול בכל עת.</p>
-            <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 text-sm font-semibold px-4 py-2 rounded-full">
-              <Zap size={14} />
-              חסוך 20% בתשלום שנתי
-            </div>
+            <p className="text-gray-500 text-lg">ללא הפתעות, ללא חבילות מבלבלות. ביטול בכל עת.</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 mt-10">
-            {plans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative rounded-2xl p-7 flex flex-col transition-all ${
-                  plan.popular
-                    ? "bg-green-600 text-white shadow-2xl shadow-green-200 scale-105"
-                    : "bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg"
-                }`}
-              >
-                {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md whitespace-nowrap">
-                    ⭐ הפופולרי ביותר
-                  </div>
-                )}
+          <div className="relative rounded-3xl p-8 bg-green-600 text-white shadow-2xl shadow-green-200">
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-md whitespace-nowrap">
+              ⭐ 14 יום ניסיון חינם
+            </div>
 
-                <div className="mb-6">
-                  <div className={`text-lg font-bold mb-1 ${plan.popular ? "text-green-100" : "text-gray-500"}`}>
-                    {plan.name}
-                  </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-4xl font-extrabold ${plan.popular ? "text-white" : "text-gray-900"}`}>
-                      ₪{plan.price}
-                    </span>
-                    <span className={`text-sm ${plan.popular ? "text-green-200" : "text-gray-400"}`}>/חודש</span>
-                  </div>
-                </div>
-
-                <ul className="space-y-3 flex-1 mb-7">
-                  {plan.features.map((feat) => (
-                    <li key={feat} className="flex items-center gap-2.5 text-sm">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        plan.popular ? "bg-green-500" : "bg-green-100"
-                      }`}>
-                        <Check size={11} className={plan.popular ? "text-white" : "text-green-600"} />
-                      </div>
-                      <span className={plan.popular ? "text-green-50" : "text-gray-700"}>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <Link
-                  href="/register"
-                  className={`block text-center py-3 rounded-xl font-bold text-sm transition-all ${
-                    plan.popular
-                      ? "bg-white text-green-700 hover:bg-green-50"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                  }`}
-                >
-                  התחל עכשיו
-                </Link>
+            <div className="text-center mb-6 pt-2">
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-5xl font-extrabold">₪99</span>
+                <span className="text-green-200 text-base">/חודש</span>
               </div>
-            ))}
+              <p className="text-green-100 text-sm mt-2">כולל מע״מ · ללא כרטיס אשראי לניסיון</p>
+            </div>
+
+            <ul className="space-y-3 mb-7">
+              {[
+                "ניהול לקוחות (CRM) ללא הגבלה",
+                "יומן עבודה ותכנון מסלולים",
+                "ניהול פיננסי, חשבוניות ודוחות רווח",
+                "הצעות מחיר ושליחה ב-WhatsApp",
+                "תזכורות תשלום וסגירת יום",
+                "כלי AI לגינון",
+                "עובד על כל מכשיר — נייד, טאבלט, מחשב",
+              ].map((feat) => (
+                <li key={feat} className="flex items-center gap-2.5 text-sm">
+                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                    <Check size={11} className="text-white" />
+                  </div>
+                  <span className="text-green-50">{feat}</span>
+                </li>
+              ))}
+            </ul>
+
+            <Link
+              href="/register"
+              className="block text-center py-3.5 rounded-xl font-bold text-base bg-white text-green-700 hover:bg-green-50 transition-all"
+            >
+              התחל 14 יום ניסיון חינם
+            </Link>
           </div>
         </div>
       </section>
