@@ -81,6 +81,12 @@ export default function Header({ title, subtitle, action, showBack = false }: He
   >(null);
   const [savingPayment, setSavingPayment] = useState(false);
 
+  // Pending confirm for permanently dismissing a missed-visit notif.
+  // Holds the notif's id + display text so the modal can name it. Unlike
+  // other categories (local-only X), this dismissal writes to the DB, so
+  // we gate it behind a "are you sure?" prompt.
+  const [missedConfirm, setMissedConfirm] = useState<{ id: string; text: string } | null>(null);
+
   async function markPaid(txIds: string[]) {
     if (txIds.length === 0) return;
     setSavingPayment(true);
@@ -385,6 +391,16 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       })();
     }
   };
+  // X-button entry point. Missed-visit dismissals are permanent (they
+  // write to the DB), so route those through a confirm modal first.
+  // Every other category is local-only and dismisses immediately.
+  const requestDismiss = (n: Notif) => {
+    if (n.missed) {
+      setMissedConfirm({ id: n.id, text: n.text });
+      return;
+    }
+    dismiss(n.id);
+  };
   const dismissAll = () => setNotifs([]);
 
   const colorMap = {
@@ -626,7 +642,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                               </span>
                               <p className="text-sm text-gray-700 flex-1 leading-snug">{n.text}</p>
                               <button
-                                onClick={(e) => { e.stopPropagation(); dismiss(n.id); }}
+                                onClick={(e) => { e.stopPropagation(); requestDismiss(n); }}
                                 aria-label="סגור התראה"
                                 className="text-gray-300 hover:text-gray-500 flex-shrink-0 mt-0.5 transition-colors"
                               >
@@ -690,6 +706,43 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                 className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
                 לא, עדיין לא
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Missed-visit dismiss confirm — this removal is permanent (it
+          writes to the DB), so we ask before doing it. "כן, הסר" runs
+          the real dismiss(); backdrop / "ביטול" just closes. */}
+      {missedConfirm && (
+        <div
+          className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4"
+          onClick={() => setMissedConfirm(null)}
+          dir="rtl"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold text-gray-900 mb-1.5">להסיר את ההתראה?</h3>
+            <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+              <strong className="text-gray-900">{missedConfirm.text}</strong>
+              <br />
+              ההתראה תוסר לצמיתות ולא תחזור. להמשיך?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { dismiss(missedConfirm.id); setMissedConfirm(null); }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                כן, הסר
+              </button>
+              <button
+                onClick={() => setMissedConfirm(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                ביטול
               </button>
             </div>
           </div>
