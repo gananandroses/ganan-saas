@@ -159,6 +159,15 @@ export default function RegisterPage() {
               {loading ? <Loader2 size={18} className="animate-spin" /> : null}
               {loading ? "יוצר חשבון..." : "התחל ניסיון חינם"}
             </button>
+
+            {/* Legal consent line — required when collecting personal
+                data + charging. Registering = agreeing to the terms. */}
+            <p className="text-center text-[11px] text-gray-400 leading-relaxed">
+              בהרשמה אתה מאשר את{" "}
+              <Link href="/terms" className="text-green-600 hover:underline">תנאי השימוש</Link>{" "}
+              ואת{" "}
+              <Link href="/privacy" className="text-green-600 hover:underline">מדיניות הפרטיות</Link>.
+            </p>
           </form>
 
           <p className="text-center text-sm text-gray-500 mt-4">

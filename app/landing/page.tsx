@@ -748,9 +748,8 @@ export default function LandingPage() {
               <div>
                 <div className="text-white font-semibold mb-3">חברה</div>
                 <div className="space-y-2">
-                  <a href="#" className="block hover:text-green-400 transition-colors">אודות</a>
-                  <a href="#" className="block hover:text-green-400 transition-colors">פרטיות</a>
-                  <a href="#" className="block hover:text-green-400 transition-colors">תנאי שימוש</a>
+                  <a href="/privacy" className="block hover:text-green-400 transition-colors">פרטיות</a>
+                  <a href="/terms" className="block hover:text-green-400 transition-colors">תנאי שימוש</a>
                 </div>
               </div>
             </div>
