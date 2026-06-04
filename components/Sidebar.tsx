@@ -48,12 +48,24 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
     ],
   },
   {
-    // Understanding the numbers + learning. Kept apart from the
-    // operational "resources" group so analytics doesn't get buried.
-    title: "תובנות וידע",
+    // Performance / decision-data. Split OUT of the old "תובנות וידע"
+    // bucket: analytics is data you act on (a strategic, periodic job,
+    // done by the owner) and deserves its own weight — it was getting
+    // diluted sitting next to the articles "knowledge" content. We keep
+    // it separate from פיננסים on purpose: finance is the daily
+    // operational money job, analytics is the periodic decision job —
+    // different cadence, different person as a business scales.
+    title: "ביצועים",
     items: [
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
-      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
+    ],
+  },
+  {
+    // Knowledge center stands alone at the bottom — it's "nice to have"
+    // reference content, not core, so it gets the least prominence.
+    title: "ידע",
+    items: [
+      { href: "/articles", label: "מרכז ידע", icon: BookOpen },
     ],
   },
 ];

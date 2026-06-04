@@ -43,9 +43,18 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
     ],
   },
   {
-    title: "תובנות וידע",
+    // Mirror of Sidebar.tsx — analytics split out into its own
+    // "ביצועים" group (decision-data, owner's periodic job) so it isn't
+    // buried next to the knowledge content.
+    title: "ביצועים",
     items: [
       { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
+    ],
+  },
+  {
+    // Knowledge + settings live at the bottom — least-used housekeeping.
+    title: "ידע והגדרות",
+    items: [
       { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
       { href: "/settings",  label: "הגדרות", icon: Settings },
     ],
