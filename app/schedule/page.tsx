@@ -1296,24 +1296,32 @@ function SchedulePageInner() {
   const todayISO = formatDateISO(today);
 
   // "Unclosed jobs" — pending/in_progress jobs whose date already
-  // passed (yesterday or earlier this month). These are the
-  // "I worked there but forgot to mark סיום" cases. Surfaced as a
-  // persistent banner at the top of the schedule so the gardener
-  // can clear them in one tap each and get the WhatsApp bill flow
-  // for whatever they actually finished.
-  const startOfMonthISO = useMemo(() => {
-    const d = new Date(today.getFullYear(), today.getMonth(), 1);
+  // passed. These are the "I worked there but forgot to mark סיום"
+  // cases. Surfaced as a persistent banner at the top of the schedule
+  // so the gardener can clear them in one tap each and get the
+  // WhatsApp bill flow for whatever they actually finished.
+  //
+  // Window: the last 60 days (not "since the 1st of THIS month"). The
+  // old month-start bound made every unclosed job silently vanish at
+  // midnight on the 1st — a job from May 20 forgotten over the
+  // weekend disappeared the moment June started. 60 days comfortably
+  // covers the current month + the previous one, so nothing slips
+  // through a month boundary, without dredging up ancient abandoned
+  // rows.
+  const lookbackISO = useMemo(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 60);
     return formatDateISO(d);
   }, [today]);
   const unclosedJobs = useMemo(() => {
     return jobs
       .filter((j) =>
         (j.status === "pending" || j.status === "in_progress") &&
-        j.date >= startOfMonthISO &&
+        j.date >= lookbackISO &&
         j.date < todayISO,
       )
       .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-  }, [jobs, startOfMonthISO, todayISO]);
+  }, [jobs, lookbackISO, todayISO]);
   const [unclosedExpanded, setUnclosedExpanded] = useState(true);
   const [closingJobId, setClosingJobId] = useState<string | null>(null);
 
