@@ -24,11 +24,20 @@ const navGroups: { title: string | null; items: { href: string; label: string; i
     ],
   },
   {
+    // The quote→project pipeline, ordered as a sequence so it reads as
+    // ONE flow instead of three unrelated tools: set up your catalog →
+    // build a quote → it becomes a project. Numbered labels reinforce
+    // the order.
+    title: "מהצעה לביצוע",
+    items: [
+      { href: "/pricer",   label: "1 · מחירון", icon: ClipboardList },
+      { href: "/quote",    label: "2 · הצעות מחיר", icon: FileText },
+      { href: "/projects", label: "3 · פרויקטים", icon: FolderKanban },
+    ],
+  },
+  {
     title: "כלי עבודה",
     items: [
-      { href: "/projects",    label: "פרויקטים", icon: FolderKanban },
-      { href: "/quote",       label: "הצעת מחיר", icon: FileText },
-      { href: "/pricer",      label: "מחירון", icon: ClipboardList },
       { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
       { href: "/automations", label: "אוטומציות", icon: Zap },
       // כלי AI הוסתר — הכלים היו הדגמה בלבד (לא AI אמיתי). הוחלט לא

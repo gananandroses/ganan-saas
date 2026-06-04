@@ -23,11 +23,17 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
     ],
   },
   {
+    // The quote→project pipeline as one ordered flow (see Sidebar.tsx).
+    title: "מהצעה לביצוע",
+    items: [
+      { href: "/pricer",   label: "1 · מחירון", icon: Tag },
+      { href: "/quote",    label: "2 · הצעות מחיר", icon: FileText },
+      { href: "/projects", label: "3 · פרויקטים", icon: FolderKanban },
+    ],
+  },
+  {
     title: "כלי עבודה",
     items: [
-      { href: "/projects",    label: "פרויקטים", icon: FolderKanban },
-      { href: "/quote",       label: "הצעת מחיר", icon: FileText },
-      { href: "/pricer",      label: "מחירון", icon: Tag },
       { href: "/inventory",   label: "ציוד ומלאי", icon: Package },
       { href: "/automations", label: "אוטומציות", icon: Zap },
       // כלי AI הוסתר — היה הדגמה בלבד, לא AI אמיתי.
