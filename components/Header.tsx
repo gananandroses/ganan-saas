@@ -30,6 +30,11 @@ interface Notif {
   // aggregated per customer — confirming pays off ALL of that
   // customer's outstanding balances at once.
   payment?: { txIds: string[]; customerName: string; amount: number };
+  // When set, dismissing this notif writes through to the DB so it
+  // never comes back on refresh. Used by the "דרוש תיאום מחדש"
+  // (missed-visit) category: clicking X marks the underlying cancelled
+  // job as resolved instead of just hiding it locally.
+  missed?: { jobId: string };
   // Enriched metadata for scheduling-category notifs so the bell can
   // render them with sub-grouping (דחוף / השבוע / רחוקים), a city,
   // a cadence chip, and a WhatsApp shortcut.
@@ -209,7 +214,10 @@ export default function Header({ title, subtitle, action, showBack = false }: He
           text: `${j.customer_name} — ${reasonLabel} · ${j.job_date}`,
           type: "orange",
           category: "missed",
-          href: "/automations",
+          // No href — the row's X persists the dismissal (below). The
+          // old "/automations" target is gone, and there's nothing to
+          // navigate to: the action is "I handled this, stop nagging".
+          missed: { jobId: String(j.id) },
         });
       });
 
@@ -351,7 +359,32 @@ export default function Header({ title, subtitle, action, showBack = false }: He
     };
   }, []);
 
-  const dismiss = (id: string) => setNotifs((prev) => prev.filter((n) => n.id !== id));
+  const dismiss = (id: string) => {
+    // Find the notif first — some categories need to persist the
+    // dismissal, not just hide it. Missed-visit rows reappear on every
+    // refresh as long as the underlying cancelled job still carries a
+    // "no_show"/"force_majeure" reason (see lib/missed-visits.ts). So
+    // dismissing one rewrites that reason to a sentinel the matcher
+    // ignores ("resolved") — the user's X means "I handled this".
+    const target = notifs.find((n) => n.id === id);
+    setNotifs((prev) => prev.filter((n) => n.id !== id));
+    if (target?.missed) {
+      const jobId = target.missed.jobId;
+      (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { error } = await supabase
+          .from("jobs")
+          .update({ cancellation_reason: "resolved" })
+          .eq("id", jobId)
+          .eq("user_id", user.id);
+        // On failure, re-fetch so the notif comes back rather than
+        // silently staying hidden while the DB is unchanged — the same
+        // silent-swallow bug class we fixed for payments.
+        if (error) setNotifTick((t) => t + 1);
+      })();
+    }
+  };
   const dismissAll = () => setNotifs([]);
 
   const colorMap = {
