@@ -3,8 +3,22 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 const PUBLIC_ROUTES = ['/login', '/register', '/', '/landing', '/tour', '/demo', '/auth/callback', '/terms', '/privacy']
 
+// Routes whose page code still ships but is retired from the product:
+// removed from every menu and now also unreachable by direct URL. We
+// redirect instead of deleting the folders so the (real) automations
+// code can be revived later if wanted. ai-tools is a non-functional
+// mockup — keeping it reachable would let a paying user stumble onto a
+// fake feature, which is exactly the credibility risk we're avoiding.
+const RETIRED_ROUTES = ['/ai-tools', '/plants', '/automations']
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // Hard-retire dead modules — bounce any direct-URL access back to the
+  // dashboard before doing anything else.
+  if (RETIRED_ROUTES.some(route => pathname === route || pathname.startsWith(route + '/'))) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
 
   // Allow public routes, subscribe pages, and static/api paths
   if (
