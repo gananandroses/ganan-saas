@@ -389,11 +389,12 @@ export default function EndOfDayPage() {
         )}
 
         {/* ── Hot signals still open ── */}
+        {/* Informational summary only. This used to deep-link into the
+            retired /automations hub; those items now live across the bell,
+            finance and schedule, so there's no single correct destination.
+            We surface the count at wind-down without a misleading button. */}
         {totalHotIssues > 0 && (
-          <button
-            onClick={() => router.push("/automations")}
-            className="w-full bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 flex items-center gap-3 hover:border-gray-200 hover:shadow-sm transition-all text-right"
-          >
+          <div className="w-full bg-white border border-gray-100 rounded-3xl p-5 sm:p-6 flex items-center gap-3 text-right">
             <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
               <Flame size={16} className="text-red-500" />
             </div>
@@ -405,8 +406,7 @@ export default function EndOfDayPage() {
                 {debtCount > 0 && `${debtCount} חובות פתוחים (${fmt(debtTotal)})`}
               </p>
             </div>
-            <ArrowLeft size={14} className="text-gray-300 flex-shrink-0" />
-          </button>
+          </div>
         )}
 
         {/* ── Plan next visits — link to the bulk-by-city planner ── */}
