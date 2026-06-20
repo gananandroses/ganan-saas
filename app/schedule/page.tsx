@@ -2174,7 +2174,7 @@ function SchedulePageInner() {
                             "bg-emerald-100 text-emerald-700"
                           }`}
                         >
-                          {j.customerName}
+                          {j.time && <span className="tabular-nums opacity-70">{j.time} </span>}{j.customerName}
                         </div>
                       ))}
                       {dayJobs.length > 3 && (
@@ -2318,7 +2318,7 @@ function SchedulePageInner() {
                               "bg-emerald-100 text-emerald-700"
                             }`}
                           >
-                            {j.customerName}
+                            {j.time && <span className="tabular-nums opacity-70">{j.time} </span>}{j.customerName}
                           </div>
                         ))}
                         {dayJobs.length > 3 && (
