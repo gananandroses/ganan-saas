@@ -2134,7 +2134,7 @@ function SchedulePageInner() {
                                   "bg-white border border-gray-100 hover:border-gray-300"
                     }`}
                   >
-                    {/* Top row: day-name on the right, date on the left */}
+                    {/* Top row: day-name on the right, date + holiday dot on the left */}
                     <div className="flex items-center justify-between gap-1">
                       <span className={`text-xs sm:text-sm font-bold ${
                         isSelected ? "text-white" :
@@ -2143,35 +2143,45 @@ function SchedulePageInner() {
                       }`}>
                         {HEBREW_DAYS_SHORT[day.getDay()]}
                       </span>
-                      <span className={`text-[10px] sm:text-[11px] font-medium tabular-nums ${
-                        isSelected ? "text-white/70" : "text-gray-400"
-                      }`}>
-                        {dateLabel}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {holiday && (
+                          <span
+                            aria-label={holiday.name}
+                            title={holiday.name}
+                            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                              isSelected ? "bg-white/70" :
+                              holiday.type === "major" || holiday.type === "memorial" ? "bg-amber-400" : "bg-blue-400"
+                            }`}
+                          />
+                        )}
+                        <span className={`text-[10px] sm:text-[11px] font-medium tabular-nums ${
+                          isSelected ? "text-white/70" : "text-gray-400"
+                        }`}>
+                          {dateLabel}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Job count + holiday hint */}
-                    <div className="mt-auto pt-1.5 flex items-end justify-between gap-1">
-                      {dayJobs.length > 0 ? (
-                        <span className={`text-[10px] sm:text-xs font-semibold ${
-                          isSelected ? "text-white/90" :
-                          isToday   ? "text-emerald-700" :
-                                      "text-gray-700"
-                        }`}>
-                          {dayJobs.length} {dayJobs.length === 1 ? "עבודה" : "עבודות"}
-                        </span>
-                      ) : (
-                        <span className={`text-[10px] ${isSelected ? "text-white/40" : "text-gray-300"}`}>—</span>
-                      )}
-                      {holiday && (
-                        <span
-                          aria-label={holiday.name}
-                          title={holiday.name}
-                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                            isSelected ? "bg-white/70" :
-                            holiday.type === "major" || holiday.type === "memorial" ? "bg-amber-400" : "bg-blue-400"
+                    {/* Job name chips — what's actually booked that day */}
+                    <div className="mt-1.5 flex flex-col gap-0.5 overflow-hidden">
+                      {dayJobs.slice(0, 3).map((j) => (
+                        <div
+                          key={j.id}
+                          className={`text-[9px] sm:text-[10px] leading-tight font-semibold px-1 py-0.5 rounded truncate ${
+                            isSelected ? "bg-white/20 text-white" :
+                            j.status === "completed" ? "bg-gray-100 text-gray-400 line-through" :
+                            j.priority === "urgent" ? "bg-red-100 text-red-700" :
+                            "bg-emerald-100 text-emerald-700"
                           }`}
-                        />
+                        >
+                          {j.customerName}
+                        </div>
+                      ))}
+                      {dayJobs.length > 3 && (
+                        <span className={`text-[9px] font-bold px-0.5 ${isSelected ? "text-white/70" : "text-gray-400"}`}>+{dayJobs.length - 3}</span>
+                      )}
+                      {dayJobs.length === 0 && (
+                        <span className={`text-[10px] ${isSelected ? "text-white/40" : "text-gray-300"}`}>—</span>
                       )}
                     </div>
                   </button>
@@ -2277,28 +2287,45 @@ function SchedulePageInner() {
                       // Tap a day in month view → jump to day view, classic Apple Calendar pattern
                       if (hasJobs) setView("day");
                     }}
-                    className={`relative flex flex-col items-center justify-start min-h-[70px] sm:min-h-[84px] py-2.5 px-0.5 rounded-xl transition-all ${bgClass}`}
+                    className={`relative flex flex-col items-stretch text-right min-h-[96px] sm:min-h-[116px] p-1.5 rounded-xl transition-all overflow-hidden ${bgClass}`}
                   >
-                    <span className={`text-base sm:text-lg font-bold leading-tight ${dateColor}`}>
-                      {day.getDate()}
-                    </span>
-                    {holiday && (
-                      <span className={`text-[8px] leading-tight font-semibold mt-0.5 truncate w-full px-0.5 ${
-                        isSelected ? "text-white/80" : holidayStyle(holiday.type).text
-                      }`}>
-                        {holiday.name}
+                    {/* Date number + holiday dot on the top row */}
+                    <div className="flex items-center justify-between gap-1 px-0.5">
+                      <span className={`text-sm sm:text-base font-bold leading-none ${dateColor}`}>
+                        {day.getDate()}
                       </span>
-                    )}
+                      {holiday && (
+                        <span
+                          aria-label={holiday.name}
+                          title={holiday.name}
+                          className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            isSelected ? "bg-white/70" :
+                            holiday.type === "major" || holiday.type === "memorial" ? "bg-amber-400" : "bg-blue-400"
+                          }`}
+                        />
+                      )}
+                    </div>
+                    {/* Job name chips — the actual booked work, not just dots */}
                     {hasJobs && (
-                      <div className="absolute bottom-1 left-0 right-0 flex justify-center gap-0.5">
-                        {dayJobs.slice(0, 3).map((j, idx) => (
-                          <div key={idx} className={`w-1 h-1 rounded-full ${
-                            isSelected ? "bg-white" :
-                            j.priority === "urgent" ? "bg-red-500" :
-                            j.status === "completed" ? "bg-gray-300" :
-                            "bg-emerald-500"
-                          }`} />
+                      <div className="mt-1 flex flex-col gap-0.5 overflow-hidden">
+                        {dayJobs.slice(0, 3).map((j) => (
+                          <div
+                            key={j.id}
+                            className={`text-[10px] leading-tight font-semibold px-1.5 py-0.5 rounded truncate ${
+                              isSelected ? "bg-white/20 text-white" :
+                              j.status === "completed" ? "bg-gray-100 text-gray-400 line-through" :
+                              j.priority === "urgent" ? "bg-red-100 text-red-700" :
+                              "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {j.customerName}
+                          </div>
                         ))}
+                        {dayJobs.length > 3 && (
+                          <span className={`text-[9px] font-bold px-1 ${isSelected ? "text-white/70" : "text-gray-400"}`}>
+                            +{dayJobs.length - 3} נוספות
+                          </span>
+                        )}
                       </div>
                     )}
                   </button>
