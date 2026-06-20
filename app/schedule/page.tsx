@@ -1839,7 +1839,7 @@ function SchedulePageInner() {
 
           {/* View tabs + date navigator */}
           <div className="flex items-center justify-between gap-3 mt-4">
-            <div className="inline-flex items-center bg-gray-100 rounded-lg p-0.5">
+            <div className="inline-flex items-center bg-gray-100 rounded-xl p-1">
               {(["day","week","month"] as const).map(v => {
                 const label = v === "day" ? "יום" : v === "week" ? "שבוע" : "חודש";
                 const active = view === v;
@@ -1847,7 +1847,7 @@ function SchedulePageInner() {
                   <button
                     key={v}
                     onClick={() => setView(v)}
-                    className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                    className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
                       active ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"
                     }`}
                   >
@@ -1857,11 +1857,11 @@ function SchedulePageInner() {
               })}
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {(view !== "month" && selectedISO !== todayISO) || (view === "month" && monthOffset !== 0) ? (
                 <button
                   onClick={jumpToToday}
-                  className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
+                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   היום
                 </button>
@@ -1869,19 +1869,19 @@ function SchedulePageInner() {
               <button
                 onClick={() => navigateDate(-1)}
                 aria-label="קודם"
-                className="hit-44 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                className="hit-44 w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={20} />
               </button>
-              <span className="text-sm font-semibold text-gray-700 min-w-[140px] text-center tabular-nums">
+              <span className="text-base font-bold text-gray-800 min-w-[150px] text-center tabular-nums">
                 {headerDateLabel}
               </span>
               <button
                 onClick={() => navigateDate(1)}
                 aria-label="הבא"
-                className="hit-44 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                className="hit-44 w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={20} />
               </button>
             </div>
           </div>
@@ -1889,11 +1889,14 @@ function SchedulePageInner() {
       </header>
 
       {/* ── Body ──────────────────────────────────────────────────────────── */}
-      <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28">
+      <main className="max-w-screen-md mx-auto px-4 sm:px-6 py-5 pb-28 flex flex-col">
 
-        {/* Monthly revenue progress against min/target. Lives at the
-            top so the gardener sees "how am I doing this month" before
-            anything else when they open the schedule. */}
+        {/* ── Secondary section: goal + action banners ──────────────────────
+            `order-last` on this wrapper sinks the whole block BELOW the
+            calendar views, so the days/dates/jobs always lead and the goal,
+            auto-planning and alerts sit underneath. A top border separates
+            it from the calendar above. */}
+        <div className="order-last mt-7 pt-6 border-t border-gray-100">
         <div className="mb-4">
           <MonthlyGoalCard />
         </div>
@@ -2075,6 +2078,8 @@ function SchedulePageInner() {
             </div>
           </div>
         )}
+        </div>
+        {/* ── End secondary section ─────────────────────────────────────────── */}
 
         {/* DAY VIEW — single column timeline of the selected day */}
         {view === "day" && (
@@ -2123,7 +2128,7 @@ function SchedulePageInner() {
                   <button
                     key={iso}
                     onClick={() => setSelectedISO(iso)}
-                    className={`relative flex flex-col rounded-xl p-2 min-h-[88px] text-right transition-all ${
+                    className={`relative flex flex-col rounded-xl p-2.5 min-h-[100px] text-right transition-all ${
                       isSelected ? "bg-gray-900 text-white shadow-md" :
                       isToday   ? "bg-emerald-50 ring-1 ring-emerald-200" :
                                   "bg-white border border-gray-100 hover:border-gray-300"
@@ -2235,14 +2240,14 @@ function SchedulePageInner() {
         {/* MONTH VIEW — kept the original calendar, softer palette */}
         {view === "month" && (
           <div>
-            <div className="grid grid-cols-7 mb-1.5">
+            <div className="grid grid-cols-7 mb-2">
               {["א׳","ב׳","ג׳","ד׳","ה׳","ו׳","ש׳"].map((d) => (
-                <div key={d} className="text-center text-[10px] font-semibold py-1 tracking-wide text-gray-400">
+                <div key={d} className="text-center text-xs font-bold py-1.5 tracking-wide text-gray-400">
                   {d}
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-1.5">
               {calendarDays.map((day, i) => {
                 if (!day) return <div key={`empty-${i}`} />;
                 const iso = formatDateISO(day);
@@ -2272,9 +2277,9 @@ function SchedulePageInner() {
                       // Tap a day in month view → jump to day view, classic Apple Calendar pattern
                       if (hasJobs) setView("day");
                     }}
-                    className={`relative flex flex-col items-center justify-start min-h-[52px] py-1.5 px-0.5 rounded-lg transition-all ${bgClass}`}
+                    className={`relative flex flex-col items-center justify-start min-h-[70px] sm:min-h-[84px] py-2.5 px-0.5 rounded-xl transition-all ${bgClass}`}
                   >
-                    <span className={`text-sm font-bold leading-tight ${dateColor}`}>
+                    <span className={`text-base sm:text-lg font-bold leading-tight ${dateColor}`}>
                       {day.getDate()}
                     </span>
                     {holiday && (
