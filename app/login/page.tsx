@@ -76,6 +76,11 @@ export default function LoginPage() {
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <div className="mt-1.5 text-left">
+                <Link href="/forgot-password" className="text-xs text-green-600 hover:underline font-medium">
+                  שכחת סיסמה?
+                </Link>
+              </div>
             </div>
 
             {/* Error */}

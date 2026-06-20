@@ -7,7 +7,14 @@ export async function GET(request: NextRequest) {
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type')
 
-  const redirectTo = NextResponse.redirect(`${origin}/dashboard`)
+  // Where to land after a successful exchange. Password-recovery links pass
+  // ?next=/auth/update-password so the user sets a new password instead of
+  // dropping straight onto the dashboard. Only allow internal paths.
+  const nextParam = searchParams.get('next')
+  const safeNext = nextParam && nextParam.startsWith('/') ? nextParam : '/dashboard'
+  const recoveryNext = type === 'recovery' ? '/auth/update-password' : safeNext
+
+  const redirectTo = NextResponse.redirect(`${origin}${recoveryNext}`)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

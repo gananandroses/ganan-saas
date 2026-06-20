@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/login', '/register', '/', '/landing', '/tour', '/demo', '/auth/callback', '/terms', '/privacy']
+const PUBLIC_ROUTES = ['/login', '/register', '/', '/landing', '/tour', '/demo', '/auth/callback', '/forgot-password', '/terms', '/privacy']
 
 // Routes whose page code still ships but is retired from the product:
 // removed from every menu and now also unreachable by direct URL. We
