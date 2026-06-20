@@ -237,51 +237,76 @@ function MaterialAutocomplete({ value, onSelect, onChange: onTextChange }: {
   onChange: (text: string) => void;
 }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [highlightIdx, setHighlightIdx] = useState(0);
+  // -1 = the "add as a new custom item" row (the default). 0..n highlight a
+  // price-list suggestion. Starting at -1 means Enter keeps the free text
+  // the user typed instead of hijacking it with a partial list match.
+  const [highlightIdx, setHighlightIdx] = useState(-1);
 
-  const suggestions = value.trim().length >= 1
+  const trimmed = value.trim();
+  const suggestions = trimmed.length >= 1
     ? PRICE_LIST.filter(item =>
         item.name.toLowerCase().includes(value.toLowerCase()) ||
         item.id.toLowerCase().includes(value.toLowerCase())
       ).slice(0, 8)
     : [];
+  // Offer an explicit "use what I typed" row unless the text already matches
+  // a list item exactly. This is what lets the user add anything they want.
+  const exactMatch = suggestions.some(s => s.name.toLowerCase() === value.toLowerCase());
+  const showCustom = trimmed.length >= 1 && !exactMatch;
+  const open = showSuggestions && (suggestions.length > 0 || showCustom);
 
   return (
     <div className="relative flex-1">
       <input
         autoComplete="off"
-        placeholder="שם חומר (התחל להקליד לחיפוש מהמחירון)"
+        placeholder="שם החומר (הקלד חופשי או בחר מהמחירון)"
         value={value}
         onChange={e => {
           onTextChange(e.target.value);
           setShowSuggestions(true);
-          setHighlightIdx(0);
+          setHighlightIdx(-1);
         }}
         onFocus={() => setShowSuggestions(true)}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
         onKeyDown={e => {
-          if (!showSuggestions || suggestions.length === 0) return;
+          if (!open) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setHighlightIdx(i => Math.min(i + 1, suggestions.length - 1));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            setHighlightIdx(i => Math.max(i - 1, 0));
+            setHighlightIdx(i => Math.max(i - 1, -1));
           } else if (e.key === "Enter") {
             e.preventDefault();
-            const picked = suggestions[highlightIdx];
-            if (picked) {
-              onSelect(picked);
-              setShowSuggestions(false);
+            // Only pick a list item if the user explicitly navigated to one;
+            // otherwise keep their custom text.
+            if (highlightIdx >= 0 && suggestions[highlightIdx]) {
+              onSelect(suggestions[highlightIdx]);
             }
+            setShowSuggestions(false);
           } else if (e.key === "Escape") {
             setShowSuggestions(false);
           }
         }}
         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
       />
-      {showSuggestions && suggestions.length > 0 && (
+      {open && (
         <div className="absolute z-30 top-full mt-1 right-0 left-0 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+          {showCustom && (
+            <button
+              type="button"
+              onMouseDown={e => e.preventDefault()}
+              // The free text is already saved via onTextChange — this just
+              // confirms the custom entry and closes the dropdown.
+              onClick={() => setShowSuggestions(false)}
+              className={`w-full text-right px-3 py-2 text-sm transition-colors flex items-center gap-2 border-b border-gray-100 ${highlightIdx === -1 ? "bg-green-50" : "hover:bg-green-50"}`}
+            >
+              <Plus size={13} className="text-green-600 flex-shrink-0" />
+              <span className="text-gray-800 truncate flex-1">
+                הוסף <span className="font-semibold">&quot;{value}&quot;</span> כחומר חדש
+              </span>
+            </button>
+          )}
           {suggestions.map((item, idx) => (
             <button
               key={item.id}
