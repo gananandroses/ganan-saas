@@ -11,7 +11,14 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
-import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
+import { type PriceItem } from "@/lib/price-list-data";
+import { loadPricerSettings, buildEffectivePriceList, buildEffectiveCategories, EMPTY } from "@/lib/pricer-merge";
+
+// Base (un-customized) price list + categories, used as the instant default
+// while the user's saved pricer_settings load in. Keeps pickers in sync with
+// whatever the gardener edited on the /pricer screen.
+const BASE_PRICE_LIST = buildEffectivePriceList(EMPTY);
+const BASE_CATEGORIES = buildEffectiveCategories(EMPTY, BASE_PRICE_LIST);
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -91,15 +98,17 @@ const UNITS = ["יח'", "מ\"ר", "מ\"ל", "מטר", "ק\"ג", "ל'", "שק", "
 
 interface PickerItem { item: PriceItem; qty: number; vat: boolean }
 
-function PricerPickerModal({ onClose, onImport }: {
+function PricerPickerModal({ onClose, onImport, priceList, categories }: {
   onClose: () => void;
   onImport: (materials: Material[]) => void;
+  priceList: PriceItem[];
+  categories: { key: string; label: string }[];
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [picked, setPicked] = useState<Record<string, PickerItem>>({});
 
-  const filtered = PRICE_LIST.filter(item => {
+  const filtered = priceList.filter(item => {
     const matchCat = category === "all" || item.category === category;
     const q = search.trim().toLowerCase();
     return matchCat && (!q || item.name.toLowerCase().includes(q));
@@ -160,12 +169,12 @@ function PricerPickerModal({ onClose, onImport }: {
       {/* Category pills */}
       <div className="px-4 py-2 border-b border-gray-100 overflow-x-auto">
         <div className="flex gap-2 whitespace-nowrap">
-          {PRICE_CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button key={cat.key} onClick={() => setCategory(cat.key)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                 category === cat.key ? "bg-green-600 text-white" : "bg-white border border-gray-200 text-gray-600"
               }`}>
-              {cat.emoji} {cat.label}
+              {cat.label}
             </button>
           ))}
         </div>
@@ -231,10 +240,11 @@ function PricerPickerModal({ onClose, onImport }: {
 
 // ── Materials Section ─────────────────────────────────────────
 
-function MaterialAutocomplete({ value, onSelect, onChange: onTextChange }: {
+function MaterialAutocomplete({ value, onSelect, onChange: onTextChange, priceList }: {
   value: string;
   onSelect: (item: PriceItem) => void;
   onChange: (text: string) => void;
+  priceList: PriceItem[];
 }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   // -1 = the "add as a new custom item" row (the default). 0..n highlight a
@@ -244,7 +254,7 @@ function MaterialAutocomplete({ value, onSelect, onChange: onTextChange }: {
 
   const trimmed = value.trim();
   const suggestions = trimmed.length >= 1
-    ? PRICE_LIST.filter(item =>
+    ? priceList.filter(item =>
         item.name.toLowerCase().includes(value.toLowerCase()) ||
         item.id.toLowerCase().includes(value.toLowerCase())
       ).slice(0, 8)
@@ -327,6 +337,22 @@ function MaterialAutocomplete({ value, onSelect, onChange: onTextChange }: {
 
 function MaterialsEditor({ materials, onChange }: { materials: Material[]; onChange: (m: Material[]) => void }) {
   const [showPicker, setShowPicker] = useState(false);
+  // The gardener's *effective* price list — base list + everything they
+  // customized on /pricer (custom items, edited prices/names, hidden items,
+  // custom categories). Loaded async; falls back to the base list meanwhile.
+  const [priceList, setPriceList] = useState<PriceItem[]>(BASE_PRICE_LIST);
+  const [categories, setCategories] = useState<{ key: string; label: string }[]>(BASE_CATEGORIES);
+
+  useEffect(() => {
+    let alive = true;
+    loadPricerSettings().then(settings => {
+      if (!alive) return;
+      const items = buildEffectivePriceList(settings);
+      setPriceList(items);
+      setCategories(buildEffectiveCategories(settings, items));
+    });
+    return () => { alive = false; };
+  }, []);
 
   function add() {
     onChange([...materials, { name: "", qty: 1, unit: "יח'", price: 0, vatIncluded: false }]);
@@ -372,6 +398,7 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
                 value={m.name}
                 onChange={(text) => update(i, "name", text)}
                 onSelect={(item) => pickFromPriceList(i, item)}
+                priceList={priceList}
               />
               <input
                 type="number"
@@ -447,6 +474,8 @@ function MaterialsEditor({ materials, onChange }: { materials: Material[]; onCha
         <PricerPickerModal
           onClose={() => setShowPicker(false)}
           onImport={importFromPricer}
+          priceList={priceList}
+          categories={categories}
         />
       )}
     </div>

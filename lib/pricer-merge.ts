@@ -20,7 +20,7 @@ export interface PricerSettings {
   hiddenCategories: string[];
 }
 
-const EMPTY: PricerSettings = {
+export const EMPTY: PricerSettings = {
   customItems: [],
   customCategories: [],
   overridePrices: {},
