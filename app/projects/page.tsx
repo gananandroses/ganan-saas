@@ -521,7 +521,13 @@ function ProjectFormModal({
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
-    setForm(p => ({ ...p, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm(p => ({ ...p, [name]: value }));
+    // Keep the "שריין ביומן" range mirrored to the project dates so the
+    // user never picks dates twice — set the project start/end once and the
+    // calendar booking range follows automatically.
+    if (name === "start_date") setCalendarDate(value);
+    if (name === "end_date") setCalendarEndDate(value);
   }
 
   const VAT_RATE = 0.18;
@@ -961,7 +967,16 @@ function ProjectFormModal({
           <section className="space-y-3">
             <button
               type="button"
-              onClick={() => setAddToCalendar(v => !v)}
+              onClick={() => setAddToCalendar(v => {
+                const next = !v;
+                // Turning the booking on → prefill its range from the project
+                // dates the user already entered above (no double picking).
+                if (next) {
+                  setCalendarDate(form.start_date || new Date().toISOString().split("T")[0]);
+                  setCalendarEndDate(form.end_date || "");
+                }
+                return next;
+              })}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-colors text-sm font-semibold ${addToCalendar ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 bg-white text-gray-500"}`}
             >
               <span className="text-lg">📅</span>
