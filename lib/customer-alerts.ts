@@ -49,8 +49,13 @@ const INACTIVE_DAYS = 30;
 
 function daysSince(iso: string | null | undefined): number {
   if (!iso) return Infinity;
-  const ms = Date.now() - new Date(iso).getTime();
-  return Math.floor(ms / (1000 * 60 * 60 * 24));
+  // Compare local-midnight to local-midnight so a bare "YYYY-MM-DD" (which JS
+  // parses as UTC) doesn't drift by the timezone offset and flip the count by
+  // a day near midnight — matches how daysOverdue computes its window.
+  const start = new Date(iso.slice(0, 10) + "T00:00:00").getTime();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - start) / (1000 * 60 * 60 * 24));
 }
 
 function norm(s: string | null | undefined): string {

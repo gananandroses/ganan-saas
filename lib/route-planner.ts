@@ -335,7 +335,7 @@ export function planMonth(input: PlanInput): PlanResult {
     for (const c of group.customers) {
       const pick = pickDayFor(c, cursorIdx);
       if (!pick) {
-        unplaceable.push({ customerId: c.id, name: c.name, reason: "אין מקום בטווח (תקציב 8 שעות ביום)" });
+        unplaceable.push({ customerId: c.id, name: c.name, reason: `אין מקום בטווח (תקציב ${dailyHoursBudget} שעות ביום)` });
         continue;
       }
       const price = pricePerVisit(c.monthlyPrice, c.frequency, c.priceMode);

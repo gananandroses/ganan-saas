@@ -1241,9 +1241,9 @@ export default function DashboardPage() {
             {/* Summary row */}
             <div className="mt-4 grid grid-cols-3 gap-3 border-t border-gray-50 pt-4">
               {[
-                { label: "סה״כ הכנסות", value: `₪${chartTotals.totalIncome.toLocaleString()}`, color: "text-green-600" },
-                { label: "סה״כ הוצאות", value: `₪${chartTotals.totalExpense.toLocaleString()}`, color: "text-orange-500" },
-                { label: "רווח (הכנסות − הוצאות)", value: `₪${chartTotals.netProfit.toLocaleString()}`, color: "text-blue-600" },
+                { label: "סה״כ הכנסות", value: `₪${chartTotals.totalIncome.toLocaleString("he-IL")}`, color: "text-green-600" },
+                { label: "סה״כ הוצאות", value: `₪${chartTotals.totalExpense.toLocaleString("he-IL")}`, color: "text-orange-500" },
+                { label: chartTotals.netProfit < 0 ? "הפסד (הכנסות − הוצאות)" : "רווח (הכנסות − הוצאות)", value: `₪${chartTotals.netProfit.toLocaleString("he-IL")}`, color: chartTotals.netProfit < 0 ? "text-red-600" : "text-blue-600" },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>

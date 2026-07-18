@@ -24,14 +24,19 @@ const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
 
 export function isRescheduled(cancelled: JobLite, allJobs: JobLite[]): boolean {
   const cancelledDate = cancelled.job_date || "";
+  // Without a date we can't tell whether a later booking exists — keep the
+  // missed visit in the queue rather than clearing it on an empty-string match.
+  if (!cancelledDate) return false;
   return allJobs.some((other) => {
     if (other.id === cancelled.id) return false;
     if (other.status === "cancelled") return false;
+    const otherDate = other.job_date || "";
+    if (!otherDate) return false;
     const sameCustomer = cancelled.customer_id
       ? other.customer_id === cancelled.customer_id
       : norm(other.customer_name) === norm(cancelled.customer_name);
     if (!sameCustomer) return false;
-    return (other.job_date || "") >= cancelledDate;
+    return otherDate >= cancelledDate;
   });
 }
 
