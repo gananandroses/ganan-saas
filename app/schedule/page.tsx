@@ -1262,6 +1262,9 @@ function SchedulePageInner() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedISO, setSelectedISO] = useState(() => formatDateISO(new Date()));
   const [view, setView] = useState<"day" | "week" | "month">("month");
+  // Header month/year quick-picker popover.
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(() => new Date().getFullYear());
 
   // Backfill state — completed jobs from before lib/complete-job.ts existed
   // that never got a pending-income transaction. See findOrphanCompletedJobs.
@@ -1795,6 +1798,14 @@ function SchedulePageInner() {
     setMonthOffset(0);
   }
 
+  // Jump the month view straight to any chosen year + month (via the header
+  // picker) instead of tapping the prev/next arrow over and over.
+  function goToMonth(year: number, month: number) {
+    setMonthOffset((year - today.getFullYear()) * 12 + (month - today.getMonth()));
+    setView("month");
+    setShowMonthPicker(false);
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F8FA]" dir="rtl">
       {/* ── Sticky header — quiet, minimal ────────────────────────────────────
@@ -1873,9 +1884,65 @@ function SchedulePageInner() {
               >
                 <ChevronRight size={20} />
               </button>
-              <span className="text-base font-bold text-gray-800 min-w-[150px] text-center tabular-nums">
-                {headerDateLabel}
-              </span>
+              <div className="relative">
+                <button
+                  onClick={() => { setPickerYear(displayMonth.getFullYear()); setShowMonthPicker(v => !v); }}
+                  className="text-base font-bold text-gray-800 min-w-[150px] text-center tabular-nums px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  {headerDateLabel}
+                </button>
+                {showMonthPicker && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowMonthPicker(false)} />
+                    <div className="absolute z-50 top-full mt-2 left-1/2 -translate-x-1/2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 p-3">
+                      {/* Year navigator */}
+                      <div className="flex items-center justify-between mb-2.5">
+                        <button
+                          onClick={() => setPickerYear(y => y - 1)}
+                          aria-label="שנה קודמת"
+                          className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+                        <span className="text-sm font-bold text-gray-800 tabular-nums">{pickerYear}</span>
+                        <button
+                          onClick={() => setPickerYear(y => y + 1)}
+                          aria-label="שנה הבאה"
+                          className="hit-44 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                      </div>
+                      {/* Month grid */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {HEBREW_MONTHS.map((m, idx) => {
+                          const isDisplayed = pickerYear === displayMonth.getFullYear() && idx === displayMonth.getMonth();
+                          const isThisMonth = pickerYear === today.getFullYear() && idx === today.getMonth();
+                          return (
+                            <button
+                              key={m}
+                              onClick={() => goToMonth(pickerYear, idx)}
+                              className={`py-2 rounded-lg text-xs font-semibold transition-colors ${
+                                isDisplayed ? "bg-gray-900 text-white" :
+                                isThisMonth ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" :
+                                "text-gray-600 hover:bg-gray-100"
+                              }`}
+                            >
+                              {m}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        onClick={() => { jumpToToday(); setView("month"); setShowMonthPicker(false); }}
+                        className="mt-2.5 w-full text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-2 rounded-lg transition-colors"
+                      >
+                        חזרה לחודש הנוכחי
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => navigateDate(1)}
                 aria-label="הבא"
