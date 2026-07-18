@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import type { Customer, CustomerStatus } from "@/lib/mock-data";
+import { toNet } from "@/lib/vat";
 import BackButton from "@/components/BackButton";
 import { SkeletonBlock, SkeletonCustomerCard } from "@/components/Skeleton";
 import { toast } from "@/components/Toaster";
@@ -230,9 +231,11 @@ function StatDetailModal({
           )}
           {listForType.map(c => {
             const perMonthGross = monthlyContribution(c.monthlyPrice, c.frequency, c.priceMode);
-            const perMonthNet   = Math.round(perMonthGross / 1.18);
-            const vatPerMonth   = Math.round(perMonthGross / 1.18 * 0.18);
-            const priceNet      = Math.round(c.monthlyPrice / 1.18);
+            const perMonthNet   = Math.round(toNet(perMonthGross));
+            // Derive VAT as gross − net so net + VAT always equals gross
+            // (was rounded independently, leaving a ±₪1 gap).
+            const vatPerMonth   = Math.round(perMonthGross) - perMonthNet;
+            const priceNet      = Math.round(toNet(c.monthlyPrice));
             return (
               <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
                 <div>
@@ -1233,7 +1236,7 @@ function CustomersPageInner() {
       // column was never reliably written, so reading it left every card
       // showing "—"; the jobs table is the real source of truth.
       supabase.from("jobs").select("customer_name, job_date, status").eq("user_id", user?.id).order("job_date"),
-      supabase.from("transactions").select("customer_name, amount, status, type").eq("user_id", user?.id).eq("type", "income"),
+      supabase.from("transactions").select("customer_id, customer_name, amount, status, type").eq("user_id", user?.id).eq("type", "income"),
     ]);
 
     // Build two maps off the (ascending-ordered) jobs list:
@@ -1262,20 +1265,28 @@ function CustomersPageInner() {
       }
     });
 
-    // Aggregate transactions by normalized customer name:
+    // Aggregate transactions per customer:
     //   collected (status != pending/overdue) → totalPaid
     //   pending/overdue                       → balance
+    // Keyed by customer_id first (reliable) with a normalized-name fallback
+    // for legacy rows that have no id. Aggregating by name alone merged two
+    // different customers who happen to share a name.
+    const paidById: Record<string, number> = {};
+    const balanceById: Record<string, number> = {};
     const paidByName: Record<string, number> = {};
     const balanceByName: Record<string, number> = {};
     (txData ?? []).forEach((t: Record<string, unknown>) => {
-      const name = normalize(t.customer_name as string);
-      if (!name) return;
       const amount = Number(t.amount) || 0;
       const status = t.status as string | null;
-      if (status === "pending" || status === "overdue") {
-        balanceByName[name] = (balanceByName[name] ?? 0) + amount;
-      } else {
-        paidByName[name] = (paidByName[name] ?? 0) + amount;
+      const isDebt = status === "pending" || status === "overdue";
+      const cid = t.customer_id ? String(t.customer_id) : "";
+      const name = normalize(t.customer_name as string);
+      if (cid) {
+        if (isDebt) balanceById[cid] = (balanceById[cid] ?? 0) + amount;
+        else paidById[cid] = (paidById[cid] ?? 0) + amount;
+      } else if (name) {
+        if (isDebt) balanceByName[name] = (balanceByName[name] ?? 0) + amount;
+        else paidByName[name] = (paidByName[name] ?? 0) + amount;
       }
     });
 
@@ -1303,8 +1314,8 @@ function CustomersPageInner() {
           nextVisit: nextJobMap[key] || (c.next_visit as string) || "",
           notes: c.notes as string || "",
           tags: c.tags as string[] || [],
-          totalPaid: Math.round(paidByName[key] ?? (c.total_paid as number) ?? 0),
-          balance: Math.round(balanceByName[key] ?? 0),
+          totalPaid: Math.round(paidById[String(c.id)] ?? paidByName[key] ?? (c.total_paid as number) ?? 0),
+          balance: Math.round(balanceById[String(c.id)] ?? balanceByName[key] ?? 0),
           lat: c.lat as number || 0,
           lng: c.lng as number || 0,
           defaultDurationHours:
@@ -1323,19 +1334,28 @@ function CustomersPageInner() {
   const monthlyRevenueGross = Math.round(customers
     .filter((c) => c.status !== "inactive")
     .reduce((sum, c) => sum + monthlyContribution(c.monthlyPrice, c.frequency, c.priceMode), 0));
-  const monthlyRevenueNet = Math.round(monthlyRevenueGross / 1.18);
+  const monthlyRevenueNet = Math.round(toNet(monthlyRevenueGross));
   const monthlyVat = monthlyRevenueGross - monthlyRevenueNet;
   const [statModal, setStatModal] = useState<StatModal>(null);
-  const avgClose = customers.length ? Math.round(
-    customers.reduce((sum, c) => {
-      const join = new Date(c.joinDate);
-      const now = new Date();
-      const months =
-        (now.getFullYear() - join.getFullYear()) * 12 +
-        (now.getMonth() - join.getMonth());
-      return sum + months;
-    }, 0) / customers.length
-  ) : 0;
+  // Average months since join. Guard against missing/invalid/future join
+  // dates: a single empty joinDate produced Invalid Date → NaN, which
+  // poisoned the whole average. Only valid dates are counted.
+  const avgClose = (() => {
+    const now = new Date();
+    const monthsList = customers
+      .map((c) => {
+        const join = new Date(c.joinDate);
+        if (isNaN(join.getTime())) return null;
+        const months =
+          (now.getFullYear() - join.getFullYear()) * 12 +
+          (now.getMonth() - join.getMonth());
+        return Math.max(0, months);
+      })
+      .filter((m): m is number => m !== null);
+    return monthsList.length
+      ? Math.round(monthsList.reduce((s, m) => s + m, 0) / monthsList.length)
+      : 0;
+  })();
 
   // Filtered list
   const filteredCustomers = useMemo(() => {
