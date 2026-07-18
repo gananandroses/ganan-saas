@@ -1497,7 +1497,15 @@ export default function PricerPage() {
       {showSaveDraftModal && (
         <SaveDraftModal
           itemCount={quote.length}
-          total={quote.reduce((s, qi) => s + (overridePrices[qi.item.id] ?? qi.item.price) * ((vatItems[qi.item.id] ?? "before") === "after" ? 1 + VAT : 1) * qi.qty, 0)}
+          total={quote.reduce((s, qi) => {
+            // Must mirror the cart's ep(): base × global markup (rounded) × VAT × qty.
+            // Previously the markup was omitted here, so the draft total didn't
+            // match the amount shown in the cart.
+            const base = overridePrices[qi.item.id] ?? qi.item.price;
+            const withMarkup = Math.round(base * (1 + globalMarkup / 100));
+            const vatMul = (vatItems[qi.item.id] ?? "before") === "after" ? 1 + VAT : 1;
+            return s + withMarkup * vatMul * qi.qty;
+          }, 0)}
           onClose={() => setShowSaveDraftModal(false)}
           onSave={saveDraftWithName}
         />

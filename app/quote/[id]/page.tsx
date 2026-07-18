@@ -423,8 +423,8 @@ export default function QuoteViewPage() {
       // Fallback for old quotes without token
       msg = `שלום ${quote.customer_name},\n\nמצורפת הצעת מחיר עבור "${quote.title}":\n\n`;
       quote.items.forEach((i: QuoteItemDB) => {
-        const finalPrice = i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100));
-        msg += `• ${i.name}: ${i.qty} ${i.unit} × ${fmt(finalPrice)} = ${fmt(finalPrice * i.qty)}\n`;
+        const unit = i.customPrice !== undefined ? i.customPrice : i.basePrice * (1 + quote.markup_percent / 100);
+        msg += `• ${i.name}: ${i.qty} ${i.unit} × ${fmt(Math.round(unit))} = ${fmt(Math.round(unit * i.qty))}\n`;
       });
       msg += `\nסה"כ לתשלום: ${fmt(quote.total_with_vat)}`;
       if (settings.businessName) msg += `\n\n${settings.businessName}`;
@@ -454,8 +454,10 @@ export default function QuoteViewPage() {
 
   // Calculate items with effective prices
   const itemsWithCalc = quote.items.map(i => {
-    const finalPrice = i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100));
-    return { ...i, finalPrice, lineTotal: finalPrice * i.qty };
+    // Round the line total once (not the unit) to match how the quote was saved.
+    const unit = i.customPrice !== undefined ? i.customPrice : i.basePrice * (1 + quote.markup_percent / 100);
+    const finalPrice = Math.round(unit);
+    return { ...i, finalPrice, lineTotal: Math.round(unit * i.qty) };
   });
 
   const subRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);

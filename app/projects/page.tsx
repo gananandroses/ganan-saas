@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { type PriceItem } from "@/lib/price-list-data";
 import { loadPricerSettings, buildEffectivePriceList, buildEffectiveCategories, EMPTY } from "@/lib/pricer-merge";
+import { VAT_RATE } from "@/lib/vat";
 
 // Base (un-customized) price list + categories, used as the instant default
 // while the user's saved pricer_settings load in. Keeps pickers in sync with
@@ -76,11 +77,14 @@ function statusColor(s: ProjectStatus) {
   }[s];
 }
 
-const VAT = 0.18;
+const VAT = VAT_RATE;
 
 function materialNetCost(m: Material) {
-  // cost = what was actually entered (the price paid / the contracted price)
-  return m.qty * m.price;
+  // NET (pre-VAT) cost, so it compares like-for-like against budgetBeforeVat
+  // in the profit calc. If the price was entered "כולל מע״מ", strip the VAT;
+  // otherwise it's already net.
+  const line = m.qty * m.price;
+  return m.vatIncluded ? line / (1 + VAT) : line;
 }
 
 function calcFinancials(p: Project) {
@@ -559,7 +563,6 @@ function ProjectFormModal({
     if (name === "end_date") setCalendarEndDate(value);
   }
 
-  const VAT_RATE = 0.18;
   const materialsCost = materials.reduce((s, m) => s + materialNetCost(m), 0);
   const laborCost = (parseFloat(form.labor_hours) || 0) * (parseFloat(form.hourly_rate) || 0);
   const totalCost = materialsCost + laborCost;

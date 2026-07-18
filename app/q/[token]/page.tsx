@@ -514,8 +514,10 @@ export default function PublicQuotePage() {
   }
 
   const itemsWithCalc = quote.items.map(i => {
-    const finalPrice = i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * (1 + quote.markup_percent / 100));
-    return { ...i, finalPrice, lineTotal: finalPrice * i.qty };
+    // Round the line total once (not the unit) to match how the quote was saved.
+    const unit = i.customPrice !== undefined ? i.customPrice : i.basePrice * (1 + quote.markup_percent / 100);
+    const finalPrice = Math.round(unit);
+    return { ...i, finalPrice, lineTotal: Math.round(unit * i.qty) };
   });
 
   const isAccepted = quote.status === "accepted";

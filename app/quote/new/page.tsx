@@ -244,8 +244,12 @@ function QuotePageInner() {
   // Calculate totals
   const markupMultiplier = 1 + markup / 100;
   const itemsWithCalc = items.map(i => {
-    const finalPrice = i.customPrice !== undefined ? i.customPrice : Math.round(i.basePrice * markupMultiplier);
-    const lineTotal = finalPrice * i.qty;
+    // Round the LINE TOTAL once (not the unit price before multiplying by qty),
+    // so cheap items × large quantities aren't inflated by unit rounding
+    // (e.g. ₪2.8 × 1000 = ₪2,800, not rounded-₪3 × 1000 = ₪3,000).
+    const unit = i.customPrice !== undefined ? i.customPrice : i.basePrice * markupMultiplier;
+    const finalPrice = Math.round(unit);
+    const lineTotal = Math.round(unit * i.qty);
     return { ...i, finalPrice, lineTotal };
   });
   const subtotalRaw = itemsWithCalc.reduce((s, i) => s + i.lineTotal, 0);
@@ -593,14 +597,14 @@ function QuotePageInner() {
                     <div>
                       <label className="block text-[10px] text-gray-400 mb-1">כמות</label>
                       <input type="number" min={0} step={0.5} value={i.qty}
-                        onChange={e => updateItem(i.id, { qty: parseFloat(e.target.value) || 0 })}
+                        onChange={e => updateItem(i.id, { qty: Math.max(0, parseFloat(e.target.value) || 0) })}
                         autoComplete="off" inputMode="decimal"
                         className="w-full bg-gray-50 border border-transparent rounded-lg px-2 py-1.5 text-center text-sm font-medium focus:outline-none focus:bg-white focus:border-gray-200 tabular-nums transition-colors" />
                     </div>
                     <div>
                       <label className="block text-[10px] text-gray-400 mb-1">מחיר ליח׳</label>
                       <input type="number" min={0} value={i.finalPrice}
-                        onChange={e => updateItem(i.id, { customPrice: parseFloat(e.target.value) || 0 })}
+                        onChange={e => updateItem(i.id, { customPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
                         autoComplete="off" inputMode="decimal"
                         className="w-full bg-gray-50 border border-transparent rounded-lg px-2 py-1.5 text-center text-sm font-medium focus:outline-none focus:bg-white focus:border-gray-200 tabular-nums transition-colors" />
                     </div>
