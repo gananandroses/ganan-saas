@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import BackButton from "@/components/BackButton";
+import { jobGross } from "@/lib/vat";
 import {
   LineChart,
   Line,
@@ -174,9 +175,14 @@ function compute(
   dateRange: 30 | 90 | 365
 ): ComputedAnalytics {
   // ── date window ────────────────────────────────────────────────────────────
+  // Align the KPI window to the SAME calendar months the revenue chart shows,
+  // so the period totals equal the sum of the chart bars. (Previously the
+  // window was a rolling N-days range while the chart bucketed by calendar
+  // month, so 30/90-day KPIs didn't match the graph.)
   const numMonths = dateRange === 30 ? 1 : dateRange === 90 ? 3 : 12;
   const fromDate = new Date();
-  fromDate.setDate(fromDate.getDate() - dateRange);
+  fromDate.setDate(1);
+  fromDate.setMonth(fromDate.getMonth() - (numMonths - 1));
   const fromStr = fromDate.toISOString().split("T")[0];
 
   // Cash-basis: only count income that was actually received.
@@ -202,10 +208,12 @@ function compute(
   const totalExpenseAll = expenseAll.reduce((s, t) => s + ((t.amount as number) || 0), 0);
   const periodExpense = expensePeriod.reduce((s, t) => s + ((t.amount as number) || 0), 0);
 
-  // Profitability: net profit (after VAT removal) / net income
+  // Profitability = (income − expense) / income, as a %. The old form divided
+  // both sides by 1.18 (algebraically a no-op) and was mislabeled "after VAT".
+  // Can legitimately be negative when the business ran at a loss for the period.
   const profitability =
     periodIncome > 0
-      ? Math.round(((periodIncome - periodExpense) / 1.18 / (periodIncome / 1.18)) * 1000) / 10
+      ? Math.round(((periodIncome - periodExpense) / periodIncome) * 1000) / 10
       : 0;
 
   const activeEmps = employees.filter((e) => e.status !== "offline").length;
@@ -219,10 +227,18 @@ function compute(
   const totalHours = employees.reduce((s, e) => s + ((e.hours_this_month as number) || 0), 0);
   const incomePerHour = totalHours > 0 ? Math.round(monthlyIncome / totalHours) : 0;
 
-  // Completed jobs in period
-  const jobsCompletedPeriod = jobsPeriod.filter((j) => j.status === "completed").length;
+  // Completed jobs in period. Average revenue per job must use the SAME
+  // population in numerator and denominator — the gross value of those
+  // completed jobs, not total period income (which includes non-job income).
+  const completedJobsPeriod = jobsPeriod.filter((j) => j.status === "completed");
+  const completedJobsRevenue = completedJobsPeriod.reduce(
+    (s, j) => s + jobGross((j.price as number) || 0, Boolean(j.price_before_vat)),
+    0,
+  );
   const avgRevenuePerJob =
-    jobsCompletedPeriod > 0 ? Math.round(periodIncome / jobsCompletedPeriod) : 0;
+    completedJobsPeriod.length > 0
+      ? Math.round(completedJobsRevenue / completedJobsPeriod.length)
+      : 0;
 
   // ── Revenue chart ──────────────────────────────────────────────────────────
   const revenueData: RevenuePoint[] = Array.from({ length: numMonths }, (_, i) => {
@@ -328,16 +344,25 @@ function compute(
     .slice(0, 6);
 
   // ── Employee performance (current month) ──────────────────────────────────
-  const empPerf: EmpPerf[] = employees.map((e) => ({
-    name: ((e.name as string) || "").split(" ")[0],
-    fullName: (e.name as string) || "",
-    revenue: ((e.hours_this_month as number) || 0) * ((e.hourly_rate as number) || 0) * 1.6,
-    jobs: Math.round(((e.hours_this_month as number) || 0) / 2.8),
-    rating: +((((e.performance as number) || 80) / 20).toFixed(1)),
-    efficiency: (e.performance as number) || 80,
-    hours: (e.hours_this_month as number) || 0,
-    role: (e.role as string) || "",
-  }));
+  const empPerf: EmpPerf[] = employees.map((e) => {
+    const hours = (e.hours_this_month as number) || 0;
+    const rate = (e.hourly_rate as number) || 0;
+    const performance = (e.performance as number) || 80;
+    return {
+      name: ((e.name as string) || "").split(" ")[0],
+      fullName: (e.name as string) || "",
+      // Honest labor value = hours × rate (removed the arbitrary ×1.6 markup
+      // that presented an invented figure as real revenue).
+      revenue: hours * rate,
+      // Rough job count from hours; kept as an estimate.
+      jobs: Math.round(hours / 2.8),
+      // performance 0..100 → 0..5 stars, clamped so it never exceeds 5.
+      rating: Math.min(5, Math.max(0, +(performance / 20).toFixed(1))),
+      efficiency: performance,
+      hours,
+      role: (e.role as string) || "",
+    };
+  });
 
   // ── AI insights ────────────────────────────────────────────────────────────
   const insights: string[] = [];
@@ -415,7 +440,7 @@ function compute(
       incomePerHour,
       totalCustomers: customers.length,
       totalJobs: jobsPeriod.length,
-      jobsCompletedPeriod,
+      jobsCompletedPeriod: completedJobsPeriod.length,
       avgRevenuePerJob,
       hasEmployees: employees.length > 0,
     },
@@ -605,14 +630,14 @@ function DetailModal({
                   <p className="text-xs text-red-500 mt-0.5">הוצאות</p>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
-                  <p className="text-lg font-bold text-blue-700">{fmt(Math.round((periodIncome - periodExpense) / 1.18))}</p>
-                  <p className="text-xs text-blue-600 mt-0.5">רווח נקי (אחרי מע״מ)</p>
+                  <p className="text-lg font-bold text-blue-700">{fmt(Math.round(periodIncome - periodExpense))}</p>
+                  <p className="text-xs text-blue-600 mt-0.5">רווח (הכנסות − הוצאות)</p>
                 </div>
               </div>
               <div className="bg-slate-50 rounded-xl p-3 mb-3 flex items-center justify-between">
                 <span className="text-sm text-slate-600">רווחיות (אחרי מע״מ)</span>
                 <span className={`text-lg font-bold ${a.kpis.profitability >= 70 ? "text-green-600" : a.kpis.profitability >= 40 ? "text-amber-600" : "text-red-600"}`}>
-                  {a.kpis.profitability > 0 ? `${a.kpis.profitability}%` : "—"}
+                  {a.kpis.profitability !== 0 ? `${a.kpis.profitability}%` : "—"}
                 </span>
               </div>
               <p className="text-xs font-semibold text-slate-500 mb-2">הוצאות בתקופה:</p>
@@ -1053,7 +1078,7 @@ export default function AnalyticsPage() {
             <KpiCard
               icon={TrendingUp}
               label="רווחיות (אחרי מע״מ)"
-              value={a.kpis.profitability > 0 ? `${a.kpis.profitability}%` : "—"}
+              value={a.kpis.profitability !== 0 ? `${a.kpis.profitability}%` : "—"}
               sub="רווח נטו ÷ הכנסה נטו"
               color="teal"
               onClick={() => setActiveModal("profitability")}
@@ -1149,8 +1174,8 @@ export default function AnalyticsPage() {
                   { label: "סה״כ הכנסות (כל הזמנים)", value: fmt(a.chartTotals.totalIncome), color: "text-green-600" },
                   { label: "סה״כ הוצאות (כל הזמנים)", value: fmt(a.chartTotals.totalExpense), color: "text-red-500" },
                   {
-                    label: "רווח נקי (אחרי מע״מ)",
-                    value: fmt(Math.round((a.chartTotals.totalIncome - a.chartTotals.totalExpense) / 1.18)),
+                    label: "רווח נקי (הכנסות − הוצאות)",
+                    value: fmt(Math.round(a.chartTotals.totalIncome - a.chartTotals.totalExpense)),
                     color: "text-blue-600",
                   },
                 ].map((s) => (
