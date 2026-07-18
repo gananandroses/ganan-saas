@@ -1261,7 +1261,7 @@ function SchedulePageInner() {
   const [showNewJobModal, setShowNewJobModal] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedISO, setSelectedISO] = useState(() => formatDateISO(new Date()));
-  const [view, setView] = useState<"day" | "week" | "month">("day");
+  const [view, setView] = useState<"day" | "week" | "month">("month");
 
   // Backfill state — completed jobs from before lib/complete-job.ts existed
   // that never got a pending-income transaction. See findOrphanCompletedJobs.
