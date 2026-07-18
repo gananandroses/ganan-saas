@@ -10,6 +10,7 @@ import {
   Save, RotateCcw, Clock, BookOpen,
 } from "lucide-react";
 import { PRICE_LIST, PRICE_CATEGORIES, type PriceItem } from "@/lib/price-list-data";
+import { VAT_RATE } from "@/lib/vat";
 
 // ── Custom category type ─────────────────────────────────────────────────────
 interface CustomCategory { key: string; label: string; emoji: string; }
@@ -47,7 +48,8 @@ function CatIcon({ category, size = 16 }: { category: string; size?: number }) {
   );
 }
 
-const VAT = 0.17;
+// Central rate (0.18) — was mistakenly 0.17 here, undercharging every quote.
+const VAT = VAT_RATE;
 
 interface QuoteItem {
   item: PriceItem;
