@@ -7,6 +7,7 @@ import { toast, confirmDialog } from "@/components/Toaster";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import { SkeletonKpi, SkeletonList, SkeletonChart } from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase/client";
+import { jobGross } from "@/lib/vat";
 import {
   TrendingUp,
   Users,
@@ -703,10 +704,10 @@ export default function DashboardPage() {
       const todayActive = todaysJobs.filter(j => j.status !== "cancelled");
       // Expected revenue from active jobs today — pull price from jobs table directly.
       const todayJobsFull = (jobs as Record<string, unknown>[]).filter(j => (j.job_date as string) === today && j.status !== "cancelled");
+      // Gross (VAT-inclusive) value, consistent with finance income and the
+      // monthly-goal card. price_before_vat=true means the stored price is net.
       const expectedRevenue = todayJobsFull.reduce((s, j) => {
-        const price = (j.price as number) || 0;
-        const beforeVat = (j.price_before_vat as boolean) || false;
-        return s + (beforeVat ? price : Math.round(price / 1.18));
+        return s + jobGross((j.price as number) || 0, Boolean(j.price_before_vat));
       }, 0);
       // Find the next pending job today (ordered by time).
       const nextJob = todayActive
@@ -1242,7 +1243,7 @@ export default function DashboardPage() {
               {[
                 { label: "סה״כ הכנסות", value: `₪${chartTotals.totalIncome.toLocaleString()}`, color: "text-green-600" },
                 { label: "סה״כ הוצאות", value: `₪${chartTotals.totalExpense.toLocaleString()}`, color: "text-orange-500" },
-                { label: "רווח נקי", value: `₪${chartTotals.netProfit.toLocaleString()}`, color: "text-blue-600" },
+                { label: "רווח (הכנסות − הוצאות)", value: `₪${chartTotals.netProfit.toLocaleString()}`, color: "text-blue-600" },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>

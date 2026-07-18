@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { jobGross } from "@/lib/vat";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { getHoliday, type HolidayType } from "@/lib/israeli-holidays";
 import { getDefaultVatMode } from "@/lib/vat-settings";
@@ -1752,7 +1753,11 @@ function SchedulePageInner() {
     [jobs, selectedISO]
   );
 
-  const dayRevenue = selectedDayJobs.reduce((s, j) => s + (j.priceBeforeVat ? j.price : Math.round(j.price / 1.18)), 0);
+  // Gross value, excluding cancelled visits (a no-show earns nothing).
+  // Consistent with finance/dashboard/goal via the shared jobGross helper.
+  const dayRevenue = selectedDayJobs
+    .filter(j => j.status !== "cancelled")
+    .reduce((s, j) => s + jobGross(j.price, j.priceBeforeVat), 0);
   const dayCompleted = selectedDayJobs.filter(j => j.status === "completed").length;
   const selectedDayHoliday = getHoliday(selectedISO);
 

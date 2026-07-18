@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, Loader2, Sparkles, ChevronDown, ChevronUp, Settings, Check, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { jobGross } from "@/lib/vat";
 
 const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -149,10 +150,15 @@ export default function MonthlyGoalCard({ override }: Props) {
     }
     const min = parseFloat(editMin);
     const tgt = parseFloat(editTarget);
+    const validMin = Number.isFinite(min) && min > 0;
+    const validTgt = Number.isFinite(tgt) && tgt > 0;
+    // Guard against min > target (would render a broken progress bar). Clamp the
+    // minimum so it never exceeds the target.
+    const safeMin = validMin && validTgt ? Math.min(min, tgt) : min;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: Record<string, any> = { user_id: user.id };
-    payload.monthly_goal_min = Number.isFinite(min) && min > 0 ? min : null;
-    payload.monthly_goal_target = Number.isFinite(tgt) && tgt > 0 ? tgt : null;
+    payload.monthly_goal_min = validMin ? safeMin : null;
+    payload.monthly_goal_target = validTgt ? tgt : null;
     payload.work_days = editWorkDays.length > 0 ? editWorkDays : null;
     let { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
     if (error && /work_days/i.test(error.message)) {
@@ -268,16 +274,14 @@ export default function MonthlyGoalCard({ override }: Props) {
       // (which is always ברוטו).
       const jobRows = jobsRes.data ?? [];
       const jobsTotal = jobRows.reduce((s, j) => {
-        const raw = Number(j.price) || 0;
-        return s + (j.price_before_vat ? raw * 1.18 : raw);
+        return s + jobGross(Number(j.price) || 0, Boolean(j.price_before_vat));
       }, 0);
       setScheduledAmount(jobsTotal);
       setScheduledCount(jobRows.length);
       setScheduledItems(
         jobRows
           .map((j) => {
-            const raw = Number(j.price) || 0;
-            const gross = j.price_before_vat ? raw * 1.18 : raw;
+            const gross = jobGross(Number(j.price) || 0, Boolean(j.price_before_vat));
             return {
               date: String(j.job_date ?? ""),
               label: String(j.customer_name || j.type || "ללא שם"),

@@ -1268,13 +1268,18 @@ export default function FinancePage() {
   // KPI calculations (in range)
   const totalIncome = txInRange.filter((t) => t.type === "income" && isCollected(t)).reduce((s, t) => s + t.amount, 0);
   const totalExpense = txInRange.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-  // Net profit = (income - expenses) excluding VAT — the actual money the business keeps
+  // Gross cash flow — money in minus money out (VAT-inclusive).
   const cashFlow = totalIncome - totalExpense;
-  const netProfit = Math.round(cashFlow / 1.18);
   // VAT is owed only on income actually received (cash-basis VAT — Israeli עוסק מורשה default).
   const totalVat = txInRange.filter((t) => t.type === "income" && isCollected(t)).reduce((s, t) => s + t.vatAmount, 0);
-  // VAT paid on expenses (input VAT) — assume expenses include VAT, deductible from VAT collected
-  const inputVat = Math.round(totalExpense - totalExpense / 1.18);
+  // Input VAT actually paid on expenses — from each expense's real vat_amount.
+  // Expenses recorded without an invoice store 0 and correctly contribute no
+  // deductible VAT (previously we synthesised VAT from ALL expenses via
+  // /1.18, over-crediting input VAT and understating VAT owed).
+  const inputVat = txInRange.filter((t) => t.type === "expense").reduce((s, t) => s + (t.vatAmount || 0), 0);
+  // True net profit (after VAT): income net of output VAT minus expenses net
+  // of input VAT — the money the business actually keeps.
+  const netProfit = Math.round((totalIncome - totalVat) - (totalExpense - inputVat));
   // Net VAT to pay = VAT collected - VAT paid on inputs
   const netVatToPay = Math.max(0, totalVat - inputVat);
   const openDebt = txInRange
@@ -1580,7 +1585,7 @@ export default function FinancePage() {
                 <p className="text-xs text-gray-400 mt-0.5">
                   {detailModal === "income" && `${txInRange.filter(t => t.type === "income" && isCollected(t)).length} תנועות · ₪${totalIncome.toLocaleString()} סה״כ`}
                   {detailModal === "expense" && `${txInRange.filter(t => t.type === "expense").length} תנועות · ₪${totalExpense.toLocaleString()} סה״כ`}
-                  {detailModal === "profit" && `(הכנסות - הוצאות) ÷ 1.18 — אחרי הפחתת מע״מ`}
+                  {detailModal === "profit" && `(הכנסות − מע״מ עסקאות) − (הוצאות − מע״מ תשומות)`}
                 </p>
               </div>
               <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
@@ -1604,7 +1609,7 @@ export default function FinancePage() {
                   </div>
                 </div>
                 <div className="border-t border-gray-200 pt-2 flex justify-between items-center px-1">
-                  <span className="text-xs text-gray-500">רווח נקי (אחרי מע״מ ÷ 1.18)</span>
+                  <span className="text-xs text-gray-500">רווח נקי (אחרי מע״מ)</span>
                   <span className={`text-base font-bold ${netProfit >= 0 ? "text-blue-600" : "text-red-600"}`}>₪{netProfit.toLocaleString()}</span>
                 </div>
               </div>

@@ -1174,7 +1174,7 @@ export default function AnalyticsPage() {
                   { label: "סה״כ הכנסות (כל הזמנים)", value: fmt(a.chartTotals.totalIncome), color: "text-green-600" },
                   { label: "סה״כ הוצאות (כל הזמנים)", value: fmt(a.chartTotals.totalExpense), color: "text-red-500" },
                   {
-                    label: "רווח נקי (הכנסות − הוצאות)",
+                    label: "רווח (הכנסות − הוצאות)",
                     value: fmt(Math.round(a.chartTotals.totalIncome - a.chartTotals.totalExpense)),
                     color: "text-blue-600",
                   },
