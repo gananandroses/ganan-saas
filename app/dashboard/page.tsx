@@ -401,20 +401,21 @@ export default function DashboardPage() {
   // today" state lives in localStorage keyed by date so it resets
   // every morning automatically. This is a *verification* — leaving
   // an item unchecked is fine, no consequences elsewhere.
-  type ChecklistItem = { id: string; label: string };
+  // once=true → a one-time task (removed once ticked). Absent/false → a
+  // recurring task that resets every morning (the classic daily checklist).
+  type ChecklistItem = { id: string; label: string; once?: boolean };
   // Hard caps so a runaway loop / paste-in mistake can't bloat the JSONB
   // row in user_profile or the localStorage entry.
   const MAX_CHECKLIST_ITEMS = 30;
   const MAX_LABEL_LEN = 120;
-  const DEFAULT_CHECKLIST: ChecklistItem[] = [
-    { id: "default-quotes",    label: "הצעות מחיר לרשום" },
-    { id: "default-schedule",  label: "גינות לשבץ ביומן" },
-    { id: "default-materials", label: "חומרים להזמין" },
-    { id: "default-receipts",  label: "קבלות להוציא" },
-  ];
+  // Empty by default — the gardener builds their own list and chooses per
+  // task whether it's recurring or one-time.
+  const DEFAULT_CHECKLIST: ChecklistItem[] = [];
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
   const [checkedToday, setCheckedToday] = useState<Set<string>>(new Set());
   const [newChecklistLabel, setNewChecklistLabel] = useState("");
+  // false = recurring (resets daily) · true = one-time (removed once done)
+  const [newChecklistOnce, setNewChecklistOnce] = useState(false);
   const [showAddChecklistInput, setShowAddChecklistInput] = useState(false);
   // Collapsed by default so the dashboard isn't dominated by the
   // checklist. Persisted in localStorage so the gardener doesn't have to
@@ -549,6 +550,15 @@ export default function DashboardPage() {
   }, [checkedToday, userId, todayISO]);
 
   function toggleChecklistItem(id: string) {
+    const item = checklistItems.find(i => i.id === id);
+    const willCheck = !checkedToday.has(id);
+    // A one-time task is finished for good the moment it's ticked — remove it
+    // so it doesn't linger or come back tomorrow.
+    if (item?.once && willCheck) {
+      deleteChecklistItem(id);
+      toast.success("המשימה בוצעה ✓");
+      return;
+    }
     setCheckedToday(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -602,9 +612,10 @@ export default function DashboardPage() {
       toast.error(`מקסימום ${MAX_CHECKLIST_ITEMS} משימות`, "מחק קודם משימה ישנה");
       return;
     }
-    const next = [...checklistItems, { id: `c-${Date.now()}`, label }];
+    const next = [...checklistItems, { id: `c-${Date.now()}`, label, once: newChecklistOnce }];
     await persistChecklistItems(next);
     setNewChecklistLabel("");
+    setNewChecklistOnce(false);
     setShowAddChecklistInput(false);
   }
 
@@ -979,6 +990,11 @@ export default function DashboardPage() {
                           }`}>
                             {item.label}
                           </span>
+                          {item.once && (
+                            <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                              חד־פעמי
+                            </span>
+                          )}
                         </button>
                         <button
                           onClick={() => deleteChecklistItem(item.id)}
@@ -1025,12 +1041,32 @@ export default function DashboardPage() {
                           הוסף
                         </button>
                         <button
-                          onClick={() => { setNewChecklistLabel(""); setShowAddChecklistInput(false); }}
+                          onClick={() => { setNewChecklistLabel(""); setNewChecklistOnce(false); setShowAddChecklistInput(false); }}
                           className="hit-44 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 transition-colors"
                           aria-label="ביטול"
                         >
                           <X size={12} />
                         </button>
+                      </div>
+                      {/* Task type — recurring (resets each day) vs one-time */}
+                      <div className="flex items-center gap-1.5 flex-wrap pr-1">
+                        <button
+                          type="button"
+                          onClick={() => setNewChecklistOnce(false)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${!newChecklistOnce ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                        >
+                          🔁 קבועה
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewChecklistOnce(true)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${newChecklistOnce ? "bg-emerald-600 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                        >
+                          ✓ חד־פעמית
+                        </button>
+                        <span className="text-[10px] text-gray-400">
+                          {newChecklistOnce ? "נמחקת אוטומטית לאחר ביצוע" : "חוזרת ומתאפסת בכל יום"}
+                        </span>
                       </div>
                       {checklistItems.length >= MAX_CHECKLIST_ITEMS - 3 && (
                         <p className="text-[10px] text-gray-400 tabular-nums pr-2">
