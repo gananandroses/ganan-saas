@@ -92,9 +92,9 @@ export default function Sidebar() {
 
   return (
     <aside className="fixed top-0 right-0 h-screen w-64 bg-white border-l border-gray-100 flex flex-col z-40 shadow-sm">
-      {/* Logo */}
+      {/* Logo — clicking returns to the dashboard (home) */}
       <div className="px-5 py-5 border-b border-gray-100">
-        <div className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3 rounded-xl hover:opacity-80 transition-opacity" aria-label="חזרה לדשבורד">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-md">
             <Leaf size={18} className="text-white" />
           </div>
@@ -102,7 +102,7 @@ export default function Sidebar() {
             <h1 className="font-bold text-gray-900 text-base leading-tight">גנן Pro</h1>
             <p className="text-xs text-gray-400">ניהול עסק גינון</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Nav */}

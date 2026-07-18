@@ -84,12 +84,12 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <div className="flex items-center gap-3">
+          <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="חזרה לדשבורד">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center">
               <Leaf size={16} className="text-white" />
             </div>
             <span className="font-bold text-gray-900">גנן Pro</span>
-          </div>
+          </Link>
           <button onClick={onClose} aria-label="סגור" className="p-2 rounded-xl hover:bg-gray-100">
             <X size={20} className="text-gray-500" />
           </button>
