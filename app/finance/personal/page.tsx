@@ -7,6 +7,7 @@ import {
   ChevronUp, ChevronDown, Loader2, RefreshCw, X, Pencil, Trash2,
   Sparkles, Repeat, AlertCircle, ChevronRight, ChevronLeft,
   Download, FileSpreadsheet, FileText, Briefcase, User as UserIcon,
+  Tag, Check,
 } from "lucide-react";
 import {
   BarChart, Bar, ResponsiveContainer, XAxis, YAxis, CartesianGrid,
@@ -20,6 +21,7 @@ import {
   isoMonth, hebrewMonthLabel, monthlySeries, computeMetrics,
   breakdownByCategory, businessIncomeAsPersonalTxs, isVirtualTx,
   ils, pct, recurrenceLabel,
+  makeCustomCategoryId, isCustomCategory, customCategoryLabel,
 } from "@/lib/personal-finance";
 import { exportPersonalCSV, exportPersonalPDF } from "@/lib/export-personal";
 
@@ -357,7 +359,63 @@ function TxModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // User-defined categories, stored per-user in localStorage (no DB migration).
+  // Kept as { expense: string[]; income: string[] } of custom labels.
+  const [customCats, setCustomCats] = useState<{ expense: string[]; income: string[] }>({ expense: [], income: [] });
+  const [uid, setUid] = useState<string | null>(null);
+  const [addingCat, setAddingCat] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState("");
+
+  const customKey = (userId: string) => `personal_custom_cats_${userId}`;
+
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getUser().then(({ data }) => {
+      const id = data.user?.id ?? null;
+      if (!alive) return;
+      setUid(id);
+      if (!id) return;
+      try {
+        const raw = localStorage.getItem(customKey(id));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setCustomCats({
+            expense: Array.isArray(parsed?.expense) ? parsed.expense : [],
+            income: Array.isArray(parsed?.income) ? parsed.income : [],
+          });
+        }
+      } catch { /* ignore corrupt json */ }
+      // If editing a tx whose category is custom, make sure it appears as a chip.
+      if (initial && isCustomCategory(initial.category)) {
+        const label = customCategoryLabel(initial.category);
+        setCustomCats(prev => {
+          const list = prev[initial.type];
+          return list.includes(label) ? prev : { ...prev, [initial.type]: [...list, label] };
+        });
+      }
+    });
+    return () => { alive = false; };
+  }, [initial]);
+
+  function addCustomCategory() {
+    const label = newCatLabel.trim().slice(0, 24);
+    if (!label) return;
+    const type = form.type;
+    setCustomCats(prev => {
+      const list = prev[type];
+      const next = list.includes(label) ? prev : { ...prev, [type]: [...list, label] };
+      if (uid) {
+        try { localStorage.setItem(customKey(uid), JSON.stringify(next)); } catch { /* ignore */ }
+      }
+      return next;
+    });
+    setForm(p => ({ ...p, category: makeCustomCategoryId(label) }));
+    setNewCatLabel("");
+    setAddingCat(false);
+  }
+
   const categories = form.type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const customForType = form.type === "income" ? customCats.income : customCats.expense;
   // Helper: switching type may leave the previously-picked category invalid
   // for the new type, so we snap to the first valid one.
   function setType(t: TxType) {
@@ -519,6 +577,47 @@ function TxModal({
                   </button>
                 );
               })}
+
+              {/* User-defined categories */}
+              {customForType.map(label => {
+                const id = makeCustomCategoryId(label);
+                const active = form.category === id;
+                return (
+                  <button key={id} onClick={() => setForm(p => ({ ...p, category: id }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      active ? "bg-slate-200 text-slate-700 ring-1 ring-slate-300" : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                    }`}>
+                    <Tag size={12} />
+                    {label}
+                  </button>
+                );
+              })}
+
+              {/* Add custom category */}
+              {addingCat ? (
+                <span className="flex items-center gap-1 bg-white border border-slate-300 rounded-full pr-3 pl-1 py-0.5">
+                  <input
+                    autoFocus
+                    value={newCatLabel}
+                    onChange={e => setNewCatLabel(e.target.value.slice(0, 24))}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") { e.preventDefault(); addCustomCategory(); }
+                      if (e.key === "Escape") { setNewCatLabel(""); setAddingCat(false); }
+                    }}
+                    placeholder="שם קטגוריה"
+                    className="w-24 text-xs outline-none bg-transparent"
+                  />
+                  <button onClick={addCustomCategory} disabled={!newCatLabel.trim()}
+                    className="w-6 h-6 flex items-center justify-center rounded-full bg-green-600 disabled:bg-gray-300 text-white">
+                    <Check size={12} />
+                  </button>
+                </span>
+              ) : (
+                <button onClick={() => setAddingCat(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-50 text-gray-500 hover:bg-gray-100 border border-dashed border-gray-300">
+                  <Plus size={12} /> קטגוריה
+                </button>
+              )}
             </div>
           </div>
 

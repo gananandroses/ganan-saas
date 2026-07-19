@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   Briefcase, Sparkles, Gift, PlusCircle, Home, Car, Tv,
   Zap, Shield, ShoppingCart, Utensils, Film, Stethoscope,
-  ShoppingBag, Plane, GraduationCap, Package,
+  ShoppingBag, Plane, GraduationCap, Package, Tag,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -72,8 +72,37 @@ export const ALL_CATEGORIES: CategoryDef[] = [...INCOME_CATEGORIES, ...EXPENSE_C
 
 const CATEGORY_BY_ID = new Map(ALL_CATEGORIES.map(c => [c.id, c]));
 
+// ── Custom (user-defined) categories ─────────────────────────────────────────
+// Stored inline in the transaction's `category` field as "custom:<label>", so
+// no DB migration is needed. The label is decoded on read and rendered like
+// any built-in category (neutral slate colour + tag icon).
+export const CUSTOM_PREFIX = "custom:";
+
+export function makeCustomCategoryId(label: string): string {
+  return CUSTOM_PREFIX + label.trim();
+}
+export function isCustomCategory(id: string): boolean {
+  return typeof id === "string" && id.startsWith(CUSTOM_PREFIX);
+}
+export function customCategoryLabel(id: string): string {
+  return id.slice(CUSTOM_PREFIX.length).trim();
+}
+
 export function getCategory(id: string): CategoryDef | undefined {
-  return CATEGORY_BY_ID.get(id);
+  const found = CATEGORY_BY_ID.get(id);
+  if (found) return found;
+  // Synthesize a def for a custom category so it displays everywhere
+  // (lists, breakdowns, pie chart) without special-casing each call site.
+  if (isCustomCategory(id)) {
+    return {
+      id,
+      label: customCategoryLabel(id) || "אחר",
+      icon: Tag,
+      color: "slate",
+      group: "variable",
+    };
+  }
+  return undefined;
 }
 
 export function categoryClasses(c: CategoryDef) {
