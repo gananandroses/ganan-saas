@@ -2,10 +2,12 @@
 import { Bell, Search, Plus, X, AlertCircle, Package, CheckCircle, Calendar, Users, FileText, Loader2, MessageSquare } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { supabase } from "@/lib/supabase/client";
 import { pendingMissedVisits } from "@/lib/missed-visits";
 import { getUnbookedCustomers, getInactiveCustomers } from "@/lib/customer-alerts";
 import BackButton from "@/components/BackButton";
+import { getDirection, type Locale } from "@/lib/locale";
 
 interface HeaderProps {
   title: string;
@@ -49,12 +51,13 @@ interface Notif {
   };
 }
 
-const CATEGORY_META: Record<NotifCategory, { label: string; emoji: string }> = {
-  payment:    { label: "תשלומים",        emoji: "💰" },
-  scheduling: { label: "לקוחות לשריין",  emoji: "📅" },
-  missed:     { label: "דרוש תיאום מחדש", emoji: "🔥" },
-  inactive:   { label: "לקוחות לא פעילים", emoji: "🌙" },
-  inventory:  { label: "מלאי נמוך",      emoji: "📦" },
+// Label keys resolve to header.categoryPayment / categoryScheduling / etc.
+const CATEGORY_META: Record<NotifCategory, { labelKey: string; emoji: string }> = {
+  payment:    { labelKey: "categoryPayment",    emoji: "💰" },
+  scheduling: { labelKey: "categoryScheduling", emoji: "📅" },
+  missed:     { labelKey: "categoryMissed",     emoji: "🔥" },
+  inactive:   { labelKey: "categoryInactive",   emoji: "🌙" },
+  inventory:  { labelKey: "categoryInventory",  emoji: "📦" },
 };
 
 const CATEGORY_ORDER: NotifCategory[] = ["payment", "scheduling", "missed", "inactive", "inventory"];
@@ -68,6 +71,10 @@ type SearchResult = SearchResultCustomer | SearchResultQuote | SearchResultJob;
 export default function Header({ title, subtitle, action, showBack = false }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const t = useTranslations("header");
+  const tc = useTranslations("common");
+  const locale = useLocale() as Locale;
+  const dir = getDirection(locale);
   const [showNotif, setShowNotif] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [notifTick, setNotifTick] = useState(0);
@@ -214,10 +221,10 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         .order("job_date", { ascending: false });
 
       pendingMissedVisits(allJobs || []).forEach((j) => {
-        const reasonLabel = j.cancellation_reason === "no_show" ? "לא הופיע" : "בלת״מ";
+        const reasonLabel = j.cancellation_reason === "no_show" ? t("noShow") : t("forceMajeure");
         list.push({
           id: `missed-${j.id}`,
-          text: `${j.customer_name} — ${reasonLabel} · ${j.job_date}`,
+          text: t("missedVisitText", { name: j.customer_name, reason: reasonLabel, date: j.job_date ?? "" }),
           type: "orange",
           category: "missed",
           // No href — the row's X persists the dismissal (below). The
@@ -256,10 +263,10 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         }
       }
       for (const g of debtGroups.values()) {
-        const suffix = g.ids.length > 1 ? ` (${g.ids.length} חיובים)` : "";
+        const suffix = g.ids.length > 1 ? t("debtSuffix", { count: g.ids.length }) : "";
         list.push({
           id: `tx-${g.ids.join(",")}`,
-          text: `${g.customerName} — ₪${g.total.toLocaleString()}${suffix}`,
+          text: t("debtText", { name: g.customerName, amount: g.total.toLocaleString(), suffix }),
           type: "red",
           category: "payment",
           payment: {
@@ -319,7 +326,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       getInactiveCustomers(allCusts).forEach((c) => {
         list.push({
           id: `inactive-${c.id}`,
-          text: `${c.name} — שקט ${c.daysSinceVisit} ימים`,
+          text: t("quietDays", { name: c.name, days: c.daysSinceVisit }),
           type: "yellow",
           category: "inactive",
           href: `/customers?focus=${c.id}`,
@@ -337,7 +344,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         .forEach((i) => {
           list.push({
             id: `inv-${i.name}`,
-            text: `${i.name} (${i.quantity} יחידות)`,
+            text: t("unitsSuffix", { name: i.name, quantity: i.quantity }),
             type: "yellow",
             category: "inventory",
             href: "/inventory",
@@ -439,18 +446,18 @@ export default function Header({ title, subtitle, action, showBack = false }: He
             type="text"
             autoComplete="off"
             inputMode="search"
-            placeholder="חיפוש לקוח, הצעה, עבודה..."
+            placeholder={t("searchPlaceholder")}
             value={query}
             onChange={e => { setQuery(e.target.value); setShowResults(true); }}
             onFocus={() => { if (query.trim().length >= 2) setShowResults(true); }}
             className="bg-transparent text-sm text-gray-700 outline-none w-full placeholder:text-gray-400"
-            dir="rtl"
+            dir={dir}
           />
           {searching && <Loader2 size={12} className="animate-spin text-gray-400 flex-shrink-0" />}
           {query && !searching && (
             <button
               onClick={() => { setQuery(""); setResults([]); }}
-              aria-label="נקה"
+              aria-label={t("searchClear")}
               className="hit-44 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-600 flex-shrink-0"
             >
               <X size={13} />
@@ -462,19 +469,19 @@ export default function Header({ title, subtitle, action, showBack = false }: He
             with a solid shadow so nothing bleeds through; results grouped
             by type with a tiny header label between groups. */}
         {showResults && query.trim().length >= 2 && (
-          <div className="absolute top-full mt-1.5 right-0 left-0 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-50 max-h-[420px] overflow-y-auto" dir="rtl">
+          <div className="absolute top-full mt-1.5 start-0 end-0 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-50 max-h-[420px] overflow-y-auto" dir={dir}>
             {searching && results.length === 0 && (
-              <div className="px-4 py-5 text-center text-xs text-gray-400">מחפש...</div>
+              <div className="px-4 py-5 text-center text-xs text-gray-400">{t("searching")}</div>
             )}
             {!searching && results.length === 0 && (
-              <div className="px-4 py-5 text-center text-xs text-gray-400">לא נמצאו תוצאות עבור &quot;{query}&quot;</div>
+              <div className="px-4 py-5 text-center text-xs text-gray-400">{t("noResults", { query })}</div>
             )}
             {results.length > 0 && (
               <ul className="py-1">
                 {(["customer", "quote", "job"] as const).map(kind => {
                   const items = results.filter(r => r.kind === kind);
                   if (items.length === 0) return null;
-                  const sectionLabel = kind === "customer" ? "לקוחות" : kind === "quote" ? "הצעות מחיר" : "עבודות";
+                  const sectionLabel = kind === "customer" ? t("sectionCustomers") : kind === "quote" ? t("sectionQuotes") : t("sectionJobs");
                   return (
                     <li key={kind}>
                       <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -485,7 +492,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                           <li key={`${r.kind}-${r.id}`}>
                             <button
                               onClick={() => pickResult(r)}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-right"
+                              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-start"
                             >
                               <span className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${
                                 r.kind === "customer" ? "bg-blue-50 text-blue-600"
@@ -510,8 +517,8 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                                 {r.kind === "quote" && (
                                   <>
                                     <p className="text-[13px] font-semibold text-gray-900 truncate leading-tight">
-                                      {r.title || "הצעת מחיר"}
-                                      {r.quote_number && <span className="text-gray-400 text-[11px] mr-1">#{r.quote_number}</span>}
+                                      {r.title || t("untitledQuote")}
+                                      {r.quote_number && <span className="text-gray-400 text-[11px] mx-1">#{r.quote_number}</span>}
                                     </p>
                                     {r.customer_name && (
                                       <p className="text-[11px] text-gray-500 truncate leading-tight mt-0.5">{r.customer_name}</p>
@@ -522,7 +529,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                                   <>
                                     <p className="text-[13px] font-semibold text-gray-900 truncate leading-tight">{r.customer_name}</p>
                                     <p className="text-[11px] text-gray-500 truncate leading-tight mt-0.5">
-                                      {r.type ?? "עבודה"} · {r.job_date}
+                                      {r.type ?? t("untitledJob")} · {r.job_date}
                                     </p>
                                   </>
                                 )}
@@ -544,12 +551,12 @@ export default function Header({ title, subtitle, action, showBack = false }: He
       <div className="relative">
         <button
           onClick={() => setShowNotif(!showNotif)}
-          aria-label="התראות"
+          aria-label={t("notificationsAria")}
           className="relative p-2 rounded-xl hover:bg-gray-50 transition-colors"
         >
           <Bell size={20} className="text-gray-500" />
           {notifs.length > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
+            <span className="absolute top-1.5 end-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center">
               {notifs.length}
             </span>
           )}
@@ -570,12 +577,12 @@ export default function Header({ title, subtitle, action, showBack = false }: He
             .reduce((s, n) => s + (n.payment?.amount ?? 0), 0);
 
           return (
-          <div className="absolute top-12 left-0 w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50" dir="rtl">
+          <div className="absolute top-12 start-0 w-96 bg-white rounded-2xl shadow-xl border border-gray-100 z-50" dir={dir}>
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
-              <h3 className="font-bold text-gray-800 text-sm">התראות {notifs.length > 0 && `(${notifs.length})`}</h3>
+              <h3 className="font-bold text-gray-800 text-sm">{t("notificationsAria")} {notifs.length > 0 && `(${notifs.length})`}</h3>
               {notifs.length > 0 && (
                 <button onClick={dismissAll} className="text-xs text-gray-400 hover:text-red-500 transition-colors">
-                  נקה הכל
+                  {t("clearAll")}
                 </button>
               )}
             </div>
@@ -584,7 +591,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
               {notifs.length === 0 ? (
                 <div className="py-6 text-center text-gray-400 text-sm">
                   <CheckCircle size={22} className="mx-auto mb-1.5 text-green-400" />
-                  אין התראות חדשות
+                  {t("noNotifications")}
                 </div>
               ) : (
                 CATEGORY_ORDER.map((cat) => {
@@ -606,6 +613,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                         countLabel={countLabel}
                         onItemClick={(href) => { setShowNotif(false); router.push(href); }}
                         onDismiss={dismiss}
+                        t={t}
                       />
                     );
                   }
@@ -614,7 +622,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                       <div className="flex items-center justify-between px-1 pb-1.5">
                         <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
                           <span className="text-sm leading-none">{meta.emoji}</span>
-                          {meta.label}
+                          {t(meta.labelKey)}
                         </p>
                         <span className="text-[11px] font-semibold text-gray-400 tabular-nums">{countLabel}</span>
                       </div>
@@ -643,7 +651,7 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                               <p className="text-sm text-gray-700 flex-1 leading-snug">{n.text}</p>
                               <button
                                 onClick={(e) => { e.stopPropagation(); requestDismiss(n); }}
-                                aria-label="סגור התראה"
+                                aria-label={t("dismissAria")}
                                 className="text-gray-300 hover:text-gray-500 flex-shrink-0 mt-0.5 transition-colors"
                               >
                                 <X size={14} />
@@ -681,15 +689,15 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         <div
           className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4"
           onClick={() => !savingPayment && setPaymentConfirm(null)}
-          dir="rtl"
+          dir={dir}
         >
           <div
             className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-bold text-gray-900 mb-1.5">אישור תשלום</h3>
+            <h3 className="text-base font-bold text-gray-900 mb-1.5">{t("paymentConfirmTitle")}</h3>
             <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-              האם <strong className="text-gray-900">{paymentConfirm.customerName}</strong> שילם ₪{paymentConfirm.amount.toLocaleString()}?
+              {t("paymentConfirmBody", { name: paymentConfirm.customerName, amount: paymentConfirm.amount.toLocaleString() })}
             </p>
             <div className="flex gap-2">
               <button
@@ -698,14 +706,14 @@ export default function Header({ title, subtitle, action, showBack = false }: He
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {savingPayment && <Loader2 size={14} className="animate-spin" />}
-                כן, שילם
+                {t("yesPaid")}
               </button>
               <button
                 onClick={() => setPaymentConfirm(null)}
                 disabled={savingPayment}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                לא, עדיין לא
+                {t("notYetPaid")}
               </button>
             </div>
           </div>
@@ -719,30 +727,30 @@ export default function Header({ title, subtitle, action, showBack = false }: He
         <div
           className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4"
           onClick={() => setMissedConfirm(null)}
-          dir="rtl"
+          dir={dir}
         >
           <div
             className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-bold text-gray-900 mb-1.5">להסיר את ההתראה?</h3>
+            <h3 className="text-base font-bold text-gray-900 mb-1.5">{t("missedConfirmTitle")}</h3>
             <p className="text-sm text-gray-600 mb-4 leading-relaxed">
               <strong className="text-gray-900">{missedConfirm.text}</strong>
               <br />
-              ההתראה תוסר לצמיתות ולא תחזור. להמשיך?
+              {t("missedConfirmBody")}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => { dismiss(missedConfirm.id); setMissedConfirm(null); }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                כן, הסר
+                {t("confirmRemove")}
               </button>
               <button
                 onClick={() => setMissedConfirm(null)}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
               >
-                ביטול
+                {tc("cancel")}
               </button>
             </div>
           </div>
@@ -782,10 +790,11 @@ function classifyScheduling(s: UnbookedRowMeta): SchedulingTier {
   return "distant";
 }
 
-const TIER_META: Record<SchedulingTier, { label: string; emoji: string; bg: string; text: string; border: string }> = {
-  urgent:   { label: "דחוף",            emoji: "🔴", bg: "bg-red-50",     text: "text-red-700",     border: "border-red-100" },
-  thisWeek: { label: "השבוע (4–14 ימים)", emoji: "⚠️", bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-100" },
-  distant:  { label: "רחוקים (15+ ימים)", emoji: "📆", bg: "bg-gray-50",    text: "text-gray-600",    border: "border-gray-100" },
+// labelKey resolves via header.tierUrgent / tierThisWeek / tierDistant
+const TIER_META: Record<SchedulingTier, { labelKey: string; emoji: string; bg: string; text: string; border: string }> = {
+  urgent:   { labelKey: "tierUrgent",   emoji: "🔴", bg: "bg-red-50",     text: "text-red-700",     border: "border-red-100" },
+  thisWeek: { labelKey: "tierThisWeek", emoji: "⚠️", bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-100" },
+  distant:  { labelKey: "tierDistant",  emoji: "📆", bg: "bg-gray-50",    text: "text-gray-600",    border: "border-gray-100" },
 };
 
 function fmtDayMonth(iso: string | null): string {
@@ -808,7 +817,9 @@ function SchedulingSection(props: {
   countLabel: string;
   onItemClick: (href: string) => void;
   onDismiss: (id: string) => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
+  const { t } = props;
   const [distantExpanded, setDistantExpanded] = useState(false);
 
   // Bucket by tier. Tiers iterate in fixed urgency order.
@@ -828,7 +839,7 @@ function SchedulingSection(props: {
       <div className="flex items-center justify-between px-1 pb-1.5">
         <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
           <span className="text-sm leading-none">📅</span>
-          לקוחות לשריין
+          {t("categoryScheduling")}
         </p>
         <span className="text-[11px] font-semibold text-gray-400 tabular-nums">{props.countLabel}</span>
       </div>
@@ -844,7 +855,7 @@ function SchedulingSection(props: {
             <div className={`flex items-center justify-between px-2 py-1 rounded-md ${meta.bg} ${meta.text} mb-1`}>
               <p className="text-[10px] font-bold flex items-center gap-1">
                 <span>{meta.emoji}</span>
-                {meta.label}
+                {t(meta.labelKey)}
               </p>
               <span className="text-[10px] font-bold tabular-nums opacity-80">{tierItems.length}</span>
             </div>
@@ -855,6 +866,7 @@ function SchedulingSection(props: {
                   notif={n}
                   onClick={() => n.href && props.onItemClick(n.href)}
                   onDismiss={() => props.onDismiss(n.id)}
+                  t={t}
                 />
               ))}
               {hiddenCount > 0 && (
@@ -862,7 +874,7 @@ function SchedulingSection(props: {
                   onClick={() => setDistantExpanded(true)}
                   className="w-full text-[11px] text-gray-500 hover:text-gray-700 py-1 rounded hover:bg-gray-50 transition-colors"
                 >
-                  הצג עוד {hiddenCount}
+                  {t("showMore", { count: hiddenCount })}
                 </button>
               )}
               {tier === "distant" && distantExpanded && tierItems.length > 2 && (
@@ -870,7 +882,7 @@ function SchedulingSection(props: {
                   onClick={() => setDistantExpanded(false)}
                   className="w-full text-[11px] text-gray-400 hover:text-gray-600 py-1 rounded hover:bg-gray-50 transition-colors"
                 >
-                  כווץ
+                  {t("collapse")}
                 </button>
               )}
             </div>
@@ -885,7 +897,9 @@ function SchedulingRow(props: {
   notif: Notif;
   onClick: () => void;
   onDismiss: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
+  const { t } = props;
   const s = props.notif.scheduling;
   if (!s) return null;
 
@@ -894,17 +908,17 @@ function SchedulingRow(props: {
   const daysOverdue = s.daysOverdue;
   let dateLine: string;
   if (daysOverdue >= 9999) {
-    dateLine = "אין ביקור קודם רשום";
+    dateLine = t("noPriorVisit");
   } else if (daysOverdue > 0) {
-    dateLine = `${dateStr} · באיחור ${daysOverdue} ימים`;
+    dateLine = t("overdueBy", { date: dateStr, days: daysOverdue });
   } else if (daysOverdue === 0) {
-    dateLine = `${dateStr} · היום`;
+    dateLine = t("today", { date: dateStr });
   } else {
-    dateLine = `${dateStr} · בעוד ${Math.abs(daysOverdue)} ימים`;
+    dateLine = t("inDays", { date: dateStr, days: Math.abs(daysOverdue) });
   }
 
   const intl = normalisePhoneIL(s.phone);
-  const waMessage = `שלום ${props.notif.text}, אשמח לתאם איתך את הביקור הבא בגינה 🌿`;
+  const waMessage = t("whatsappMessage", { name: props.notif.text });
   const waHref = intl ? `https://api.whatsapp.com/send?phone=${intl}&text=${encodeURIComponent(waMessage)}` : null;
 
   return (
@@ -930,7 +944,7 @@ function SchedulingRow(props: {
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            title="שלח WhatsApp לתיאום"
+            title={t("whatsappTitle")}
             className="hit-44 w-7 h-7 flex items-center justify-center rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-600 flex-shrink-0"
           >
             <MessageSquare size={12} />
@@ -938,7 +952,7 @@ function SchedulingRow(props: {
         )}
         <button
           onClick={(e) => { e.stopPropagation(); props.onDismiss(); }}
-          aria-label="סגור התראה"
+          aria-label={t("dismissAria")}
           className="hit-44 w-6 h-6 flex items-center justify-center text-gray-300 hover:text-gray-500 flex-shrink-0"
         >
           <X size={11} />

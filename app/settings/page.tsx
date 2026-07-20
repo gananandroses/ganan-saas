@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X, FileText, Receipt } from "lucide-react";
+import { User, Bell, BellOff, Lock, Building, Save, Loader2, CheckCircle, ChevronRight, Check, X, FileText, Receipt, Globe } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { supabase } from "@/lib/supabase/client";
 import { toast, confirmDialog } from "@/components/Toaster";
 import { getDefaultVatMode, setDefaultVatMode, type VatMode } from "@/lib/vat-settings";
+import { SUPPORTED_LOCALES, LOCALE_LABELS, type Locale } from "@/lib/locale";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -18,6 +20,7 @@ type PushStatus = "idle" | "loading" | "enabled" | "denied" | "unsupported";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const locale = useLocale() as Locale;
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userEmail, setUserEmail] = useState("");
@@ -350,6 +353,9 @@ export default function SettingsPage() {
           <p className="text-sm text-gray-500 mt-0.5">ניהול פרטי עסק והעדפות מערכת</p>
         </div>
       </div>
+
+      {/* Language */}
+      {userId && <LanguageCard userId={userId} currentLocale={locale} />}
 
       {/* Business Info */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1152,6 +1158,66 @@ function MonthlyGoalsCard({ userId }: { userId: string }) {
             </span>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Language card ───────────────────────────────────────────────────────────
+// Per-user language preference, stored in user_profile.preferred_language
+// (source of truth, syncs across devices). Also writes the NEXT_LOCALE
+// cookie via /api/set-locale so the very next server render already picks
+// up the new language, then reloads once so every server component (nav,
+// header, dashboard) re-renders in the new locale/direction.
+
+function LanguageCard({ userId, currentLocale }: { userId: string; currentLocale: Locale }) {
+  const t = useTranslations("settings");
+  const [saving, setSaving] = useState<Locale | null>(null);
+
+  async function pick(locale: Locale) {
+    if (locale === currentLocale || saving) return;
+    setSaving(locale);
+    await supabase.from("user_profile").upsert(
+      { user_id: userId, preferred_language: locale },
+      { onConflict: "user_id" },
+    );
+    await fetch("/api/set-locale", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale }),
+    });
+    toast.success(t("languageSaved"));
+    window.location.reload();
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2.5">
+        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+          <Globe className="w-4 h-4 text-blue-600" />
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900">{t("languageTitle")}</h2>
+          <p className="text-xs text-gray-500">{t("languageDesc")}</p>
+        </div>
+      </div>
+      <div className="p-6 grid grid-cols-2 gap-2.5">
+        {SUPPORTED_LOCALES.map((locale) => (
+          <button
+            key={locale}
+            type="button"
+            onClick={() => pick(locale)}
+            disabled={saving !== null}
+            className={`flex items-center justify-center gap-2 rounded-2xl border-2 px-4 py-3 text-sm font-bold transition-colors ${
+              locale === currentLocale
+                ? "border-green-500 bg-green-50 text-green-700"
+                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {saving === locale ? <Loader2 size={14} className="animate-spin" /> : locale === currentLocale && <Check size={14} />}
+            {LOCALE_LABELS[locale]}
+          </button>
+        ))}
       </div>
     </div>
   );

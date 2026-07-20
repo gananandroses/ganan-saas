@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import LocaleSync from "@/components/LocaleSync";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -33,5 +34,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [router, pathname]);
 
-  return <>{children}</>;
+  return (
+    <>
+      <LocaleSync />
+      {children}
+    </>
+  );
 }

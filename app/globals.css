@@ -9,7 +9,9 @@
 
 * { box-sizing: border-box; }
 
-html { direction: rtl; }
+/* Direction is set dynamically via the `dir` attribute on <html>
+ * (app/layout.tsx, computed from the resolved locale) — no longer
+ * hardcoded here so English/Russian render LTR. */
 
 body {
   font-family: 'Heebo', 'Arial', sans-serif;

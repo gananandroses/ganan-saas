@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   LayoutDashboard, Users, UserCheck, Calendar, DollarSign,
   Package, BarChart3, FolderKanban,
@@ -8,55 +9,58 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { getDirection, type Locale } from "@/lib/locale";
 
 // Same group structure as the desktop Sidebar so the mental model stays
 // consistent across breakpoints. Daily core has no header, the rest do.
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
-const navGroups: { title: string | null; items: NavItem[] }[] = [
+// Labels resolved via useTranslations("nav") — see Sidebar.tsx for the
+// same pattern/reasoning.
+type NavItem = { href: string; labelKey: string; icon: typeof LayoutDashboard };
+const navGroups: { titleKey: string | null; items: NavItem[] }[] = [
   {
-    title: null,
+    titleKey: null,
     items: [
-      { href: "/dashboard", label: "דשבורד", icon: LayoutDashboard },
-      { href: "/schedule",  label: "יומן", icon: Calendar },
-      { href: "/customers", label: "לקוחות", icon: Users },
-      { href: "/finance",   label: "פיננסים", icon: DollarSign },
+      { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+      { href: "/schedule",  labelKey: "schedule", icon: Calendar },
+      { href: "/customers", labelKey: "customers", icon: Users },
+      { href: "/finance",   labelKey: "finance", icon: DollarSign },
     ],
   },
   {
     // The quote→project pipeline as one ordered flow (see Sidebar.tsx).
-    title: "מהצעה לביצוע",
+    titleKey: "groupFromQuoteToProject",
     items: [
-      { href: "/pricer",   label: "1 · מחירון", icon: Tag },
-      { href: "/quote",    label: "2 · הצעות מחיר", icon: FileText },
-      { href: "/projects", label: "3 · פרויקטים", icon: FolderKanban },
+      { href: "/pricer",   labelKey: "pricer", icon: Tag },
+      { href: "/quote",    labelKey: "quotes", icon: FileText },
+      { href: "/projects", labelKey: "projects", icon: FolderKanban },
     ],
   },
   {
     // Mirror of Sidebar.tsx — see the reasoning there. People/gear/
     // portfolio = "my resources"; analytics/knowledge + settings live
     // in the final group.
-    title: "המשאבים שלי",
+    titleKey: "groupMyResources",
     items: [
-      { href: "/employees", label: "עובדים + GPS", icon: UserCheck },
-      { href: "/inventory", label: "ציוד ומלאי", icon: Package },
-      { href: "/portfolio", label: "תיק עבודות", icon: Camera },
+      { href: "/employees", labelKey: "employees", icon: UserCheck },
+      { href: "/inventory", labelKey: "inventory", icon: Package },
+      { href: "/portfolio", labelKey: "portfolio", icon: Camera },
     ],
   },
   {
     // Mirror of Sidebar.tsx — analytics split out into its own
     // "ביצועים" group (decision-data, owner's periodic job) so it isn't
     // buried next to the knowledge content.
-    title: "ביצועים",
+    titleKey: "groupPerformance",
     items: [
-      { href: "/analytics", label: "אנליטיקה", icon: BarChart3 },
+      { href: "/analytics", labelKey: "analytics", icon: BarChart3 },
     ],
   },
   {
     // Knowledge + settings live at the bottom — least-used housekeeping.
-    title: "ידע והגדרות",
+    titleKey: "groupKnowledgeAndSettings",
     items: [
-      { href: "/articles",  label: "מרכז ידע", icon: BookOpen },
-      { href: "/settings",  label: "הגדרות", icon: Settings },
+      { href: "/articles",  labelKey: "articles", icon: BookOpen },
+      { href: "/settings",  labelKey: "settingsNav", icon: Settings },
     ],
   },
 ];
@@ -64,6 +68,10 @@ const navGroups: { title: string | null; items: NavItem[] }[] = [
 export default function MobileMenu({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const t = useTranslations("nav");
+  const tc = useTranslations("common");
+  const locale = useLocale() as Locale;
+  const dir = getDirection(locale);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -71,12 +79,12 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50" dir="rtl" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50" dir={dir} role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="absolute bottom-0 right-0 left-0 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto">
+      <div className="absolute bottom-0 start-0 end-0 bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-gray-200 rounded-full" />
@@ -84,13 +92,13 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="חזרה לדשבורד">
+          <Link href="/dashboard" onClick={onClose} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label={tc("backToDashboard")}>
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center">
               <Leaf size={16} className="text-white" />
             </div>
-            <span className="font-bold text-gray-900">גנן Pro</span>
+            <span className="font-bold text-gray-900">{tc("appName")}</span>
           </Link>
-          <button onClick={onClose} aria-label="סגור" className="p-2 rounded-xl hover:bg-gray-100">
+          <button onClick={onClose} aria-label={tc("close")} className="p-2 rounded-xl hover:bg-gray-100">
             <X size={20} className="text-gray-500" />
           </button>
         </div>
@@ -99,13 +107,13 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
         <div className="px-4 py-3 space-y-4">
           {navGroups.map((group, gi) => (
             <div key={gi}>
-              {group.title && (
+              {group.titleKey && (
                 <div className="px-1 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                  {group.title}
+                  {t(group.titleKey)}
                 </div>
               )}
               <div className="grid grid-cols-3 gap-2">
-                {group.items.map(({ href, label, icon: Icon }) => {
+                {group.items.map(({ href, labelKey, icon: Icon }) => {
                   const active = pathname === href;
                   return (
                     <Link
@@ -117,7 +125,7 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
                       }`}
                     >
                       <Icon size={22} className={active ? "text-green-600" : "text-gray-400"} />
-                      <span className="text-xs font-medium text-center leading-tight">{label}</span>
+                      <span className="text-xs font-medium text-center leading-tight">{t(labelKey)}</span>
                     </Link>
                   );
                 })}
@@ -133,7 +141,7 @@ export default function MobileMenu({ onClose }: { onClose: () => void }) {
             className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-50 text-red-500 font-medium"
           >
             <LogOut size={18} />
-            יציאה
+            {tc("logout")}
           </button>
         </div>
       </div>

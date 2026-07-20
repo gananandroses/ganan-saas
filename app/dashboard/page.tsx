@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import Header from "@/components/Header";
 import { toast, confirmDialog } from "@/components/Toaster";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import { SkeletonKpi, SkeletonList, SkeletonChart } from "@/components/Skeleton";
 import { supabase } from "@/lib/supabase/client";
 import { jobGross } from "@/lib/vat";
+import { getDirection, LOCALE_TAGS, type Locale } from "@/lib/locale";
 import {
   TrendingUp,
   Users,
@@ -45,9 +47,9 @@ import {
 // Helpers
 // ───────────────────────────────────────────────
 
-function hebrewDate() {
+function localizedDate(locale: Locale) {
   const now = new Date();
-  return now.toLocaleDateString("he-IL", {
+  return now.toLocaleDateString(LOCALE_TAGS[locale], {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -55,11 +57,11 @@ function hebrewDate() {
   });
 }
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "ממתין", color: "bg-yellow-100 text-yellow-700" },
-  in_progress: { label: "בביצוע", color: "bg-blue-100 text-blue-700" },
-  completed: { label: "הושלם", color: "bg-green-100 text-green-700" },
-  cancelled: { label: "בוטל", color: "bg-red-100 text-red-700" },
+const statusMeta: Record<string, { labelKey: string; color: string }> = {
+  pending: { labelKey: "statusPending", color: "bg-yellow-100 text-yellow-700" },
+  in_progress: { labelKey: "statusInProgress", color: "bg-blue-100 text-blue-700" },
+  completed: { labelKey: "statusCompleted", color: "bg-green-100 text-green-700" },
+  cancelled: { labelKey: "statusCancelled", color: "bg-red-100 text-red-700" },
 };
 
 // ───────────────────────────────────────────────
@@ -112,9 +114,11 @@ interface DebtorsCardProps {
   items: { name: string; balance: number }[];
   total: number;
   onClick: () => void;
+  locale: Locale;
+  t: ReturnType<typeof useTranslations>;
 }
 
-function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
+function DebtorsCard({ items, total, onClick, locale, t }: DebtorsCardProps) {
   const hasDebtors = items.length > 0;
   // On mobile we show 2 names to keep the 2x2 grid balanced. Desktop keeps
   // the original 3 since there's more vertical room next to the KPIs.
@@ -130,7 +134,7 @@ function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
         </div>
         {hasDebtors && (
           <span className="text-[10px] sm:text-xs font-bold text-orange-500 tabular-nums">
-            ₪{total.toLocaleString("he-IL")}
+            ₪{total.toLocaleString(LOCALE_TAGS[locale])}
           </span>
         )}
       </div>
@@ -140,7 +144,7 @@ function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
           {hasDebtors ? items.length : 0}
         </p>
         <p className="text-[11px] sm:text-sm text-gray-500 mt-0.5 truncate">
-          {hasDebtors ? "יתרות פתוחות" : "אין חובות פתוחים"}
+          {hasDebtors ? t("openBalances") : t("noOpenDebts")}
         </p>
       </div>
 
@@ -154,7 +158,7 @@ function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
         </p>
       )}
       {!hasDebtors && (
-        <p className="hidden sm:block text-xs text-emerald-600 border-t border-gray-50 pt-2">🎉 הכל שולם</p>
+        <p className="hidden sm:block text-xs text-emerald-600 border-t border-gray-50 pt-2">{t("allPaid")}</p>
       )}
     </div>
   );
@@ -164,18 +168,22 @@ function DebtorsCard({ items, total, onClick }: DebtorsCardProps) {
 
 type ModalType = "income" | "customers" | "jobs" | "balance" | null;
 
-function DetailModal({ type, data, onClose }: {
+function DetailModal({ type, data, onClose, locale, dir, t, tc }: {
   type: ModalType;
   data: Record<string, unknown>;
   onClose: () => void;
+  locale: Locale;
+  dir: "rtl" | "ltr";
+  t: ReturnType<typeof useTranslations>;
+  tc: ReturnType<typeof useTranslations>;
 }) {
   if (!type) return null;
 
   const titles: Record<string, string> = {
-    income: "הכנסות החודש",
-    customers: "לקוחות פעילים",
-    jobs: "עבודות מתוכננות",
-    balance: "יתרות פתוחות",
+    income: t("modalIncomeTitle"),
+    customers: t("modalCustomersTitle"),
+    jobs: t("modalJobsTitle"),
+    balance: t("modalBalanceTitle"),
   };
 
   const transactions = (data.transactions as Record<string,unknown>[]) || [];
@@ -185,11 +193,11 @@ function DetailModal({ type, data, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[85vh] flex flex-col" dir="rtl">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[85vh] flex flex-col" dir={dir}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="text-base font-bold text-gray-900">{titles[type]}</h3>
-          <button onClick={onClose} aria-label="סגור" className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+          <button onClick={onClose} aria-label={tc("close")} className="hit-44 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
             <X size={16} className="text-gray-500" />
           </button>
         </div>
@@ -200,17 +208,17 @@ function DetailModal({ type, data, onClose }: {
           {/* הכנסות */}
           {type === "income" && (
             transactions.length === 0
-              ? <p className="text-center text-gray-400 py-10">אין הכנסות החודש</p>
-              : transactions.map((t, i) => (
+              ? <p className="text-center text-gray-400 py-10">{t("noIncomeThisMonth")}</p>
+              : transactions.map((tx, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">{(t.description as string) || "הכנסה"}</p>
+                    <p className="text-sm font-semibold text-gray-800">{(tx.description as string) || t("incomeFallback")}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {(t.transaction_date as string)?.slice(5).replace("-", "/")}
-                      {t.customer_name ? ` · ${t.customer_name}` : ""}
+                      {(tx.transaction_date as string)?.slice(5).replace("-", "/")}
+                      {tx.customer_name ? ` · ${tx.customer_name}` : ""}
                     </p>
                   </div>
-                  <span className="text-green-600 font-bold text-sm">+₪{((t.amount as number)||0).toLocaleString()}</span>
+                  <span className="text-green-600 font-bold text-sm">+₪{((tx.amount as number)||0).toLocaleString()}</span>
                 </div>
               ))
           )}
@@ -218,14 +226,14 @@ function DetailModal({ type, data, onClose }: {
           {/* לקוחות פעילים */}
           {type === "customers" && (
             customers.length === 0
-              ? <p className="text-center text-gray-400 py-10">אין לקוחות פעילים</p>
+              ? <p className="text-center text-gray-400 py-10">{t("noActiveCustomers")}</p>
               : customers.map((c, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                   <div>
                     <p className="text-sm font-semibold text-gray-800">{c.name as string}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.status === "vip" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
-                        {c.status === "vip" ? "VIP" : "פעיל"}
+                        {c.status === "vip" ? t("vip") : t("active")}
                       </span>
                       {!!c.phone && (
                         <a href={`tel:${String(c.phone)}`} className="text-xs text-gray-400 flex items-center gap-1">
@@ -236,10 +244,10 @@ function DetailModal({ type, data, onClose }: {
                   </div>
                   <div className="text-left">
                     {(c.monthly_price as number) > 0 && (
-                      <p className="text-sm font-bold text-gray-800">₪{(c.monthly_price as number).toLocaleString()}<span className="text-xs font-normal text-gray-400">/חודש</span></p>
+                      <p className="text-sm font-bold text-gray-800">₪{(c.monthly_price as number).toLocaleString()}<span className="text-xs font-normal text-gray-400">{t("perMonth")}</span></p>
                     )}
                     {(c.balance as number) > 0 && (
-                      <p className="text-xs text-orange-500 font-semibold">חוב: ₪{(c.balance as number).toLocaleString()}</p>
+                      <p className="text-xs text-orange-500 font-semibold">{t("debt", { amount: (c.balance as number).toLocaleString() })}</p>
                     )}
                   </div>
                 </div>
@@ -249,12 +257,14 @@ function DetailModal({ type, data, onClose }: {
           {/* עבודות מתוכננות */}
           {type === "jobs" && (
             jobs.length === 0
-              ? <p className="text-center text-gray-400 py-10">אין עבודות מתוכננות</p>
+              ? <p className="text-center text-gray-400 py-10">{t("noPlannedJobs")}</p>
               : jobs.map((j, i) => {
                 const today = new Date().toISOString().split("T")[0];
                 const jobDate = (j.job_date ?? j.date ?? "") as string;
                 const isToday = jobDate === today;
-                const st = statusLabels[(j.status as string)] ?? { label: j.status as string, color: "bg-gray-100 text-gray-600" };
+                const stMeta = statusMeta[(j.status as string)];
+                const stLabel = stMeta ? t(stMeta.labelKey) : (j.status as string);
+                const stColor = stMeta?.color ?? "bg-gray-100 text-gray-600";
                 return (
                   <div key={i} className={`p-3 rounded-xl border ${isToday ? "border-green-200 bg-green-50/40" : "border-gray-100 bg-gray-50"}`}>
                     <div className="flex items-start justify-between gap-2">
@@ -262,14 +272,14 @@ function DetailModal({ type, data, onClose }: {
                         <p className="text-sm font-semibold text-gray-800">{(j.customer_name ?? j.customerName) as string}</p>
                         <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                           <Clock size={10} />
-                          {isToday ? "היום" : jobDate.slice(5).replace("-", "/")} · {(j.job_time ?? j.time ?? "") as string}
+                          {isToday ? t("today") : jobDate.slice(5).replace("-", "/")} · {(j.job_time ?? j.time ?? "") as string}
                           {j.type ? ` · ${j.type}` : ""}
                         </p>
                         {!!j.notes && <p className="text-xs text-gray-400 mt-0.5">{String(j.notes)}</p>}
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <span className="text-sm font-bold text-green-700">₪{((j.price as number)||0).toLocaleString()}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>{st.label}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stColor}`}>{stLabel}</span>
                       </div>
                     </div>
                   </div>
@@ -280,7 +290,7 @@ function DetailModal({ type, data, onClose }: {
           {/* יתרות פתוחות */}
           {type === "balance" && (
             openBalanceItems.length === 0
-              ? <p className="text-center text-gray-400 py-10 text-sm">🎉 הכל שולם! אין יתרות פתוחות</p>
+              ? <p className="text-center text-gray-400 py-10 text-sm">{t("allPaidLong")}</p>
               : openBalanceItems.map((item, i) => (
                   <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
                     <div>
@@ -289,11 +299,11 @@ function DetailModal({ type, data, onClose }: {
                         <a href={`https://wa.me/972${item.phone.replace(/^0/, "")}`}
                           target="_blank" rel="noreferrer"
                           className="text-xs text-green-600 flex items-center gap-1 mt-0.5">
-                          💬 שלח תזכורת בוואטסאפ
+                          {t("sendWhatsappReminder")}
                         </a>
                       )}
                     </div>
-                    <span className="text-orange-600 font-bold text-base">₪{item.balance.toLocaleString("he-IL")}</span>
+                    <span className="text-orange-600 font-bold text-base">₪{item.balance.toLocaleString(LOCALE_TAGS[locale])}</span>
                   </div>
                 ))
           )}
@@ -302,17 +312,17 @@ function DetailModal({ type, data, onClose }: {
         {/* Summary footer */}
         {type === "income" && transactions.length > 0 && (
           <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 flex justify-between items-center">
-            <span className="text-sm text-gray-500">{transactions.length} עסקאות</span>
+            <span className="text-sm text-gray-500">{t("transactionsCount", { count: transactions.length })}</span>
             <span className="text-base font-bold text-green-600">
-              סה"כ ₪{transactions.reduce((s, t) => s + ((t.amount as number)||0), 0).toLocaleString()}
+              {t("total", { amount: transactions.reduce((s, tx) => s + ((tx.amount as number)||0), 0).toLocaleString() })}
             </span>
           </div>
         )}
         {type === "balance" && openBalanceItems.length > 0 && (
           <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0 flex justify-between items-center">
-            <span className="text-sm text-gray-500">{openBalanceItems.length} לקוחות</span>
+            <span className="text-sm text-gray-500">{t("customersCount", { count: openBalanceItems.length })}</span>
             <span className="text-base font-bold text-orange-600">
-              סה"כ ₪{openBalanceItems.reduce((s, c) => s + c.balance, 0).toLocaleString("he-IL")}
+              {t("total", { amount: openBalanceItems.reduce((s, c) => s + c.balance, 0).toLocaleString(LOCALE_TAGS[locale]) })}
             </span>
           </div>
         )}
@@ -325,14 +335,14 @@ function DetailModal({ type, data, onClose }: {
 // Custom Tooltip for BarChart
 // ───────────────────────────────────────────────
 
-function CustomBarTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) {
+function CustomBarTooltip({ active, payload, label, dir, t }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string; dir: "rtl" | "ltr"; t: ReturnType<typeof useTranslations> }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-lg p-3 text-sm" dir="rtl">
+    <div className="bg-white border border-gray-100 rounded-xl shadow-lg p-3 text-sm" dir={dir}>
       <p className="font-semibold text-gray-700 mb-1">{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ color: i === 0 ? "#16a34a" : "#f97316" }}>
-          {i === 0 ? "הכנסות" : "הוצאות"}: ₪{p.value.toLocaleString()}
+          {i === 0 ? t("chartIncomeLegend") : t("chartExpenseLegend")}: ₪{p.value.toLocaleString()}
         </p>
       ))}
     </div>
@@ -374,7 +384,11 @@ function getWeatherEmoji(code: number): string {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState({ monthlyIncome: 0, monthlyIncomeMomPct: 0 as number | null, activeCustomers: 0, openBalance: 0, todayJobs: 0, debtorsSub: "טוען..." });
+  const t = useTranslations("dashboard");
+  const tc = useTranslations("common");
+  const locale = useLocale() as Locale;
+  const dir = getDirection(locale);
+  const [stats, setStats] = useState({ monthlyIncome: 0, monthlyIncomeMomPct: 0 as number | null, activeCustomers: 0, openBalance: 0, todayJobs: 0, debtorsSub: "" });
   const [recentJobs, setRecentJobs] = useState<Record<string, unknown>[]>([]);
   const [chartData, setChartData] = useState<{month: string; income: number; expense: number}[]>([]);
   const [chartTotals, setChartTotals] = useState({ totalIncome: 0, totalExpense: 0, netProfit: 0 });
@@ -778,7 +792,7 @@ export default function DashboardPage() {
         todayJobs: jobs.filter((j: Record<string, unknown>) =>
           j.job_date === today && j.status !== "completed" && j.status !== "cancelled",
         ).length,
-        debtorsSub: debtors || "אין חובות פתוחים",
+        debtorsSub: debtors || t("noOpenDebts"),
       });
       // Upcoming jobs widget — hide completed/cancelled so finished work
       // doesn't keep cluttering the "what's next" list.
@@ -853,8 +867,8 @@ export default function DashboardPage() {
   const dayProgress = todaySnap.total > 0 ? Math.round((todaySnap.done / todaySnap.total) * 100) : 0;
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#F7F8FA]">
-      <Header title="דשבורד" subtitle="סקירה כללית של העסק" />
+    <div dir={dir} className="min-h-screen bg-[#F7F8FA]">
+      <Header title={t("title")} subtitle={t("subtitle")} />
 
       {/* First-run onboarding — only shows for users with zero customers */}
       {userId && <OnboardingFlow userId={userId} ownerName={userName} />}
@@ -870,10 +884,10 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 sm:px-5 py-3">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
-              שלום {userName || "👋"}
+              {userName ? t("greeting", { name: userName }) : "👋"}
             </h1>
             <span className="text-gray-300">·</span>
-            <p className="text-xs sm:text-sm text-gray-500">{hebrewDate()}</p>
+            <p className="text-xs sm:text-sm text-gray-500">{localizedDate(locale)}</p>
             {weather && (
               <>
                 <span className="text-gray-300">·</span>
@@ -887,14 +901,14 @@ export default function DashboardPage() {
               <>
                 <span className="text-gray-300">·</span>
                 <p className="text-xs sm:text-sm text-emerald-700 font-semibold">
-                  {todaySnap.done}/{todaySnap.total} הושלמו
+                  {t("jobsDoneOfTotal", { done: todaySnap.done, total: todaySnap.total })}
                 </p>
               </>
             )}
             {!loading && todaySnap.total === 0 && (
               <>
                 <span className="text-gray-300">·</span>
-                <p className="text-xs sm:text-sm text-gray-500">🌱 אין עבודות היום</p>
+                <p className="text-xs sm:text-sm text-gray-500">{t("noJobsToday")}</p>
               </>
             )}
           </div>
@@ -1138,38 +1152,40 @@ export default function DashboardPage() {
           <KpiCard
             icon={<TrendingUp size={18} className="text-green-600" />}
             iconBg="bg-green-50"
-            label="הכנסה החודש"
-            value={`₪${stats.monthlyIncome.toLocaleString("he-IL")}`}
+            label={t("kpiIncome")}
+            value={`₪${stats.monthlyIncome.toLocaleString(LOCALE_TAGS[locale])}`}
             trend={stats.monthlyIncomeMomPct !== null ? `${stats.monthlyIncomeMomPct >= 0 ? "+" : ""}${stats.monthlyIncomeMomPct}%` : ""}
             trendColor={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? "text-green-600" : "text-red-500"}
             trendIcon={(stats.monthlyIncomeMomPct ?? 0) >= 0 ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-            sub="לחץ לפירוט העסקאות"
+            sub={t("kpiIncomeSub")}
             onClick={() => setModal("income")}
           />
           <KpiCard
             icon={<Users size={18} className="text-blue-600" />}
             iconBg="bg-blue-50"
-            label="לקוחות פעילים"
+            label={t("kpiCustomers")}
             value={String(stats.activeCustomers)}
             trend=""
             trendColor="text-blue-600"
-            sub="לחץ לרשימת הלקוחות"
+            sub={t("kpiCustomersSub")}
             onClick={() => setModal("customers")}
           />
           <KpiCard
             icon={<Briefcase size={18} className="text-purple-600" />}
             iconBg="bg-purple-50"
-            label="עבודות מתוכננות"
+            label={t("kpiJobs")}
             value={String(stats.todayJobs)}
             trend=""
             trendColor="text-purple-600"
-            sub="היום ועבודות הבאות"
+            sub={t("kpiJobsSub")}
             onClick={() => setModal("jobs")}
           />
           <DebtorsCard
             items={(modalData.openBalanceItems as { name: string; balance: number }[]) ?? []}
             total={stats.openBalance}
             onClick={() => setModal("balance")}
+            locale={locale}
+            t={t}
           />
           </>)}
         </div>
@@ -1184,6 +1200,10 @@ export default function DashboardPage() {
             openBalanceItems: modalData.openBalanceItems,
           }}
           onClose={() => setModal(null)}
+          locale={locale}
+          dir={dir}
+          t={t}
+          tc={tc}
         />
 
         {/* ── Main Row: Chart + Today's Jobs ──
@@ -1198,17 +1218,17 @@ export default function DashboardPage() {
           <div className="order-2 lg:order-1 lg:col-span-3 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-base font-bold text-gray-900">הכנסות מול הוצאות</h2>
-                <p className="text-xs text-gray-400 mt-0.5">6 חודשים אחרונים</p>
+                <h2 className="text-base font-bold text-gray-900">{t("incomeVsExpense")}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{t("last6Months")}</p>
               </div>
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
-                  הכנסות
+                  {t("chartIncomeLegend")}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-orange-400 inline-block" />
-                  הוצאות
+                  {t("chartExpenseLegend")}
                 </span>
               </div>
             </div>
@@ -1231,7 +1251,7 @@ export default function DashboardPage() {
                     tickFormatter={(v) => `₪${(v / 1000).toFixed(0)}k`}
                     width={46}
                   />
-                  <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "#f8fafc" }} />
+                  <Tooltip content={<CustomBarTooltip dir={dir} t={t} />} cursor={{ fill: "#f8fafc" }} />
                   <Bar dataKey="income" fill="#22c55e" radius={[5, 5, 0, 0]} maxBarSize={36} />
                   <Bar dataKey="expense" fill="#fb923c" radius={[5, 5, 0, 0]} maxBarSize={36} />
                 </BarChart>
@@ -1241,9 +1261,9 @@ export default function DashboardPage() {
             {/* Summary row */}
             <div className="mt-4 grid grid-cols-3 gap-3 border-t border-gray-50 pt-4">
               {[
-                { label: "סה״כ הכנסות", value: `₪${chartTotals.totalIncome.toLocaleString("he-IL")}`, color: "text-green-600" },
-                { label: "סה״כ הוצאות", value: `₪${chartTotals.totalExpense.toLocaleString("he-IL")}`, color: "text-orange-500" },
-                { label: chartTotals.netProfit < 0 ? "הפסד (הכנסות − הוצאות)" : "רווח (הכנסות − הוצאות)", value: `₪${chartTotals.netProfit.toLocaleString("he-IL")}`, color: chartTotals.netProfit < 0 ? "text-red-600" : "text-blue-600" },
+                { label: t("totalIncome"), value: `₪${chartTotals.totalIncome.toLocaleString(LOCALE_TAGS[locale])}`, color: "text-green-600" },
+                { label: t("totalExpense"), value: `₪${chartTotals.totalExpense.toLocaleString(LOCALE_TAGS[locale])}`, color: "text-orange-500" },
+                { label: chartTotals.netProfit < 0 ? t("loss") : t("profit"), value: `₪${chartTotals.netProfit.toLocaleString(LOCALE_TAGS[locale])}`, color: chartTotals.netProfit < 0 ? "text-red-600" : "text-blue-600" },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
@@ -1257,25 +1277,27 @@ export default function DashboardPage() {
           <div className="order-1 lg:order-2 lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100 flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-base font-bold text-gray-900">עבודות קרובות</h2>
-                <p className="text-xs text-gray-400 mt-0.5">היום ועבודות הבאות</p>
+                <h2 className="text-base font-bold text-gray-900">{t("upcomingJobs")}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{t("todayAndUpcoming")}</p>
               </div>
               <span className="bg-green-50 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">
-                {recentJobs.length} עבודות
+                {t("jobsCount", { count: recentJobs.length })}
               </span>
             </div>
 
             <div className="space-y-3 flex-1 overflow-y-auto">
               {loading && <SkeletonList rows={3} />}
               {recentJobs.length === 0 && !loading && (
-                <div className="text-center py-8 text-gray-400 text-sm">אין עבודות קרובות</div>
+                <div className="text-center py-8 text-gray-400 text-sm">{t("noUpcomingJobs")}</div>
               )}
               {!loading && recentJobs.map((job) => {
                 const j = job as Record<string, unknown>;
                 const jobDate = (j.job_date ?? j.date ?? "") as string;
                 const today = new Date().toISOString().split("T")[0];
                 const isToday = jobDate === today;
-                const st = statusLabels[(j.status as string)] ?? { label: j.status as string, color: "bg-gray-100 text-gray-600" };
+                const stMeta = statusMeta[(j.status as string)];
+                const stLabel = stMeta ? t(stMeta.labelKey) : (j.status as string);
+                const stColor = stMeta?.color ?? "bg-gray-100 text-gray-600";
                 return (
                   <div
                     key={j.id as string}
@@ -1291,7 +1313,7 @@ export default function DashboardPage() {
                         </div>
                         <p className="text-xs text-gray-500 flex items-center gap-1">
                           <Clock size={10} className="flex-shrink-0" />
-                          {isToday ? "היום" : jobDate.slice(5).replace("-", "/")} · {(j.job_time ?? j.time ?? "") as string}
+                          {isToday ? t("today") : jobDate.slice(5).replace("-", "/")} · {(j.job_time ?? j.time ?? "") as string}
                         </p>
                         <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                           <Leaf size={10} className="flex-shrink-0 text-green-500" />
@@ -1300,7 +1322,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                         <span className="text-sm font-bold text-green-700">₪{((j.price as number) || 0).toLocaleString()}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.color}`}>{st.label}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stColor}`}>{stLabel}</span>
                       </div>
                     </div>
                   </div>
@@ -1323,8 +1345,8 @@ export default function DashboardPage() {
                 <Leaf size={16} className="text-blue-600" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-gray-900">פעולות מהירות</h2>
-                <p className="text-xs text-gray-400">קיצורי דרך שימושיים</p>
+                <h2 className="text-sm font-bold text-gray-900">{t("quickActions")}</h2>
+                <p className="text-xs text-gray-400">{t("usefulShortcuts")}</p>
               </div>
             </div>
 
@@ -1332,28 +1354,28 @@ export default function DashboardPage() {
               {[
                 {
                   icon: <UserPlus size={18} className="text-green-600" />,
-                  label: "לקוח חדש",
+                  label: t("newCustomer"),
                   bg: "bg-green-50 hover:bg-green-100 border-green-100",
                   text: "text-green-700",
                   href: "/customers",
                 },
                 {
                   icon: <CalendarPlus size={18} className="text-blue-600" />,
-                  label: "קבע עבודה",
+                  label: t("scheduleJob"),
                   bg: "bg-blue-50 hover:bg-blue-100 border-blue-100",
                   text: "text-blue-700",
                   href: "/schedule",
                 },
                 {
                   icon: <MessageSquare size={18} className="text-purple-600" />,
-                  label: "עובדים",
+                  label: t("employees"),
                   bg: "bg-purple-50 hover:bg-purple-100 border-purple-100",
                   text: "text-purple-700",
                   href: "/employees",
                 },
                 {
                   icon: <FileText size={18} className="text-orange-500" />,
-                  label: "פיננסים",
+                  label: t("finance"),
                   bg: "bg-orange-50 hover:bg-orange-100 border-orange-100",
                   text: "text-orange-600",
                   href: "/finance",
@@ -1376,11 +1398,11 @@ export default function DashboardPage() {
             <div className="mt-5 pt-4 border-t border-gray-50 grid grid-cols-2 gap-3">
               <div className="text-center">
                 <p className="text-lg font-bold text-gray-900">{miniStats.activeEmployees}</p>
-                <p className="text-xs text-gray-400">עובדים פעילים</p>
+                <p className="text-xs text-gray-400">{t("activeEmployees")}</p>
               </div>
               <div className="text-center">
                 <p className="text-lg font-bold text-gray-900">{miniStats.activeProjects}</p>
-                <p className="text-xs text-gray-400">פרויקטים שוטפים</p>
+                <p className="text-xs text-gray-400">{t("activeProjects")}</p>
               </div>
             </div>
           </div>

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/react";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
 import Toaster from "@/components/Toaster";
+import { getDirection } from "@/lib/locale";
 
 // Viewport — kept separate from `metadata` per Next.js 14+ contract.
 // `viewportFit: "cover"` is REQUIRED for `env(safe-area-inset-*)` to
@@ -49,21 +52,30 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Locale is resolved server-side from the NEXT_LOCALE cookie (see
+  // i18n/request.ts) — no URL prefix, so this stays a single async read
+  // rather than a route-level restructure.
+  const locale = await getLocale();
+  const messages = await getMessages();
+  const dir = getDirection(locale as Parameters<typeof getDirection>[0]);
+
   return (
-    <html lang="he" dir="rtl" className="h-full">
+    <html lang={locale} dir={dir} className="h-full">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-full bg-slate-50">
-        <AuthGuard>{children}</AuthGuard>
-        <Toaster />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <AuthGuard>{children}</AuthGuard>
+          <Toaster />
+        </NextIntlClientProvider>
         {/* Vercel Web Analytics — page views + visitors, privacy-friendly
             (no cookies, no personal data). View in the Vercel dashboard
             under the project's "Analytics" tab. */}
