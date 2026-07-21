@@ -7,6 +7,14 @@ export default function SubscribeSuccessPage() {
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
+    // If this loaded inside the /subscribe payment iframe, promote
+    // ourselves to the top-level window first — otherwise the countdown
+    // below would navigate the tiny iframe to /dashboard instead of the
+    // whole app. See app/subscribe/cancelled/page.tsx for the same pattern.
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = window.location.href;
+      return;
+    }
     const timer = setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {

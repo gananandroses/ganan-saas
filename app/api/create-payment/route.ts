@@ -62,7 +62,10 @@ export async function POST() {
   form.append("description", "מנוי גנן Pro — מנוי חודשי");
   form.append("chargeType", "1");
   form.append("successUrl", `${baseUrl}/subscribe/success`);
-  form.append("cancelUrl", `${baseUrl}/subscribe`);
+  // Points at a small bridge page (not directly at /subscribe) because the
+  // payment page is now shown in an iframe on /subscribe — see
+  // app/subscribe/cancelled/page.tsx for why.
+  form.append("cancelUrl", `${baseUrl}/subscribe/cancelled`);
   // Server-to-server webhook — fires on every successful charge.
   form.append("notifyUrl", `${baseUrl}/api/meshulam-webhook`);
   // cField1 carries OUR Supabase user id so the first-payment webhook can

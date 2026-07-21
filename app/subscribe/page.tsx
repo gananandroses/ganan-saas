@@ -6,7 +6,7 @@ import BackButton from "@/components/BackButton";
 import { toast, confirmDialog } from "@/components/Toaster";
 import {
   Leaf, CheckCircle, Clock, CreditCard, Shield,
-  Loader2, LogOut, Star, Zap, Users, TrendingUp,
+  Loader2, LogOut, Star, Zap, Users, TrendingUp, X,
 } from "lucide-react";
 
 interface Subscription {
@@ -21,6 +21,9 @@ export default function SubscribePage() {
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [sub, setSub] = useState<Subscription | null>(null);
+  // Payment iframe (kept in-app instead of a full redirect to Meshulam).
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   // Trial is derived from the account creation date (same rule as the
   // middleware), so it stays correct even before any subscriptions row
@@ -58,10 +61,16 @@ export default function SubscribePage() {
       const res = await fetch("/api/create-payment", { method: "POST" });
       const { url, error } = await res.json();
       if (error || !url) throw new Error(error || "שגיאה ביצירת תשלום");
-      window.location.href = url;
+      // Open the payment page in an embedded iframe instead of leaving the
+      // app. successUrl/cancelUrl (set server-side) point back at our own
+      // /subscribe/success and /subscribe/cancelled pages, which break out
+      // of the iframe once the flow ends (see those pages for why).
+      setIframeLoading(true);
+      setPaymentUrl(url);
     } catch {
-      setLoading(false);
       toast.error("אירעה שגיאה, אנא נסה שוב");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -242,6 +251,32 @@ export default function SubscribePage() {
           </button>
         </div>
       </div>
+
+      {/* Embedded payment iframe */}
+      {paymentUrl && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" dir="rtl">
+          <div className="relative w-full max-w-lg h-[85vh] bg-white rounded-3xl overflow-hidden shadow-2xl">
+            <button
+              onClick={() => { setPaymentUrl(null); setIframeLoading(false); }}
+              className="absolute top-3 left-3 z-10 w-9 h-9 rounded-full bg-white/90 hover:bg-white shadow flex items-center justify-center text-gray-500"
+              aria-label="סגור"
+            >
+              <X size={18} />
+            </button>
+            {iframeLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white">
+                <Loader2 size={32} className="animate-spin text-green-600" />
+              </div>
+            )}
+            <iframe
+              src={paymentUrl}
+              onLoad={() => setIframeLoading(false)}
+              className="w-full h-full border-0"
+              title="תשלום מאובטח"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
