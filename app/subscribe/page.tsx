@@ -19,6 +19,7 @@ const TRIAL_DAYS = 7;
 
 export default function SubscribePage() {
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [sub, setSub] = useState<Subscription | null>(null);
   const [userEmail, setUserEmail] = useState("");
   // Trial is derived from the account creation date (same rule as the
@@ -61,6 +62,29 @@ export default function SubscribePage() {
     } catch {
       setLoading(false);
       toast.error("אירעה שגיאה, אנא נסה שוב");
+    }
+  }
+
+  async function handleCancelSubscription() {
+    const confirmed = await confirmDialog({
+      title: "לבטל את המנוי?",
+      description: "הגישה תישאר פעילה עד סוף התקופה ששולמה, ולאחר מכן לא תחויב שוב.",
+      confirmLabel: "בטל מנוי",
+      cancelLabel: "חזור",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setCancelling(true);
+    try {
+      const res = await fetch("/api/cancel-subscription", { method: "POST" });
+      const { error } = await res.json();
+      if (error) throw new Error(error);
+      toast.success("המנוי בוטל");
+      setSub((prev) => (prev ? { ...prev, status: "cancelled" } : prev));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "שגיאה בביטול המנוי");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -154,23 +178,40 @@ export default function SubscribePage() {
 
           {/* CTA */}
           <div className="px-8 pb-8 space-y-3">
-            <button
-              onClick={handleSubscribe}
-              disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 text-base shadow-md"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  מעביר לדף תשלום...
-                </>
-              ) : (
-                <>
-                  <CreditCard size={20} />
-                  הירשם עכשיו — ₪99/חודש
-                </>
-              )}
-            </button>
+            {hasActivePaid ? (
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelling}
+                className="w-full bg-white border border-red-200 hover:bg-red-50 disabled:opacity-60 text-red-600 font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 text-base"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    מבטל...
+                  </>
+                ) : (
+                  "בטל מנוי"
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleSubscribe}
+                disabled={loading}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 text-base shadow-md"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    מעביר לדף תשלום...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard size={20} />
+                    הירשם עכשיו — ₪99/חודש
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Trust badges */}
             <div className="flex items-center justify-center gap-4 pt-1">

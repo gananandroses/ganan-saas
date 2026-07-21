@@ -40,6 +40,12 @@ export async function POST(req: Request) {
     }
   }
 
+  // Log the raw payload once so we can confirm exact field names against
+  // Grow's docs the first time a real (sandbox) charge comes through.
+  // Safe to remove once confirmed — no secrets are logged here, only
+  // transaction metadata Grow itself sends us.
+  console.log("[meshulam-webhook] raw payload:", JSON.stringify(body));
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -52,6 +58,13 @@ export async function POST(req: Request) {
   const transactionId =
     (body.asmachta ?? body.transactionCode ?? body.transactionId) as string | undefined;
   const cField1 = body.cField1 as string | undefined;
+  // Needed later to cancel/pause the standing order via updateDirectDebit —
+  // that call requires transactionId + asmachta + transactionToken exactly
+  // as Grow returned them on the FIRST payment (not the merged fallback
+  // above, which is just for display/matching purposes).
+  const ddTransactionId = body.transactionId as string | number | undefined;
+  const asmachta = body.asmachta as string | number | undefined;
+  const transactionToken = body.transactionToken as string | undefined;
 
   try {
     // ── Case 3: failed recurring charge ──────────────────────────────────
@@ -82,6 +95,11 @@ export async function POST(req: Request) {
           meshulam_transaction_id: transactionId ?? null,
           meshulam_direct_debit_id: directDebitId ?? null,
           payer_email: payerEmail ? payerEmail.toLowerCase() : null,
+          // Stored so a later "cancel subscription" action can call
+          // Grow's updateDirectDebit with the exact identifiers it expects.
+          meshulam_dd_transaction_id: ddTransactionId != null ? String(ddTransactionId) : null,
+          meshulam_asmachta: asmachta != null ? String(asmachta) : null,
+          meshulam_transaction_token: transactionToken ?? null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "user_id" });
       if (error) {
